@@ -1,0 +1,370 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   TASARIM TOKEN'LARI (Tailwind v4 CSS-first config)
+   Marka kimligi revizyonu: derin lacivert (guven, teknoloji, "gece gokyuzu
+   HVAC kontrol paneli") + enerjik turuncu (isi/enerji, CTA, aktif durum).
+   Tum bilesenler brand, accent ve ink token gruplarini kullaniyor - buradaki
+   DEGERLERI degistirmek, kod tarafina dokunmadan butun urunu yeniden derilendiriyor.
+   ============================================================================ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Marka rengi: derin lacivert. 900 = ana marka rengi (#0B1F3A, sidebar/hero
+     yuzeyleri); 50-200 = acik yuzeylerde rozet/vurgu icin cok acik mavi tonlar
+     (#DCE8F5 = brand-100, brief'te verilen "acik mavi"). */
+  --color-brand-50: #f1f5fb;
+  --color-brand-100: #dce8f5;
+  --color-brand-200: #b7cee7;
+  --color-brand-500: #2c4a75;
+  --color-brand-600: #17304f;
+  --color-brand-700: #0f2645;
+  --color-brand-900: #0b1f3a;
+  --color-brand-950: #071426;
+
+  /* Vurgu rengi: turuncu (#F47C20) - CTA, aktif durum, secili oge, onemli
+     vurgu. Yaygin/duz kullanilmaz; sadece "burada bir eylem var" dedigi yerde. */
+  --color-accent-50: #fef2e7;
+  --color-accent-100: #fce0c2;
+  --color-accent-200: #f9c68e;
+  --color-accent-300: #ffab5c;
+  --color-accent-500: #f47c20;
+  --color-accent-600: #db6912;
+  --color-accent-700: #b3560f;
+  --color-accent-800: #9c3814;
+  --color-flame-hot: #ffb454;
+  --color-flame-ember: #d6440f;
+
+  --color-success-50: #edf7f1;
+  --color-success-100: #d3eedd;
+  --color-success-500: #2f8558;
+  --color-success-700: #1f6740;
+
+  --color-danger-50: #fbeeec;
+  --color-danger-100: #f5d6d0;
+  --color-danger-500: #c4432e;
+  --color-danger-700: #9b331f;
+
+  --color-warning-50: #fcf7e8;
+  --color-warning-100: #f7eac0;
+  --color-warning-500: #c99a2e;
+  --color-warning-700: #96721c;
+
+  /* Notr metin/yuzey olcegi - tam koyu lacivert tema (spec: "koyu laciverti
+     tamamen genislet, beyaz arka planli kisim kalmasin"). Skala anlami ayni
+     kaldi (900 = birincil metin, 50 = en yumusak yuzey dolgusu), sadece
+     acik/koyu yon tersine cevrildi; brand/accent gruplarina dokunulmadi. */
+  --color-ink-50: #142a4d;
+  --color-ink-100: #1c3358;
+  --color-ink-300: #3a5279;
+  --color-ink-400: #8a9ab5;
+  --color-ink-600: #b7c3d9;
+  --color-ink-900: #f8fafc;
+
+  --color-canvas: #081527;
+  --color-surface: #0e1f3a;
+  --color-line: rgba(255, 255, 255, 0.12);
+
+  /* Elevation - notr siyah yerine markaya yakin (lacivert) tonlu, cok hafif
+     golgeler; "premium SaaS" hissi icin duz Tailwind gray golgesinden daha
+     yumusak. shadow-elevated = kart hover, shadow-elevated-lg = acilir panel/modal/
+     surukleme sirasinda kaldirilan kart. shadow-glow-accent = turuncu CTA/aktif
+     oge vurgusu icin COK kontrollu ambient glow (neon degil). */
+  --shadow-elevated: 0 1px 2px rgba(11, 31, 58, 0.05), 0 6px 16px rgba(11, 31, 58, 0.08);
+  --shadow-elevated-lg: 0 8px 20px rgba(11, 31, 58, 0.10), 0 20px 44px rgba(11, 31, 58, 0.16);
+  /* Keskin/net degil, yayilmis-yumusak bir ambient glow (spec: "cok net
+     olmasin, hafif blur ile seyrelt"). */
+  --shadow-glow-accent: 0 2px 8px rgba(244, 124, 32, 0.16), 0 10px 32px rgba(244, 124, 32, 0.22);
+  --shadow-glow-accent-lg: 0 4px 14px rgba(244, 124, 32, 0.18), 0 16px 48px rgba(244, 124, 32, 0.28);
+
+  /* ==========================================================================
+     MERKEZI MOTION SYSTEM (motion design revizyonu)
+     Uc katmanli hiyerarsi (spec: "her sey ayni derecede hareketli olmasin"):
+       MICRO      100-150ms  hover / press / focus              -> ease-snappy
+       COMPONENT  150-220ms  card / badge / dropdown / modal     -> ease-premium
+       MAJOR      250-320ms  kanban drop-settle / sayfa icerigi  -> ease-settle
+     Bounce/overshoot YOK - ease-settle yumusak yavaslayan bir egri, sicrama
+     yapmiyor (spec md.3/21: "asiri bounce kesinlikle kullanma").
+     Tailwind kullanimi: duration-100..150 + ease-snappy (micro),
+     duration-150..220 + ease-premium (component), duration-250..300 +
+     ease-settle (major). Sure degerleri Tailwind'in varsayilan numerik
+     olcegiyle (duration-150 = 150ms) veriliyor, ayrica token gerekmiyor.
+     ========================================================================== */
+  --ease-snappy: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Mikro etkilesim animasyonlari - hizli, yumusak, "bounce" yok. Modal/panel
+     sureleri kasitli olarak kisa: kullanici "bekliyorum" hissine kapilmamali. */
+  --animate-fade-in: fade-in 140ms var(--ease-premium) both;
+  --animate-slide-up: slide-up 220ms var(--ease-premium) both;
+  --animate-scale-in: scale-in 130ms var(--ease-premium) both;
+  --animate-panel-in: panel-in 170ms var(--ease-premium) both;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Modal/panel girisi: opacity + hafif scale + hafif translate kombinasyonu
+   (spec md.8) - tek basina scale-in'den biraz daha "agirlikli" bir his verir. */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Satislar sayfasi "Aylik Satis Trendi" barlari - CSS transition kullanan eski
+   yontem hic calismiyordu: sayfa server component oldugu icin height degeri
+   ilk render'da SABIT yaziliyordu, sonradan client'ta hicbir sey degistirmedigi
+   icin "transition-all" tetiklenecek bir degisiklik hic olmuyordu (bildirilen
+   bug - animasyon hic oynamiyordu). @keyframes ile mount aninda TEK SEFERLIK
+   (infinite degil) oynayan bir animasyona cevrildi - JS/client component
+   gerekmez, --bar-h custom property her barin kendi hedef yuksekligini tasir. */
+@keyframes sales-bar-grow {
+  from {
+    height: 0%;
+  }
+  to {
+    height: var(--bar-h);
+  }
+}
+.sales-bar-grow {
+  height: var(--bar-h);
+  animation: sales-bar-grow 650ms var(--ease-settle) both;
+}
+
+/* ============================================================================
+   TEMEL STILLER
+   ============================================================================ */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Klavye ile gezinen kullanicilar icin gorunur odak halkasi (erisilebilirlik tabani). */
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+  transition: outline-offset 100ms var(--ease-snappy);
+}
+
+/* prefers-reduced-motion tercihine saygi duy. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Tablo hucrelerindeki rakamlarin hizali durmasi icin (dashboard/rapor sayilari). */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Kanban kaydirma alanlari (yatay kolon satiri + kolon ici dikey liste) icin
+   markaya uygun, koyu/yari-transparan scrollbar - varsayilan parlak beyaz
+   OS scrollbar'i yerine. Hover'da thumb hafifce belirginlesir. */
+.scrollbar-kanban {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+.scrollbar-kanban::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-kanban::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-kanban::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scrollbar-kanban:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+/* ============================================================================
+   HVAC BACKDROP (hero) - boru semasinda cok hafif "akis" hissi + vurgulu
+   vana dugumunun nefes almasi. Sadece intensity="hero" durumunda kullanilir
+   (dashboard/login) - ambient (liste sayfalari) zaten onaylanmis sade halini
+   koruyor, buraya dokunulmadi.
+   ============================================================================ */
+@keyframes hvac-flow {
+  to { stroke-dashoffset: -64; }
+}
+.hvac-flow {
+  animation: hvac-flow 3.2s linear infinite;
+}
+@keyframes hvac-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.18); }
+}
+.hvac-pulse {
+  animation: hvac-pulse 2.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Giris ekrani marka isareti icin yumusak "nefes alan" bir halka - HTML
+   ogesi (SVG fill-box gerektirmez), hvac-pulse ile ayni ritim ailesinden. */
+@keyframes mark-glow-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.12); }
+}
+.mark-glow-pulse {
+  animation: mark-glow-pulse 2.8s ease-in-out infinite;
+}
+
+/* ============================================================================
+   DIJITAL AJAN FIGURU - "sabit bir resim degil, aktif bir dijital sistem"
+   hissi (spec). Revizyon: kullanici ilk versiyonu "basit" buldu - genlik/hiz
+   yukseltildi, katmanli (govde sway + cekirdek nefes + goz flicker + ember +
+   LED) bir hareket sistemi kuruldu. Yine de: sicrama/donme/neon YOK, sadece
+   daha BELIRGIN yavas-organik hareket. prefers-reduced-motion kurali
+   yukarida zaten TUM animasyonlari kapsiyor.
+   ============================================================================ */
+@keyframes agent-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.09); opacity: 1; }
+}
+@keyframes agent-glow-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.06); }
+}
+@keyframes agent-rotate-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes agent-sway {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(0.7deg); }
+}
+@keyframes agent-eye-flicker {
+  0%, 100% { opacity: 0.7; }
+  45% { opacity: 1; }
+  55% { opacity: 0.55; }
+}
+@keyframes agent-ember-rise {
+  0% { transform: translateY(0) scale(0.5); opacity: 0; }
+  20% { opacity: 0.85; }
+  100% { transform: translateY(-42px) scale(1); opacity: 0; }
+}
+@keyframes agent-led-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes agent-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+@keyframes agent-peek-in {
+  0% { transform: translate(-26px, 34px) rotate(-9deg) scale(0.85); opacity: 0; }
+  60% { transform: translate(2px, -3px) rotate(2deg) scale(1.03); opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+}
+.agent-breathe {
+  animation: agent-breathe 3.2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.agent-glow-pulse {
+  animation: agent-glow-pulse 4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.agent-rotate-slow {
+  animation: agent-rotate-slow 60s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.agent-sway {
+  animation: agent-sway 3.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: bottom center;
+}
+.agent-eye-flicker {
+  animation: agent-eye-flicker 2.6s ease-in-out infinite;
+}
+.agent-ember {
+  animation: agent-ember-rise 3.4s ease-in infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.agent-led {
+  animation: agent-led-pulse 2.2s ease-in-out infinite;
+}
+.agent-blink {
+  animation: agent-blink 4.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.agent-peek-in {
+  animation: agent-peek-in 550ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-box: fill-box;
+}
+
+/* Loading skeleton (spec md.8): shimmer efektli notr blok. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-ink-100);
+  background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
