@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/badge";
-import { OverdueBadge } from "@/components/leads/lead-indicators";
+import { OverdueBadge, ContactedBadge } from "@/components/leads/lead-indicators";
 import { formatCurrency, formatRelativeTimeAgo } from "@/lib/utils";
 import type { LeadListItem } from "@/lib/data/leads";
 
@@ -46,6 +46,7 @@ export function OverdueTable({ leads }: { leads: LeadListItem[] }) {
                     >
                       {lead.first_name} {lead.last_name ?? ""}
                     </Link>
+                    {lead.last_contact_at ? <ContactedBadge /> : null}
                   </div>
                   <p className="mt-0.5 text-xs text-white/45">{lead.phone}</p>
                 </td>

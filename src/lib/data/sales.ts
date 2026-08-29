@@ -108,3 +108,76 @@ export async function getSalesStats(): Promise<SalesStats> {
     hasAnySale: totalSales > 0,
   };
 }
+
+export type SaleListItem = {
+  id: string;
+  saleAmount: number;
+  saleDate: string;
+  lead: {
+    id: string;
+    firstName: string;
+    lastName: string | null;
+    phone: string;
+    city: string | null;
+    productLabel: string | null;
+  } | null;
+  salespersonName: string | null;
+};
+
+/**
+ * Satışlar sayfasında SADECE toplam rakamlar degil, kime ne satildigi da
+ * gorunsun diye (spec: "adam kime ne sattığını görsün") - "sales" satirlarini
+ * ilgili lead'in adi/telefonu/urun ilgisiyle birlikte getirir. `sales.
+ * product_service` alani hicbir ekrandan hic doldurulmuyor (surekli bos) -
+ * "ne sattı" sorusuna lead'in kendi urun_kategorisi (Isı Pompası/VRF/Klima)
+ * ile, gercekten var olan veriyle cevap veriyoruz.
+ */
+export async function getSalesList(): Promise<SaleListItem[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("sales")
+    .select(
+      `id, sale_amount, sale_date,
+      lead:leads(id, first_name, last_name, phone, city, product_category:product_categories(label)),
+      salesperson_profile:profiles!sales_salesperson_fkey(full_name)`
+    )
+    .order("sale_date", { ascending: false });
+
+  if (error || !data) {
+    if (error) console.error("getSalesList error:", error.message);
+    return [];
+  }
+
+  type Row = {
+    id: string;
+    sale_amount: number;
+    sale_date: string;
+    lead: {
+      id: string;
+      first_name: string;
+      last_name: string | null;
+      phone: string;
+      city: string | null;
+      product_category: { label: string } | null;
+    } | null;
+    salesperson_profile: { full_name: string | null } | null;
+  };
+
+  return (data as unknown as Row[]).map((row) => ({
+    id: row.id,
+    saleAmount: Number(row.sale_amount),
+    saleDate: row.sale_date,
+    lead: row.lead
+      ? {
+          id: row.lead.id,
+          firstName: row.lead.first_name,
+          lastName: row.lead.last_name,
+          phone: row.lead.phone,
+          city: row.lead.city,
+          productLabel: row.lead.product_category?.label ?? null,
+        }
+      : null,
+    salespersonName: row.salesperson_profile?.full_name ?? null,
+  }));
+}

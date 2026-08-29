@@ -20,7 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { updateLeadStatusAction, upsertSaleAction } from "@/app/(dashboard)/leads/actions";
 import { LEAD_STATUS_ORDER, LEAD_STATUS_LABELS } from "@/lib/constants/lead";
 import { Button } from "@/components/ui/button";
-import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
+import { NewLeadBadge, OverdueBadge, ContactedBadge } from "@/components/leads/lead-indicators";
 import { cn, formatCurrency, isLeadNew, isLeadOverdue } from "@/lib/utils";
 import type { BoardLead } from "@/lib/data/leads";
 import type { LeadStatus } from "@/lib/types/domain";
@@ -37,6 +37,19 @@ const DROP_TRANSITION = { duration: 120, easing: "cubic-bezier(0.22, 1, 0.36, 1)
 function findContainer(board: BoardState, id: string): LeadStatus | undefined {
   if ((LEAD_STATUS_ORDER as string[]).includes(id)) return id as LeadStatus;
   return LEAD_STATUS_ORDER.find((status) => board[status].some((lead) => lead.id === id));
+}
+
+/**
+ * Durum degisince kart hedef kolonun EN USTUNE zipliyordu (bildirilen bug:
+ * "duzenleme yapildiginda ayni yerde kalsin, asagidan yukari cikmasin").
+ * Sunucu listeleri hep created_at DESC sirali (bkz. getLeadsForBoard) - kart
+ * buraya rastgele/en basa degil, ayni siraya denk gelecek sekilde eklenir,
+ * boylece sayfa yenilenince de goruntu degismez.
+ */
+function insertByCreatedAt(items: BoardLead[], lead: BoardLead): BoardLead[] {
+  const index = items.findIndex((item) => new Date(item.created_at).getTime() < new Date(lead.created_at).getTime());
+  if (index === -1) return [...items, lead];
+  return [...items.slice(0, index), lead, ...items.slice(index)];
 }
 
 type Density = "normal" | "compact";
@@ -85,11 +98,15 @@ function KanbanCard({
         isDragging && "opacity-0"
       )}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {showOverdue ? <OverdueBadge className={compact ? "px-1.5 py-0.5 text-[9px]" : undefined} /> : null}
-        <Link href={`/leads/${lead.id}`} className="truncate font-medium text-white transition-colors hover:text-accent-300">
+        <Link
+          href={`/leads/${lead.id}`}
+          className={cn("truncate font-medium text-white transition-colors hover:text-accent-300", status === "lost" && "lost-name")}
+        >
           {lead.first_name} {lead.last_name ?? ""}
         </Link>
+        {lead.last_contact_at ? <ContactedBadge className={compact ? "px-1.5 py-0.5 text-[9px]" : undefined} /> : null}
       </div>
       {showNew ? <NewLeadBadge className={cn("w-fit", compact && "px-1.5 py-0.5 text-[9px]")} /> : null}
       <p className={cn("truncate text-white/55", compact ? "text-[11px]" : "text-xs")}>
@@ -262,6 +279,11 @@ export function KanbanBoard({
   // dropdown'u ayni akisi kullanir (spec: "satışa sürüklediğimizde satış
   // miktarını soracak bi kutucuk gelsin, onu girince oraya yerleştirilsin").
   const [saleModal, setSaleModal] = useState<{ leadId: string; from: LeadStatus; name: string } | null>(null);
+  // "sales" rolu (canRecordSale=false) bir karti dogrudan "Satış"a suruklerse
+  // sunucu bunu reddeder (bkz. actions.ts updateLeadStatusAction guvenlik agi)
+  // ve kart eski koluna geri doner - kullaniciya NEDENINI gostermezsek sessizce
+  // "olmadi" gibi gorunur, kafa karistirir.
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -273,6 +295,7 @@ export function KanbanBoard({
   async function persistStatusChange(leadId: string, from: LeadStatus, to: LeadStatus) {
     const result = await updateLeadStatusAction(leadId, { status: to });
     if (result.error) {
+      setMoveError(result.error);
       // basarisiz oldu - karti eski kolonuna geri al
       setBoard((prev) => {
         const lead = prev[to].find((l) => l.id === leadId);
@@ -280,13 +303,14 @@ export function KanbanBoard({
         return {
           ...prev,
           [to]: prev[to].filter((l) => l.id !== leadId),
-          [from]: [{ ...lead, status: from }, ...prev[from]],
+          [from]: insertByCreatedAt(prev[from], { ...lead, status: from }),
         };
       });
     }
   }
 
   function handleDragStart(event: DragStartEvent) {
+    setMoveError(null);
     setActiveId(event.active.id as string);
     dragStartStatus.current = findContainer(board, event.active.id as string) ?? null;
   }
@@ -355,6 +379,7 @@ export function KanbanBoard({
 
   function handleQuickMove(leadId: string, from: LeadStatus, to: LeadStatus) {
     if (from === to) return;
+    setMoveError(null);
     if (to === "won" && canRecordSale) {
       // Board state'i henuz DEGISTIRMIYORUZ - tutar modali onaylanana kadar
       // kart oldugu kolonda kalir (bkz. handleSaleConfirm).
@@ -368,7 +393,7 @@ export function KanbanBoard({
       return {
         ...prev,
         [from]: prev[from].filter((l) => l.id !== leadId),
-        [to]: [{ ...lead, status: to }, ...prev[to]],
+        [to]: insertByCreatedAt(prev[to], { ...lead, status: to }),
       };
     });
     void persistStatusChange(leadId, from, to);
@@ -390,7 +415,7 @@ export function KanbanBoard({
       if (prev.won.some((l) => l.id === leadId)) return prev;
       const lead = prev[from].find((l) => l.id === leadId);
       if (!lead) return prev;
-      return { ...prev, [from]: prev[from].filter((l) => l.id !== leadId), won: [{ ...lead, status: "won" }, ...prev.won] };
+      return { ...prev, [from]: prev[from].filter((l) => l.id !== leadId), won: insertByCreatedAt(prev.won, { ...lead, status: "won" }) };
     });
     setSaleModal(null);
     return null;
@@ -404,13 +429,18 @@ export function KanbanBoard({
       if (!prev.won.some((l) => l.id === leadId)) return prev;
       const lead = prev.won.find((l) => l.id === leadId);
       if (!lead) return prev;
-      return { ...prev, won: prev.won.filter((l) => l.id !== leadId), [from]: [{ ...lead, status: from }, ...prev[from]] };
+      return { ...prev, won: prev.won.filter((l) => l.id !== leadId), [from]: insertByCreatedAt(prev[from], { ...lead, status: from }) };
     });
     setSaleModal(null);
   }
 
   return (
     <>
+      {moveError ? (
+        <p role="alert" className="animate-fade-in mb-3 rounded-lg border border-danger-500/30 bg-danger-500/10 px-3.5 py-2 text-xs font-medium text-[#ffb4a3]">
+          {moveError}
+        </p>
+      ) : null}
       <DndContext
         id="kanban-board"
         sensors={sensors}

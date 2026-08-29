@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Phone, Mail, MapPin, Clock, Tag, FileText, Home, CircleDollarSign } from "lucide-react";
 import { getLeadById, getLeadActivities, getAssignableProfiles, getSaleForLead } from "@/lib/data/leads";
+import { getSalespeople } from "@/lib/data/salespeople";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { AnimatedStatValue } from "@/components/ui/animated-number";
 import { StatusBadge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
-import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
+import { NewLeadBadge, OverdueBadge, ContactedBadge } from "@/components/leads/lead-indicators";
 import {
   PROPERTY_TYPE_LABELS,
   BUILDING_STATUS_LABELS,
@@ -18,7 +19,9 @@ import { formatCurrency, formatDate, formatDateTime, isLeadNew, isLeadOverdue } 
 import { MeetingOutcomeForm } from "@/components/leads/meeting-outcome-form";
 import { FollowupForm } from "@/components/leads/followup-panel";
 import { AssignPanel } from "@/components/leads/assign-panel";
+import { ContactedByPanel } from "@/components/leads/contacted-by-panel";
 import { SalePanel } from "@/components/leads/sale-panel";
+import { AgentNotePanel } from "@/components/leads/agent-note-panel";
 import type { PropertyType, BuildingStatus, HeatingType, PurchaseTimeline } from "@/lib/types/domain";
 
 function InfoItem({ label, value }: { label: string; value: string }) {
@@ -47,6 +50,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   const canAssign = profile?.role === "owner" || profile?.role === "admin";
   const assignableProfiles = canAssign && lead.company_id ? await getAssignableProfiles(lead.company_id) : [];
+  const salespeople = canAssign && lead.company_id ? await getSalespeople(lead.company_id) : [];
   // sales tablosu RLS geregi sadece owner/admin gorebilir ("ciro hassas veri") -
   // sales rolundeyken sorgu bile atilmiyor.
   const sale = canAssign ? await getSaleForLead(id) : null;
@@ -75,10 +79,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <div>
           <div className="flex flex-wrap items-center gap-2">
             {showOverdue ? <OverdueBadge /> : null}
-            <h1 className="text-xl font-semibold text-ink-900">
+            <h1 className={`text-xl font-semibold text-ink-900 ${lead.status === "lost" ? "lost-name" : ""}`}>
               {lead.first_name} {lead.last_name ?? ""}
             </h1>
             {showNew ? <NewLeadBadge /> : null}
+            {lead.last_contact_at ? <ContactedBadge /> : null}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-600">
             <span className="inline-flex items-center gap-1.5">
@@ -128,6 +133,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             Satış Personeli:{" "}
             <span className="font-medium text-ink-900">{lead.assigned_profile?.full_name ?? "Atanmadı"}</span>
           </p>
+          <p className="text-xs text-ink-600">
+            Görüşen Kişi:{" "}
+            <span className="font-medium text-ink-900">{lead.contacted_by_person?.full_name ?? "Belirtilmedi"}</span>
+          </p>
           <LinkButton href={`/leads/${id}/edit`} variant="secondary" className="mt-1">
             Düzenle
           </LinkButton>
@@ -136,6 +145,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5 lg:col-span-2">
+          {/* AJAN GÖRÜŞÜ - dogrudan gorunur, duzenlemeye girmeden okunup
+              guncellenebilir (spec: "düzenlemeye basmadan görmeyelim"). */}
+          <AgentNotePanel leadId={id} notes={lead.notes} />
+
           {/* YAPILAN SATIŞ - gercek satis tutari, "sales" tablosuna kaydedilir.
               Sadece owner/admin gorur/kaydeder (RLS: ciro hassas veri). */}
           {canAssign ? (
@@ -248,6 +261,20 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                   currentAssigned={lead.assigned_salesperson}
                   assignableProfiles={assignableProfiles}
                 />
+              </CardBody>
+            </Card>
+          ) : null}
+
+          {/* GÖRÜŞEN KİŞİ - firma sahibinin Firma Ayarları'ndan isim bazlı
+              tanımladığı kişi (spec: "leadle görüşen kişiyi seçebilelim") -
+              yukarıdaki gerçek hesap atamasından bilerek ayrı, bilgi amaçlı. */}
+          {canAssign ? (
+            <Card hoverable className="animate-slide-up">
+              <CardHeader>
+                <CardTitle>Görüşen Kişi</CardTitle>
+              </CardHeader>
+              <CardBody>
+                <ContactedByPanel leadId={id} currentContactedBy={lead.contacted_by} salespeople={salespeople} />
               </CardBody>
             </Card>
           ) : null}

@@ -16,14 +16,18 @@ import type {
  * yaparken Turkce karakter (I/i, ş, ğ vb.) kaynakli sorunlarla ugrasilmaz.
  */
 
-// Ana satis pipeline'i (sirali): Lead -> Arandi -> Kesif/Teklif -> Satis.
-// "On Teklif" ve "Ulasilamadi" asamalari kaldirildi (spec: kullanicida
-// gercek bir karsiligi olmadigi icin ayri tutulmuyor - bkz. migration
-// 0006/0007). Takip/Kayip ana hat disinda, ayri (yan) durumlardir; ana
-// hattan herhangi bir noktada bu ikisine gecilebilir.
+// Ana satis pipeline'i (sirali): Lead -> Kesif/Teklif -> Satis. "Arandi" artik
+// bir pipeline asamasi DEGIL (spec: "aradığımda arandı diyorum ama kayıp
+// olduğunda da arandı demem lazım, o yüzden arandı kısmını durum listesinden
+// kaldıralım, durumu değişen her müşteriye aynı arandı rozetini basalım") -
+// bunun yerine ContactedBadge (bkz. lead-indicators.tsx) her durum
+// degisikliginde otomatik gorunur, hangi asamada olursa olsun. "On Teklif"
+// ve "Ulasilamadi" asamalari da kaldirilmisti (spec: kullanicida gercek bir
+// karsiligi olmadigi icin ayri tutulmuyor - bkz. migration 0006/0007).
+// Takip/Kayip ana hat disinda, ayri (yan) durumlardir; ana hattan herhangi
+// bir noktada bu ikisine gecilebilir.
 export const LEAD_STATUS_ORDER: LeadStatus[] = [
   "new",
-  "called",
   "discovery_offer",
   "won",
   "followup",
@@ -32,7 +36,6 @@ export const LEAD_STATUS_ORDER: LeadStatus[] = [
 
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   new: "Lead",
-  called: "Arandı",
   discovery_offer: "Keşif/Teklif",
   won: "Satış",
   followup: "Takip",
@@ -42,7 +45,6 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
 /** Kanban/durum rozetlerinde kullanilacak renk tonu (bkz. globals.css @theme). */
 export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = {
   new: "brand",
-  called: "brand",
   discovery_offer: "accent",
   won: "success",
   followup: "warning",

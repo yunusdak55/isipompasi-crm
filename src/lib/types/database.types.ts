@@ -121,9 +121,9 @@ export type Database = {
           source: string | null;
           source_campaign: string | null;
           assigned_salesperson: string | null;
+          contacted_by: string | null;
           status:
             | "new"
-            | "called"
             | "discovery_offer"
             | "won"
             | "followup"
@@ -160,6 +160,7 @@ export type Database = {
           source?: string | null;
           source_campaign?: string | null;
           assigned_salesperson?: string | null;
+          contacted_by?: string | null;
           status?: Database["public"]["Tables"]["leads"]["Row"]["status"];
           priority?: Database["public"]["Tables"]["leads"]["Row"]["priority"];
           notes?: string | null;
@@ -189,6 +190,42 @@ export type Database = {
             foreignKeyName: "leads_product_category_id_fkey";
             columns: ["product_category_id"];
             referencedRelation: "product_categories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "leads_contacted_by_fkey";
+            columns: ["contacted_by"];
+            referencedRelation: "salespeople";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      salespeople: {
+        Row: {
+          id: string;
+          company_id: string;
+          full_name: string;
+          is_active: boolean;
+          is_owner: boolean;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          full_name: string;
+          is_active?: boolean;
+          is_owner?: boolean;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["salespeople"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "salespeople_company_id_fkey";
+            columns: ["company_id"];
+            referencedRelation: "companies";
             referencedColumns: ["id"];
           },
         ];

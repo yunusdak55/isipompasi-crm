@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export type CompanyActionState = { error: string | null };
 
@@ -49,10 +48,14 @@ export async function updateCompanyAction(
 }
 
 // ----------------------------------------------------------------------------
-// Satis Personeli yonetimi: firma sahibi kendi firmasi icin dogrudan giris
-// hesabi olusturabilir/kaldirabilir (spec: "orada duzenledigi kisi otomatik
-// kayit olsun, kaldirdigi kisi sistemden silinsin"). Sadece "sales" rolu -
-// owner/admin hesaplari buradan olusturulamaz/silinemez.
+// Satis Personeli (ISIM BAZLI, giris hesabi DEGIL): firma sahiplerinin artik
+// hicbir hesap olusturma yetkisi yok (spec: "Firma sahipleri herhangi bir
+// hesap oluşturma yetkisine SAHİP OLMASIN!") - eskiden burada auth.users'a
+// gercek bir email/sifre hesabi acan createSalespersonAction/
+// deleteSalespersonAction vardi, TAMAMEN KALDIRILDI. Gercek "sales" rolu
+// hesaplari artik SADECE /admin panelinden (ajans) acilabiliyor - bkz.
+// supabase/migrations/0016_salespeople_roster.sql'deki aciklama. Burada
+// sadece bilgi amacli, giris yapamayan bir isim listesi yonetiliyor.
 // ----------------------------------------------------------------------------
 
 export type CreateSalespersonState = { error: string | null };
@@ -62,28 +65,22 @@ export async function createSalespersonAction(
   formData: FormData
 ): Promise<CreateSalespersonState> {
   const profile = await requireProfile();
-  if (profile.role === "sales") return { error: "Bu işlem için yetkiniz yok." };
+  if (profile.role !== "owner") return { error: "Bu işlem için yetkiniz yok." };
   if (!profile.company_id) return { error: "Hesabınıza bağlı bir firma yok." };
 
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
   const fullName = String(formData.get("full_name") ?? "").trim();
-
-  if (!email || !password) return { error: "E-posta ve şifre zorunludur." };
-  if (password.length < 8) return { error: "Şifre en az 8 karakter olmalıdır." };
   if (!fullName) return { error: "Ad soyad zorunludur." };
 
-  const adminClient = createAdminClient();
-  const { error } = await adminClient.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: fullName, role: "sales", company_id: profile.company_id },
+  const supabase = await createClient();
+  const { error } = await supabase.from("salespeople").insert({
+    company_id: profile.company_id,
+    full_name: fullName,
+    created_by: profile.id,
   });
 
   if (error) {
     console.error("createSalespersonAction error:", error.message);
-    return { error: `Kullanıcı oluşturulamadı: ${error.message}` };
+    return { error: `Eklenemedi: ${error.message}` };
   }
 
   revalidatePath("/settings");
@@ -93,27 +90,31 @@ export async function createSalespersonAction(
 export type DeleteSalespersonState = { error: string | null };
 
 export async function deleteSalespersonAction(
-  userId: string,
+  salespersonId: string,
   prevState: DeleteSalespersonState
 ): Promise<DeleteSalespersonState> {
   const profile = await requireProfile();
-  if (profile.role === "sales") return { error: "Bu işlem için yetkiniz yok." };
+  if (profile.role !== "owner") return { error: "Bu işlem için yetkiniz yok." };
 
   const supabase = await createClient();
   const { data: target, error: fetchError } = await supabase
-    .from("profiles")
-    .select("id, role, company_id")
-    .eq("id", userId)
+    .from("salespeople")
+    .select("id, company_id, is_owner")
+    .eq("id", salespersonId)
     .single();
 
-  if (fetchError || !target) return { error: "Kullanıcı bulunamadı." };
-  if (target.role !== "sales") return { error: "Sadece satış personeli kaldırılabilir." };
-  if (profile.role === "owner" && target.company_id !== profile.company_id) {
-    return { error: "Bu kullanıcıyı kaldırma yetkiniz yok." };
+  if (fetchError || !target) return { error: "Kayıt bulunamadı." };
+  if (target.company_id !== profile.company_id) {
+    return { error: "Bu kaydı kaldırma yetkiniz yok." };
+  }
+  // Firma sahibinin kendi satirini (bkz. ensureOwnerSalesperson) UI'da zaten
+  // gizliyoruz (silme butonu gosterilmiyor) - ama dogrudan cagrilirsa diye
+  // sunucu tarafinda da kapatiyoruz.
+  if (target.is_owner) {
+    return { error: "Firma sahibi kaydı kaldırılamaz." };
   }
 
-  const adminClient = createAdminClient();
-  const { error } = await adminClient.auth.admin.deleteUser(userId);
+  const { error } = await supabase.from("salespeople").delete().eq("id", salespersonId);
 
   if (error) {
     console.error("deleteSalespersonAction error:", error.message);

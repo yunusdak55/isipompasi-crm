@@ -4,7 +4,7 @@ import { OVERDUE_HOURS } from "@/lib/utils";
 import type { LeadPriority, LeadStatus } from "@/lib/types/domain";
 
 /** ILIKE joker karakterlerini ve .or() sozdizimini bozabilecek karakterleri temizler. */
-function sanitizeSearchTerm(term: string) {
+export function sanitizeSearchTerm(term: string) {
   return term.replace(/[,()%_]/g, " ").trim();
 }
 
@@ -77,6 +77,7 @@ export async function getLeadById(id: string) {
     .select(
       `*,
       assigned_profile:profiles!leads_assigned_salesperson_fkey(id, full_name),
+      contacted_by_person:salespeople!leads_contacted_by_fkey(id, full_name),
       product_category:product_categories(id, label)`
     )
     .eq("id", id)

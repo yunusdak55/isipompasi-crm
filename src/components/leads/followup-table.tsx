@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/badge";
-import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
+import { NewLeadBadge, OverdueBadge, TodayCallBadge, ContactedBadge } from "@/components/leads/lead-indicators";
 import { formatCurrency, formatRelativeDays, formatRelativeTimeAgo, isLeadNew, isLeadOverdue } from "@/lib/utils";
 import type { LeadListItem } from "@/lib/data/leads";
 
@@ -32,6 +32,7 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
           {leads.map((lead, index) => {
             const followupLabel = formatRelativeDays(lead.next_followup_at);
             const followupOverdue = Boolean(followupLabel?.includes("gecikti"));
+            const followupToday = followupLabel === "Bugün";
             const lastContactLabel = formatRelativeTimeAgo(lead.last_contact_at);
             const showNew = isLeadNew(lead.status);
             const showOverdue = isLeadOverdue({
@@ -44,7 +45,9 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
             return (
               <tr
                 key={lead.id}
-                className="group animate-slide-up transition-all duration-150 ease-snappy hover:bg-white/[0.05] hover:shadow-[inset_2px_0_0_0_var(--color-accent-500)]"
+                className={`group animate-slide-up transition-all duration-150 ease-snappy hover:bg-white/[0.05] hover:shadow-[inset_2px_0_0_0_var(--color-accent-500)] ${
+                  followupToday ? "bg-accent-500/[0.07] shadow-[inset_2px_0_0_0_var(--color-accent-500)]" : ""
+                }`}
                 style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
               >
                 <td className="px-4 py-3.5">
@@ -57,11 +60,12 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
                       {lead.first_name} {lead.last_name ?? ""}
                     </Link>
                     {showNew ? <NewLeadBadge /> : null}
+                    {lead.last_contact_at ? <ContactedBadge /> : null}
                   </div>
                   <p className="mt-0.5 text-xs text-white/45">{lead.phone}</p>
                 </td>
                 <td className={`px-4 py-3.5 font-medium ${followupOverdue ? "text-[#ffb4a3]" : "text-white"}`}>
-                  {followupLabel ?? "—"}
+                  {followupToday ? <TodayCallBadge /> : (followupLabel ?? "—")}
                   {lead.next_followup_note ? (
                     <p className="mt-0.5 text-xs font-normal text-white/50">{lead.next_followup_note}</p>
                   ) : null}

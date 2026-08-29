@@ -26,33 +26,61 @@ export function MeetingOutcomeForm({ leadId, currentStatus }: { leadId: string; 
   const boundAction = logMeetingOutcomeAction.bind(null, leadId);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
   const justSaved = useSaveFeedback(isPending, state.error);
-  const formRef = useRef<HTMLFormElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
 
+  // SADECE not alanini temizliyoruz - eskiden formRef.current?.reset() TUM
+  // formu (durum secimini de) sifirliyordu, bu da az once secilen durumun
+  // "— Değiştirme —"ye geri donmus gibi gorunmesine yol aciyordu (bildirilen
+  // bug: "Merve'yi teklif olarak seçtim ama değiştirme kısmına tekrar
+  // düşüyor" - kayit aslinda basariyla oluyordu, sadece secim gorsel olarak
+  // sifirlaniyordu). Durum secimi kaydedilen degeri gostermeye devam eder.
   useEffect(() => {
-    if (justSaved) formRef.current?.reset();
+    if (justSaved && noteRef.current) noteRef.current.value = "";
   }, [justSaved]);
 
+  const isWon = currentStatus === "won";
+
   return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-3">
+    <form action={formAction} className="flex flex-col gap-3">
       <label className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-ink-600">Yeni Durum (değişmediyse boş bırakın)</span>
-        <select name="status" defaultValue="" className={fieldClass}>
-          <option value="">— Değiştirme —</option>
-          {LEAD_STATUS_ORDER.filter((s) => s !== "won").map((s) => (
-            <option key={s} value={s}>
-              {LEAD_STATUS_LABELS[s]}
-              {s === currentStatus ? " (mevcut)" : ""}
-            </option>
-          ))}
-        </select>
-        <span className="text-[11px] text-ink-400">
-          Satış tutarını girmek için Kanban&apos;da &quot;Satış&quot; kolonuna taşıyın — tutar oradan kaydedilir.
-        </span>
+        <span className="text-xs font-medium text-ink-600">Potansiyel Müşterinin Durumu</span>
+        {isWon ? (
+          <>
+            {/* Satis zaten Kanban'daki tutar akisiyla kaydedildi - burada
+                yanlislikla "Lead"e geri dusurulmesin diye secim kapatilir. */}
+            <input type="hidden" name="status" value="" />
+            <div className={cn(fieldClass, "cursor-not-allowed text-ink-400")}>Satış — durum burada değiştirilemez</div>
+          </>
+        ) : (
+          // key={currentStatus}: React, "select"in secili degerini defaultValue
+          // prop'undan sadece MOUNT aninda degil, HER re-render'da yeniden
+          // hesaplar (input/textarea'nin aksine, bu React'in bilinen bir
+          // ozelligi) - form kaydedilip sayfa henuz sunucudan taze veriyi
+          // almadan araya giren bir re-render, kullanicinin az once sectigi
+          // degeri ESKI currentStatus'a geri dusurebiliyordu (bildirilen bug:
+          // "Keşif seçtim ama tekrar Lead'e dönüşüyor"). key, currentStatus
+          // GERCEKTEN degisince (yani kayit gercekten sunucuya yansiyinca)
+          // secim kutusunu TEMIZ SIFIRDAN kurar - ara render'larda kullanicinin
+          // secimine dokunulmaz, kaydedilince de dogru degerle acilir.
+          <select key={currentStatus} name="status" defaultValue={currentStatus} className={fieldClass}>
+            {LEAD_STATUS_ORDER.filter((s) => s !== "won").map((s) => (
+              <option key={s} value={s}>
+                {LEAD_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        )}
+        {!isWon ? (
+          <span className="text-[11px] text-ink-400">
+            Satış tutarını girmek için Kanban&apos;da &quot;Satış&quot; kolonuna taşıyın — tutar oradan kaydedilir.
+          </span>
+        ) : null}
       </label>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-xs font-medium text-ink-600">Görüşmede ne oldu? (opsiyonel not)</span>
         <textarea
+          ref={noteRef}
           name="note"
           rows={3}
           placeholder="ör. Aradım, önümüzdeki hafta keşif için müsait…"

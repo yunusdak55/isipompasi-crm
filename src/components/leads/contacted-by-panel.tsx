@@ -2,43 +2,52 @@
 
 import { useActionState } from "react";
 import { Check } from "lucide-react";
-import { assignSalespersonAction, type AssignActionState } from "@/app/(dashboard)/leads/actions";
+import { setContactedByAction, type ContactedByActionState } from "@/app/(dashboard)/leads/actions";
 import { Button } from "@/components/ui/button";
 import { useSaveFeedback } from "@/lib/hooks/use-save-feedback";
 import { cn } from "@/lib/utils";
+import type { Salesperson } from "@/lib/data/salespeople";
 
 const selectClass =
   "w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink-900 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.03] [&>option]:text-[#111827]";
 
-const initialState: AssignActionState = { error: null };
+const initialState: ContactedByActionState = { error: null };
 
-/** Item 8: sadece owner/admin gorur (sales icin RLS zaten baskasina atamayi engeller). */
-export function AssignPanel({
+/**
+ * assign-panel.tsx'teki gercek hesap atamasindan (RLS/erisim) BAGIMSIZ -
+ * firma sahibinin Firma Ayarları'nda isim bazlı tanımladığı kişilerden
+ * (bkz. salespeople.ts) "bu leadle kim görüştü" bilgisini seçmesi icin.
+ */
+export function ContactedByPanel({
   leadId,
-  currentAssigned,
-  assignableProfiles,
+  currentContactedBy,
+  salespeople,
 }: {
   leadId: string;
-  currentAssigned: string | null;
-  assignableProfiles: { id: string; full_name: string | null }[];
+  currentContactedBy: string | null;
+  salespeople: Salesperson[];
 }) {
-  const boundAction = assignSalespersonAction.bind(null, leadId);
+  const boundAction = setContactedByAction.bind(null, leadId);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
   const justSaved = useSaveFeedback(isPending, state.error);
 
+  if (salespeople.length === 0) {
+    return (
+      <p className="text-xs text-ink-400">
+        Henüz tanımlı kişi yok — Firma Ayarları&apos;ndan isim ekleyin.
+      </p>
+    );
+  }
+
   return (
     <form action={formAction} className="flex flex-col gap-2">
-      {/* key={currentAssigned}: meeting-outcome-form.tsx'teki ayni duzeltme -
-          React "select"in secili degerini defaultValue'dan HER re-render'da
-          yeniden hesapliyor (input/textarea'nin aksine); kayit sunucuya
-          yansiyip currentAssigned gercekten degisene kadar araya giren bir
-          re-render, az once secilen kisiyi eski atamaya geri dusurebiliyordu.
-          key sadece GERCEK degisiklikte kutuyu sifirdan kuruyor. */}
-      <select key={currentAssigned ?? "unassigned"} name="assigned_salesperson" defaultValue={currentAssigned ?? ""} className={selectClass}>
-        <option value="">Atanmadı</option>
-        {assignableProfiles.map((p) => (
+      {/* key={currentContactedBy}: assign-panel.tsx / meeting-outcome-form.tsx
+          ile ayni React <select defaultValue> re-sync duzeltmesi. */}
+      <select key={currentContactedBy ?? "none"} name="contacted_by" defaultValue={currentContactedBy ?? ""} className={selectClass}>
+        <option value="">Belirtilmedi</option>
+        {salespeople.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.full_name ?? p.id}
+            {p.full_name}
           </option>
         ))}
       </select>
@@ -62,7 +71,7 @@ export function AssignPanel({
               Kaydedildi
             </span>
           ) : (
-            "Ata"
+            "Kaydet"
           )}
         </Button>
       </div>

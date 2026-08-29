@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Phone } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
-import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
+import { NewLeadBadge, OverdueBadge, ContactedBadge } from "@/components/leads/lead-indicators";
 import { PROPERTY_TYPE_LABELS } from "@/lib/constants/lead";
 import { formatCurrency, formatRelativeDays, isLeadNew, isLeadOverdue } from "@/lib/utils";
 import type { LeadListItem } from "@/lib/data/leads";
@@ -60,11 +60,14 @@ export function LeadTable({ leads }: { leads: LeadListItem[] }) {
                     {showOverdue ? <OverdueBadge /> : null}
                     <Link
                       href={`/leads/${lead.id}`}
-                      className="font-medium text-white transition-colors group-hover:text-accent-300"
+                      className={`font-medium text-white transition-colors group-hover:text-accent-300 ${
+                        lead.status === "lost" ? "lost-name" : ""
+                      }`}
                     >
                       {lead.first_name} {lead.last_name ?? ""}
                     </Link>
                     {showNew ? <NewLeadBadge /> : null}
+                    {lead.last_contact_at ? <ContactedBadge /> : null}
                   </div>
                   <p className="mt-0.5 flex items-center gap-1 text-xs text-white/60">
                     <Phone className="h-3 w-3 shrink-0 text-white/40" strokeWidth={2} />

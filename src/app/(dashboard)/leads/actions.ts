@@ -5,8 +5,46 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
 import { LEAD_STATUS_LABELS } from "@/lib/constants/lead";
+import { sanitizeSearchTerm } from "@/lib/data/leads";
 import type { LeadStatus } from "@/lib/types/domain";
 import type { Database } from "@/lib/types/database.types";
+
+// ----------------------------------------------------------------------------
+// Leadler sayfasi "Google gibi" canli oneri kutusu (spec: "S yazınca S ile
+// başlayanlar arama kısmının ordan direkt otomatik gözüksün"). Client
+// component (lead-filters.tsx) her tus vurusunda (debounce ile) bunu
+// dogrudan cagirir - salt okuma oldugu icin "action" ismi biraz yanlis
+// gelebilir ama Next.js'te client'tan cagrilabilen tek RPC mekanizmasi bu
+// ("use server" fonksiyonu, form'a bagli olmadan da dogrudan cagrilabilir).
+// ----------------------------------------------------------------------------
+
+export type LeadSuggestion = {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  phone: string;
+  status: LeadStatus;
+};
+
+export async function searchLeadSuggestionsAction(query: string): Promise<LeadSuggestion[]> {
+  const term = sanitizeSearchTerm(query);
+  if (term.length === 0) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .select("id, first_name, last_name, phone, status")
+    .or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,phone.ilike.%${term}%`)
+    .order("first_name")
+    .limit(8);
+
+  if (error) {
+    console.error("searchLeadSuggestionsAction error:", error.message);
+    return [];
+  }
+
+  return (data ?? []) as LeadSuggestion[];
+}
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -73,7 +111,6 @@ type ParsedLeadForm = {
   product_category_id: string | null;
   purchase_timeline: Database["public"]["Tables"]["leads"]["Row"]["purchase_timeline"];
   offered_amount: number | null;
-  notes: string | null;
 };
 
 /**
@@ -148,7 +185,6 @@ function parseLeadForm(formData: FormData): { data: ParsedLeadForm } | { error: 
       product_category_id: str("product_category_id"),
       purchase_timeline: str("purchase_timeline") as ParsedLeadForm["purchase_timeline"],
       offered_amount,
-      notes: str("notes"),
     },
   };
 }
@@ -231,6 +267,18 @@ type StatusPayload = {
 };
 
 export async function updateLeadStatusAction(leadId: string, payload: StatusPayload): Promise<StatusActionState> {
+  // GUVENLIK AGI (denetim bulgusu): Kanban tarafinda "won" kolonuna surukleme
+  // client-side'da satis tutari modalini acar (bkz. kanban-board.tsx) - ama bu
+  // sadece `canRecordSale` (role !== "sales") true iken calisir. Bir "sales"
+  // rolu hesabi (ajans /admin panelinden acilabiliyor - bkz. 0016_salespeople_
+  // roster.sql aciklamasi) karti dogrudan "Satış" kolonuna surukleseydi, bu
+  // client-side kapi atlanip HICBIR satis kaydi/tutar OLMADAN status='won'
+  // yazilabiliyordu - logMeetingOutcomeAction'da zaten engellenen TAM AYNI
+  // ciro-atlama hatasinin Kanban'daki esdegeri. Sunucu tarafinda da kapatiyoruz.
+  if (payload.status === "won") {
+    return { error: "Satış tutarını girmek için Kanban'da \"Satış\" kolonuna taşıyın ve açılan tutar penceresini doldurun." };
+  }
+
   const supabase = await createClient();
 
   const { data: current, error: fetchError } = await supabase
@@ -293,10 +341,6 @@ export async function logMeetingOutcomeAction(
   const statusRaw = String(formData.get("status") ?? "").trim();
   const note = String(formData.get("note") ?? "").trim();
 
-  if (!statusRaw && !note) {
-    return { error: "Durum seçin veya bir not yazın." };
-  }
-
   // "Satış" buradan yapilamaz - satis tutari kaydedilmeden durum "won" olursa
   // ciro/satis personeli performansi hic yansimaz (bkz. upsertSaleAction).
   // Tek dogru yol Kanban'daki tutar modalidir - burada bilerek engelliyoruz.
@@ -316,6 +360,14 @@ export async function logMeetingOutcomeAction(
 
   const nextStatus = (statusRaw || null) as LeadStatus | null;
   const statusChanged = nextStatus !== null && nextStatus !== current.status;
+
+  // Secim kutusu artik "— Değiştirme —" yerine mevcut durumu gosteriyor
+  // (spec: "illaki seçeneklerden birini seçsin") - yani "degismedi" durumu
+  // artik statusRaw'in bos olmasiyla degil, secilenin zaten mevcut durumla
+  // AYNI olmasiyla anlasilir. En az durum degisikligi ya da not olmali.
+  if (!statusChanged && !note) {
+    return { error: "Durum değiştirin veya bir not yazın." };
+  }
 
   if (statusChanged) {
     const { error } = await supabase
@@ -351,6 +403,24 @@ export async function logMeetingOutcomeAction(
       console.error("logMeetingOutcomeAction note insert error:", error.message);
       return { error: `Not eklenemedi: ${error.message}` };
     }
+  }
+
+  // Raporlar sayfasindaki "Tamamlanan Takip" (bkz. reports.ts) `followups.
+  // is_completed` alanini sayiyor ama bu satira kadar HICBIR yerde bu alan
+  // true yapilmiyordu - yani bu istatistik sonsuza dek 0 gosteriyordu
+  // (kullanici sorusu: "tamamlanan takip kısmı neye göre artıyor?" - cevap:
+  // artmıyordu, bu bir eksikti). Buraya kadar gelindiyse zaten gercek bir
+  // temas oldu (durum degisti veya not yazildi -> last_contact_at guncellendi
+  // yukarida) - yani bu lead icin bekleyen takip gorevi fiilen yerine
+  // getirilmis demektir. O yuzden acik (is_completed=false) bir takip varsa
+  // burada kapatiyoruz.
+  const { error: followupCompleteError } = await supabase
+    .from("followups")
+    .update({ is_completed: true, completed_at: new Date().toISOString() })
+    .eq("lead_id", leadId)
+    .eq("is_completed", false);
+  if (followupCompleteError) {
+    console.error("logMeetingOutcomeAction followup complete error:", followupCompleteError.message);
   }
 
   revalidateLead(leadId);
@@ -548,6 +618,62 @@ export async function assignSalespersonAction(
 }
 
 // ----------------------------------------------------------------------------
+// Görüşen Kişi: yukarıdaki assignSalespersonAction'dan BİLEREK ayrı - o
+// gerçek hesap/RLS izolasyonu içindir (bkz. 0016_salespeople_roster.sql
+// açıklaması), bu ise sadece firma sahibinin isim bazlı tanımladığı kişiyi
+// (spec: "leadle görüşen kişiyi seçebilelim") bilgi amaçlı işaretler.
+// ----------------------------------------------------------------------------
+
+export type ContactedByActionState = { error: string | null };
+
+export async function setContactedByAction(
+  leadId: string,
+  prevState: ContactedByActionState,
+  formData: FormData
+): Promise<ContactedByActionState> {
+  const profile = await requireProfile();
+  if (profile.role === "sales") {
+    return { error: "Bu işlem için yetkiniz yok." };
+  }
+
+  const raw = String(formData.get("contacted_by") ?? "");
+  const contactedBy = raw === "" ? null : raw;
+
+  const supabase = await createClient();
+
+  const { data: lead, error: fetchError } = await supabase
+    .from("leads")
+    .select("company_id")
+    .eq("id", leadId)
+    .single();
+
+  if (fetchError || !lead) return { error: "Lead bulunamadı." };
+
+  const { error } = await supabase.from("leads").update({ contacted_by: contactedBy }).eq("id", leadId);
+
+  if (error) {
+    console.error("setContactedByAction error:", error.message);
+    return { error: `Kaydedilemedi: ${error.message}` };
+  }
+
+  let name = "Belirtilmedi";
+  if (contactedBy) {
+    const { data: sp } = await supabase.from("salespeople").select("full_name").eq("id", contactedBy).single();
+    name = sp?.full_name ?? "Bilinmiyor";
+  }
+
+  await logActivity(supabase, {
+    leadId,
+    companyId: lead.company_id,
+    type: "system",
+    description: `Görüşen kişi: ${name}`,
+  });
+
+  revalidateLead(leadId);
+  return { error: null };
+}
+
+// ----------------------------------------------------------------------------
 // Yapilan Satis: lead "Satis" oldugunda gercek satis tutarini `sales`
 // tablosuna kaydeder (spec: "satis kaydini satislar kismina koy, yapilan
 // teklif gibi bir alan yap"). RLS geregi sadece owner/admin bu tabloyu
@@ -636,6 +762,50 @@ export async function upsertSaleAction(
       });
     }
   }
+
+  revalidateLead(leadId);
+  return { error: null };
+}
+
+// ----------------------------------------------------------------------------
+// Ajan Gorusu: lead detay sayfasinda DOGRUDAN gorunen, tek-alanli hizli
+// duzenleme (spec: "AI görüşü kısmı direkt gözüksün, düzenlemeye basmadan
+// görmeyelim - hem ajanın doldurabileceği hem benim zorlanmadan
+// yapabileceğim bir yer olsun"). Ayni `leads.notes` kolonunu kullanir - tam
+// "Lead'i Düzenle" formundan ayri, sadece bu tek alanı kaydeden hafif bir
+// action.
+// ----------------------------------------------------------------------------
+
+export type AgentNoteState = { error: string | null };
+
+export async function updateAgentNoteAction(
+  leadId: string,
+  prevState: AgentNoteState,
+  formData: FormData
+): Promise<AgentNoteState> {
+  const notes = String(formData.get("notes") ?? "").trim();
+
+  const supabase = await createClient();
+
+  const { data: lead, error: fetchError } = await supabase
+    .from("leads")
+    .select("company_id")
+    .eq("id", leadId)
+    .single();
+
+  if (fetchError || !lead) return { error: "Lead bulunamadı." };
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ notes: notes || null })
+    .eq("id", leadId);
+
+  if (error) {
+    console.error("updateAgentNoteAction error:", error.message);
+    return { error: `Kaydedilemedi: ${error.message}` };
+  }
+
+  await logActivity(supabase, { leadId, companyId: lead.company_id, type: "system", description: "Ajan görüşü güncellendi." });
 
   revalidateLead(leadId);
   return { error: null };

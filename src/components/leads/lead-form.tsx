@@ -15,7 +15,7 @@ export type LeadFormState = { error: string | null };
 const inputClass =
   "w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.03] [&>option]:text-[#111827]";
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-ink-900">{label}</span>
@@ -171,16 +171,6 @@ export function LeadForm({
           Radyatör Var
         </label>
       </div>
-
-      <Field label="Lead Notu">
-        <textarea
-          name="notes"
-          rows={4}
-          placeholder="300 m² villa, yeni bina. Yerden ısıtma hazır. Bu ay içinde karar verecek."
-          defaultValue={defaultValues?.notes ?? ""}
-          className={inputClass}
-        />
-      </Field>
 
       {state.error ? (
         <p role="alert" className="rounded-lg border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-[#ffb4a3]">
