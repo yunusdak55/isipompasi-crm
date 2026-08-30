@@ -118,6 +118,18 @@ function NavLink({ item, active, nested = false }: { item: NavItem; active: bool
   return (
     <Link
       href={item.href}
+      // DUZELTME (canli denetimde yakalanan gercek hata): Dashboard sayfasi
+      // sidebar'dan tekrar ziyaret edildiginde bazen eski/"0" degerler
+      // gosteriyordu - gercek bir lead uygulama uzerinden eklenip
+      // revalidatePath("/dashboard") calistiktan SONRA bile. Kok neden: bu
+      // link her sayfada gorunur oldugu icin Next.js daha kullanicinin
+      // oturumu/firma verisi tam otururmadan ONCE otomatik olarak arka
+      // planda prefetch ediyor, o anki (bos/eksik) sonucu 5 dakikaligina
+      // istemci onbellegine yaziyor - sonraki tum tiklamalar gercek veri
+      // yerine bu erken/yanlis onbellegi gosteriyordu. prefetch={false}
+      // bunu tamamen engeller (bkz. next.config.mjs'teki staleTimes ek
+      // guvenlik agi).
+      prefetch={false}
       className={cn(
         // Aktif gostergesi sadece bg degil - sol kenarda hep-var-olan (2px,
         // rezerve edilmis) turuncu bir seritle + cok kontrollu bir glow: koyu

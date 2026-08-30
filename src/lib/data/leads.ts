@@ -312,14 +312,23 @@ export async function getLeadsCalendar(year: number, month: number): Promise<Lea
 export async function getLeadsOverdue(): Promise<LeadListItem[]> {
   const supabase = await createClient();
   const cutoff = new Date(Date.now() - OVERDUE_HOURS * 60 * 60 * 1000).toISOString();
-  const now = new Date().toISOString();
+
+  // DUZELTME (canli denetimde yakalanan celiski): bu satir eskiden `now`
+  // (SAAT hassasiyeti) kullaniyordu - bugun icin planli ama saati gecmis bir
+  // takibi olan lead burada "gecikmis" sayilip listeleniyordu, AYNI ANDA
+  // isLeadOverdue() (Leadler/Takipte tablolarindaki GECIKMIS rozeti) o
+  // leadi GUN bazli kural geregi "gecikmis degil" sayiyordu - kullanici ayni
+  // lead icin Gecikenler sayfasinda rozet gorup Takipte sayfasinda gormuyordu.
+  // Artik HER IKI yer de ayni GUN bazli esigi (gunun basi) kullaniyor.
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
   const { data, error } = await supabase
     .from("leads")
     .select(LEAD_LIST_COLUMNS)
     .not("status", "in", "(won,lost)")
     .or(`last_contact_at.lt.${cutoff},and(last_contact_at.is.null,created_at.lt.${cutoff})`)
-    .or(`next_followup_at.is.null,next_followup_at.lte.${now}`);
+    .or(`next_followup_at.is.null,next_followup_at.lt.${todayStart.toISOString()}`);
 
   if (error) {
     console.error("getLeadsOverdue error:", error.message);
