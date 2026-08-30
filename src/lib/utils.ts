@@ -90,7 +90,20 @@ export function isLeadOverdue(params: {
   nextFollowupAt?: string | null;
 }) {
   if (params.status === "won" || params.status === "lost") return false;
-  if (params.nextFollowupAt && new Date(params.nextFollowupAt).getTime() > Date.now()) return false;
+  if (params.nextFollowupAt) {
+    // DUZELTME (canli denetimde yakalanan celiski): bu satir eskiden SAAT
+    // hassasiyetiyle karsilastiriyordu ("> Date.now()") - bugun icin planli
+    // ama gunun ilerleyen saatine ayarlanmis bir takip, saat gecince BURADA
+    // "gecikmis" sayilmaya basliyordu, ayni anda Takipte sayfasindaki GUN
+    // bazli karsilastirma ("Bugün Ara") onu hala gecikmemis gosteriyordu -
+    // ayni lead icin ayni anda iki farkli ekranda birbirini yalanlayan durum.
+    // Artik HER IKI yer de ayni GUN bazli kurali kullaniyor: takip GUNU bugun
+    // veya sonrasindaysa (saat kac olursa olsun) "gecikmis" sayilmaz, gun
+    // tamamen gecmeden gecikmis damgasi vurulmaz.
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (new Date(params.nextFollowupAt).getTime() >= todayStart.getTime()) return false;
+  }
   const reference = params.lastContactAt ?? params.createdAt;
   const hoursSince = (Date.now() - new Date(reference).getTime()) / (1000 * 60 * 60);
   return hoursSince > OVERDUE_HOURS;

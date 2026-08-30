@@ -63,6 +63,24 @@ export async function createCompanyWithOwnerAction(
     return { error: `Firma oluşturulamadı: ${companyError?.message ?? "bilinmeyen hata"}` };
   }
 
+  // DUZELTME (denetim bulgusu): yeni firmalar hicbir urun kategorisiyle
+  // baslamiyordu - mevcut firmalar migration 0010'da bir kereye mahsus
+  // tohumlanmisti ama YENI firma olusturma akisinda bu adim hic yoktu.
+  // Sonuc: yeni musteri "Yeni Lead" formunu actiginda urun kategorisi
+  // dropdown'u BOMBOS geliyordu. Ayni varsayilan 4 kategoriyi burada da
+  // tohumluyoruz - firma sahibi Firma Ayarları'ndan istedigi gibi
+  // duzenler/siler/ekler, sadece bos baslamasin diye.
+  const { error: categoriesError } = await supabase.from("product_categories").insert([
+    { company_id: company.id, label: "Isı Pompası", sort_order: 0 },
+    { company_id: company.id, label: "Klima", sort_order: 1 },
+    { company_id: company.id, label: "VRF/VRV Sistemi", sort_order: 2 },
+    { company_id: company.id, label: "Diğer", sort_order: 3 },
+  ]);
+  if (categoriesError) {
+    // Kritik degil - firma/hesap olusumu yine de devam eder, sadece loglariz.
+    console.error("createCompanyWithOwnerAction categories error:", categoriesError.message);
+  }
+
   const adminClient = createAdminClient();
   const { error: userError } = await adminClient.auth.admin.createUser({
     email,
@@ -116,11 +134,43 @@ export type DeleteCompanyState = { error: string | null };
  * silinir. Sonra companies satiri silinir - leads/sales/followups/activities/
  * product_categories/salespeople hepsi "on delete cascade" ile otomatik gider.
  * GERI ALINAMAZ.
+ *
+ * DUZELTME (canli denetimde yakalanan gercek hata): gercekten kullanilmis
+ * (en az bir lead/not/takip/satis girilmis) bir firmayi silmek eskiden HER
+ * ZAMAN basarisiz oluyordu. Sebep: `leads.created_by/updated_by`,
+ * `activities.created_by`, `followups.created_by`, `offers.created_by`,
+ * `sales.salesperson/created_by`, `ai_reports.created_by` kolonlarinin
+ * TAMAMI profiles'a ON DELETE CASCADE/SET NULL OLMADAN referans veriyor
+ * (bkz. 0001_init_schema.sql) - bu yuzden "kim olusturdu/kim sattı" gibi
+ * IZ BIRAKAN herhangi bir kayit varsa, o kaydi bırakan hesabi silmeye
+ * calisinca veritabani "hala referans ediliyor" diye reddediyordu. Simdi
+ * hesaplari silmeden ONCE bu firmaya ait TUM bu iz-birakan referanslari
+ * temizliyoruz - satirlarin KENDISI birkac satir sonra companies
+ * cascade'iyle zaten silinecek, sadece hesap silme sirasinda araya giren
+ * kilitleri aciyoruz.
  */
 export async function deleteCompanyAction(companyId: string, prevState: DeleteCompanyState): Promise<DeleteCompanyState> {
   await requireAdmin();
 
   const supabase = await createClient();
+
+  // Not: eski "offers" tablosu (ozellik kaldirildi, bkz. spec: "teklif
+  // ozelligini kaldir") database.types.ts'e hic eklenmemisti - yeni kod hic
+  // yazmiyor, sadece cok eski/legacy bir satir varsa (dusuk ihtimal) o TEK
+  // durumda silme yine de "hala referans ediliyor" hatasi verebilir.
+  const clearLeads = await supabase.from("leads").update({ created_by: null, updated_by: null }).eq("company_id", companyId);
+  const clearActivities = await supabase.from("activities").update({ created_by: null }).eq("company_id", companyId);
+  const clearFollowups = await supabase.from("followups").update({ created_by: null }).eq("company_id", companyId);
+  const clearSales = await supabase.from("sales").update({ salesperson: null, created_by: null }).eq("company_id", companyId);
+  const clearAiReports = await supabase.from("ai_reports").update({ created_by: null }).eq("company_id", companyId);
+
+  for (const step of [clearLeads, clearActivities, clearFollowups, clearSales, clearAiReports]) {
+    if (step.error) {
+      console.error("deleteCompanyAction clear reference error:", step.error.message);
+      return { error: `Firma silinemedi: ${step.error.message}` };
+    }
+  }
+
   const { data: profiles } = await supabase.from("profiles").select("id").eq("company_id", companyId);
 
   const adminClient = createAdminClient();
