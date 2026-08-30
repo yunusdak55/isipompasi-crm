@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardBody, StatCard, HeroStatCard } from "@
 import { Badge } from "@/components/ui/badge";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { CreateCompanyForm } from "@/components/admin/create-company-form";
+import { EditCompanyNameForm } from "@/components/admin/edit-company-name-form";
 import { formatCurrency } from "@/lib/utils";
 
 /**
@@ -88,8 +89,7 @@ export default async function AdminCompaniesPage() {
                       style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
                     >
                       <td className="px-5 py-3.5">
-                        <p className="font-medium text-ink-900">{c.name}</p>
-                        <p className="text-xs text-ink-600">{c.city ?? "—"}</p>
+                        <EditCompanyNameForm companyId={c.id} name={c.name} city={c.city} />
                       </td>
                       <td className="px-5 py-3.5 tabular-nums text-ink-900">{c.leadCount}</td>
                       <td className="px-5 py-3.5 tabular-nums text-ink-900">{formatCurrency(c.pipelineValue)}</td>

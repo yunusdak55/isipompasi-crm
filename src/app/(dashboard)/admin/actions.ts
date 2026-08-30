@@ -51,6 +51,38 @@ export async function createCompanyAction(prevState: CreateCompanyState, formDat
 }
 
 // ----------------------------------------------------------------------------
+// Firmalar: isim (ve temel bilgi) duzenleme - eskiden sadece olusturma vardi,
+// bir kere eklenen firmanin adi admin panelinden hic degistirilemiyordu
+// (spec: "admin panelimden yeni firma eklediğimde onların isimlerini de
+// düzenleyebileyim").
+// ----------------------------------------------------------------------------
+
+export type UpdateCompanyNameState = { error: string | null };
+
+export async function updateCompanyNameAction(
+  companyId: string,
+  prevState: UpdateCompanyNameState,
+  formData: FormData
+): Promise<UpdateCompanyNameState> {
+  await requireAdmin();
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Firma adı zorunludur." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("companies").update({ name }).eq("id", companyId);
+
+  if (error) {
+    console.error("updateCompanyNameAction error:", error.message);
+    return { error: `Güncellenemedi: ${error.message}` };
+  }
+
+  revalidatePath("/admin/companies");
+  revalidatePath("/admin/users");
+  return { error: null };
+}
+
+// ----------------------------------------------------------------------------
 // Kullanicilar: musteri firma icin yeni giris hesabi olusturma (spec: "ben
 // ajansim, musterilerime kullanici adi sifre olusturup verecegim" - bu artik
 // elle script yerine panelden yapilabiliyor). Gercek Supabase Auth kullanicisi
