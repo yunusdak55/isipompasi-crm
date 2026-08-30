@@ -3,7 +3,7 @@ import { Building2, Users, Wallet, Layers } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { getAgencyCompanyStats } from "@/lib/data/admin";
 import { Card, CardHeader, CardTitle, CardBody, StatCard, HeroStatCard } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { CompanyRowActions } from "@/components/admin/company-row-actions";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { CreateCompanyForm } from "@/components/admin/create-company-form";
 import { EditCompanyNameForm } from "@/components/admin/edit-company-name-form";
@@ -96,7 +96,7 @@ export default async function AdminCompaniesPage() {
                       <td className="px-5 py-3.5 tabular-nums text-ink-900">{formatCurrency(c.totalSales)}</td>
                       <td className="px-5 py-3.5 tabular-nums text-ink-900">%{c.conversionRate.toFixed(1)}</td>
                       <td className="px-5 py-3.5">
-                        <Badge tone={c.isActive ? "success" : "ink"}>{c.isActive ? "Aktif" : "Pasif"}</Badge>
+                        <CompanyRowActions companyId={c.id} name={c.name} isActive={c.isActive} />
                       </td>
                     </tr>
                   ))}

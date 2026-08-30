@@ -15,16 +15,30 @@ async function requireAdmin() {
 }
 
 // ----------------------------------------------------------------------------
-// Firmalar: yeni musteri firma ekleme
+// Firmalar: yeni musteri firma ekleme + giris hesabi TEK ADIMDA (spec: "ben
+// bir kişi ile anlaştığımda kendi panelime girip firma ismi oluşturayım,
+// giriş bilgileri belirleyeyim... sonra anlaştığım kişi bu bilgilerle girip
+// içeriden kendi satış personeli kısmından oluştursun"). Eskiden "Firma
+// Ekle" ve "Kullanıcı Ekle" ayrı iki adimdi (once firma olustur, sonra ayri
+// bir sayfada dropdown'dan firmayi sec, kullanici olustur) - artik tek form.
 // ----------------------------------------------------------------------------
 
 export type CreateCompanyState = { error: string | null };
 
-export async function createCompanyAction(prevState: CreateCompanyState, formData: FormData): Promise<CreateCompanyState> {
+export async function createCompanyWithOwnerAction(
+  prevState: CreateCompanyState,
+  formData: FormData
+): Promise<CreateCompanyState> {
   await requireAdmin();
 
   const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const fullName = String(formData.get("full_name") ?? "").trim();
+
   if (!name) return { error: "Firma adı zorunludur." };
+  if (!email || !password) return { error: "E-posta ve şifre zorunludur." };
+  if (password.length < 8) return { error: "Şifre en az 8 karakter olmalıdır." };
 
   const str = (field: string) => {
     const v = String(formData.get(field) ?? "").trim();
@@ -32,17 +46,97 @@ export async function createCompanyAction(prevState: CreateCompanyState, formDat
   };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("companies").insert({
-    name,
-    city: str("city"),
-    contact_name: str("contact_name"),
-    contact_email: str("contact_email"),
-    contact_phone: str("contact_phone"),
+  const { data: company, error: companyError } = await supabase
+    .from("companies")
+    .insert({
+      name,
+      city: str("city"),
+      contact_name: str("contact_name"),
+      contact_email: str("contact_email"),
+      contact_phone: str("contact_phone"),
+    })
+    .select("id")
+    .single();
+
+  if (companyError || !company) {
+    console.error("createCompanyWithOwnerAction company error:", companyError?.message);
+    return { error: `Firma oluşturulamadı: ${companyError?.message ?? "bilinmeyen hata"}` };
+  }
+
+  const adminClient = createAdminClient();
+  const { error: userError } = await adminClient.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: fullName || name, role: "owner", company_id: company.id },
   });
 
+  if (userError) {
+    console.error("createCompanyWithOwnerAction user error:", userError.message);
+    // Firma zaten olustu - geri almiyoruz, admin firma listesinde firmayi
+    // gorup "Kullanıcılar" sayfasından giriş hesabını tekrar deneyebilir.
+    return {
+      error: `Firma oluşturuldu ama giriş hesabı oluşturulamadı: ${userError.message}. "Kullanıcılar" sayfasından bu firma için tekrar deneyebilirsiniz.`,
+    };
+  }
+
+  revalidatePath("/admin/companies");
+  revalidatePath("/admin/users");
+  return { error: null };
+}
+
+export type ToggleCompanyActiveState = { error: string | null };
+
+export async function toggleCompanyActiveAction(
+  companyId: string,
+  nextActive: boolean,
+  prevState: ToggleCompanyActiveState
+): Promise<ToggleCompanyActiveState> {
+  await requireAdmin();
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("companies").update({ is_active: nextActive }).eq("id", companyId);
+
   if (error) {
-    console.error("createCompanyAction error:", error.message);
-    return { error: `Firma oluşturulamadı: ${error.message}` };
+    console.error("toggleCompanyActiveAction error:", error.message);
+    return { error: `Güncellenemedi: ${error.message}` };
+  }
+
+  revalidatePath("/admin/companies");
+  return { error: null };
+}
+
+export type DeleteCompanyState = { error: string | null };
+
+/**
+ * Firmayi VE ona bagli gercek giris hesaplarini (owner/sales) kalici olarak
+ * siler (spec: "istediğim firmayı pasif hale getirmenin yanı sıra
+ * kaldırabileyim, silebiliyim yani"). Once auth.users hesaplarini kaldirir -
+ * profiles satiri auth.users'a "on delete cascade" bagli oldugu icin otomatik
+ * silinir. Sonra companies satiri silinir - leads/sales/followups/activities/
+ * product_categories/salespeople hepsi "on delete cascade" ile otomatik gider.
+ * GERI ALINAMAZ.
+ */
+export async function deleteCompanyAction(companyId: string, prevState: DeleteCompanyState): Promise<DeleteCompanyState> {
+  await requireAdmin();
+
+  const supabase = await createClient();
+  const { data: profiles } = await supabase.from("profiles").select("id").eq("company_id", companyId);
+
+  const adminClient = createAdminClient();
+  for (const p of profiles ?? []) {
+    const { error: delUserError } = await adminClient.auth.admin.deleteUser(p.id);
+    if (delUserError) {
+      console.error("deleteCompanyAction deleteUser error:", delUserError.message);
+      return { error: `Firma kullanıcıları silinirken hata oluştu: ${delUserError.message}` };
+    }
+  }
+
+  const { error } = await supabase.from("companies").delete().eq("id", companyId);
+
+  if (error) {
+    console.error("deleteCompanyAction error:", error.message);
+    return { error: `Firma silinemedi: ${error.message}` };
   }
 
   revalidatePath("/admin/companies");
