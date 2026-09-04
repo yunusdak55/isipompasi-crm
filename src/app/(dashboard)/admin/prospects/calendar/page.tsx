@@ -15,6 +15,8 @@ const TR_MONTHS = [
 ];
 const TR_WEEKDAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
+const TIME_FORMATTER = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
+
 function buildHref(year: number, month: number) {
   return `/admin/prospects/calendar?y=${year}&m=${month}`;
 }
@@ -147,9 +149,10 @@ export default async function ProspectsCalendarPage({
                             <span
                               key={p.id}
                               className="truncate rounded border border-accent-500/25 bg-accent-500/[0.12] px-1.5 py-0.5 text-[11px] font-medium text-accent-200"
-                              title={p.company_name}
+                              title={`${TIME_FORMATTER.format(new Date(p.next_followup_at as string))} — ${p.company_name}`}
                             >
                               {overdue ? <OverdueBadge className="mr-1 px-1 py-0 text-[8px]" /> : null}
+                              <span className="text-accent-100/80">{TIME_FORMATTER.format(new Date(p.next_followup_at as string))}</span>{" "}
                               {p.company_name}
                             </span>
                           );

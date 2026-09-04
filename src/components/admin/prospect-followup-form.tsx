@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { CalendarClock, Pencil, Check, X } from "lucide-react";
+import { CalendarClock, CalendarPlus, Pencil, Check, X } from "lucide-react";
 import { upsertProspectFollowupAction, type FollowupActionState } from "@/app/(dashboard)/admin/prospects/actions";
 import { formatDateTime } from "@/lib/utils";
 
@@ -29,19 +29,28 @@ export function ProspectFollowupForm({
   }, [isPending, state.error]);
 
   if (!open) {
+    if (!nextFollowupAt) {
+      return (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-accent-500/30 bg-accent-500/[0.08] px-2.5 py-1.5 text-xs font-medium text-accent-600 transition-colors duration-150 hover:border-accent-500/50 hover:bg-accent-500/[0.14]"
+        >
+          <CalendarPlus className="h-3.5 w-3.5" />
+          Takip Ekle
+        </button>
+      );
+    }
     return (
       <button type="button" onClick={() => setOpen(true)} className="group flex items-start gap-1.5 text-left">
-        {nextFollowupAt ? (
-          <span>
-            <span className="flex items-center gap-1 text-xs font-medium text-ink-900">
-              <CalendarClock className="h-3 w-3 text-accent-500" />
-              {formatDateTime(nextFollowupAt)}
-            </span>
-            {nextFollowupNote ? <span className="block text-xs text-ink-500">{nextFollowupNote}</span> : null}
+        <span>
+          <span className="flex items-center gap-1 text-xs font-medium text-ink-900">
+            <CalendarClock className="h-3 w-3 text-accent-500" />
+            {formatDateTime(nextFollowupAt)}
           </span>
-        ) : (
-          <span className="text-xs text-ink-400">Takip planlanmadı</span>
-        )}
+          {nextFollowupNote ? <span className="block text-xs text-ink-500">{nextFollowupNote}</span> : null}
+          <span className="block text-[10px] text-ink-400">Takvimde görünür</span>
+        </span>
         <Pencil className="mt-0.5 h-3 w-3 shrink-0 text-ink-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
       </button>
     );
@@ -56,6 +65,7 @@ export function ProspectFollowupForm({
         defaultValue={nextFollowupAt ? nextFollowupAt.slice(0, 16) : ""}
         className={fieldClass}
       />
+      <p className="text-[10px] leading-tight text-ink-400">Girdiğin saatiyle Görüşme Takvimi'ne otomatik eklenir.</p>
       <input type="text" name="followup_note" defaultValue={nextFollowupNote ?? ""} placeholder="Not (ör. tekrar ara)" className={fieldClass} />
       <div className="flex items-center gap-1.5">
         <button
