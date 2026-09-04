@@ -441,6 +441,39 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["ai_reports"]["Insert"]>;
         Relationships: [];
       };
+
+      agency_prospects: {
+        Row: {
+          id: string;
+          company_name: string;
+          contact_name: string | null;
+          phone: string | null;
+          notes: string | null;
+          status: "new" | "contacted" | "followup" | "won" | "lost";
+          next_followup_at: string | null;
+          next_followup_note: string | null;
+          last_contact_at: string | null;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          company_name: string;
+          contact_name?: string | null;
+          phone?: string | null;
+          notes?: string | null;
+          status?: "new" | "contacted" | "followup" | "won" | "lost";
+          next_followup_at?: string | null;
+          next_followup_note?: string | null;
+          last_contact_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["agency_prospects"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

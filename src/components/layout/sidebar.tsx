@@ -19,6 +19,7 @@ import {
   MessageCircle,
   Compass,
   Radar,
+  PhoneCall,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -65,6 +66,13 @@ const SETTINGS_NAV_ITEMS: NavItem[] = [{ href: "/settings", label: "Firma Ayarla
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: "/admin/companies", label: "Firmalar", icon: Building2, enabled: true },
+  {
+    href: "/admin/prospects",
+    label: "Satış Görüşmeleri",
+    icon: PhoneCall,
+    enabled: true,
+    children: [{ href: "/admin/prospects/calendar", label: "Görüşme Takvimi", icon: CalendarDays, enabled: true }],
+  },
   { href: "/admin/users", label: "Kullanıcılar", icon: UserCog, enabled: true },
   { href: "/admin/integrations", label: "Entegrasyonlar", icon: Plug, enabled: true },
   { href: "/admin/settings", label: "Sistem Ayarları", icon: Cog, enabled: false },
@@ -209,7 +217,16 @@ export function Sidebar({ role }: { role: UserRole }) {
             <GroupLabel>Ajans Admin</GroupLabel>
             <div className="flex flex-col gap-1">
               {ADMIN_NAV_ITEMS.map((item) => (
-                <NavLink key={item.href} item={item} active={isActiveHref(pathname, item.href)} />
+                <div key={item.href} className="flex flex-col gap-1">
+                  <NavLink item={item} active={isActiveHref(pathname, item.href)} />
+                  {item.children ? (
+                    <div className="ml-[19px] flex flex-col gap-1 border-l border-white/10 pl-2">
+                      {item.children.map((child) => (
+                        <NavLink key={child.href} item={child} active={isActiveHref(pathname, child.href)} nested />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               ))}
             </div>
           </>

@@ -27,6 +27,29 @@ export type ProductInterest = NonNullable<Lead["product_interest"]>;
 export type IntegrationProvider = Integration["provider"];
 export type IntegrationStatus = Integration["status"];
 
+/**
+ * agency_prospects tablosu henuz database.types.ts'e (Supabase CLI ile
+ * uretilen dosya) islenmedi - bu yuzden diger Lead/Company gibi Database[...]
+ * uzerinden turetilmek yerine dogrudan (elle, semayla birebir) tanimlanir.
+ * leads.ts'teki join'li select'lerde zaten kullanilan "as unknown as X[]"
+ * yontemiyle ayni yaklasim - calisma zamaninda hicbir fark yaratmaz.
+ */
+export type ProspectStatus = "new" | "contacted" | "followup" | "won" | "lost";
+
+export type AgencyProspect = {
+  id: string;
+  company_name: string;
+  contact_name: string | null;
+  phone: string | null;
+  notes: string | null;
+  status: ProspectStatus;
+  next_followup_at: string | null;
+  next_followup_note: string | null;
+  last_contact_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 /** Dashboard ust kisimdaki durum sayaclari (spec md.7). */
 export type PipelineStats = {
   status: LeadStatus;
