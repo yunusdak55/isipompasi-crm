@@ -28,7 +28,7 @@ export default async function SalesPage() {
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <HeroStatCard label="Toplam Satış Tutarı" value={formatCurrency(stats.totalRevenue)} icon={<Wallet className="h-4 w-4" />} />
-            <HeroStatCard label="Açık Pipeline Değeri" value={formatCurrency(stats.pipelineValue)} icon={<Layers className="h-4 w-4" />} />
+            <HeroStatCard label="Potansiyel Satış Değeri" value={formatCurrency(stats.pipelineValue)} icon={<Layers className="h-4 w-4" />} />
           </div>
         </div>
       </div>

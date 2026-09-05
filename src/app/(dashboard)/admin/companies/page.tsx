@@ -41,7 +41,7 @@ export default async function AdminCompaniesPage() {
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <HeroStatCard label="Toplam Satış Tutarı" value={formatCurrency(totals.totalSales)} icon={<Wallet className="h-4 w-4" />} />
-            <HeroStatCard label="Açık Pipeline Değeri" value={formatCurrency(totals.pipelineValue)} icon={<Layers className="h-4 w-4" />} />
+            <HeroStatCard label="Potansiyel Satış Değeri" value={formatCurrency(totals.pipelineValue)} icon={<Layers className="h-4 w-4" />} />
           </div>
         </div>
       </div>
@@ -75,7 +75,7 @@ export default async function AdminCompaniesPage() {
                   <tr>
                     <th className="px-5 py-3 font-medium">Firma</th>
                     <th className="px-5 py-3 font-medium">Lead</th>
-                    <th className="px-5 py-3 font-medium">Açık Pipeline</th>
+                    <th className="px-5 py-3 font-medium">Potansiyel Satış</th>
                     <th className="px-5 py-3 font-medium">Toplam Satış</th>
                     <th className="px-5 py-3 font-medium">Dönüşüm</th>
                     <th className="px-5 py-3 font-medium">Durum</th>

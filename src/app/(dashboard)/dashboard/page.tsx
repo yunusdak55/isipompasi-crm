@@ -22,7 +22,7 @@ export default async function DashboardPage() {
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <HeroStatCard label="Toplam Lead" value={stats.totalLeads} icon={<Users className="h-4 w-4" />} />
             <HeroStatCard
-              label="Açık Pipeline Değeri"
+              label="Potansiyel Satış Değeri"
               value={formatCurrency(stats.pipelineValue)}
               icon={<Wallet className="h-4 w-4" />}
             />
