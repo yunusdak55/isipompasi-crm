@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { PhoneCall, CalendarDays, Users } from "lucide-react";
+import { PhoneCall, CalendarClock, CalendarDays, Users } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { getProspects } from "@/lib/data/prospects";
 import { Card, CardHeader, CardTitle, CardBody, StatCard } from "@/components/ui/card";
@@ -29,9 +29,9 @@ export default async function AdminProspectsPage() {
 
   const prospects = await getProspects();
 
-  const openCount = prospects.filter((p) => p.status !== "won" && p.status !== "lost").length;
+  const contactedCount = prospects.filter((p) => p.status === "contacted").length;
   const followupCount = prospects.filter((p) => p.status === "followup").length;
-  const wonCount = prospects.filter((p) => p.status === "won").length;
+  const lostCount = prospects.filter((p) => p.status === "lost").length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -44,18 +44,24 @@ export default async function AdminProspectsPage() {
               Yeni müşteri kazanmak için aradığınız firmaları kaydedin, takip edin, gerekirse kayıp olarak işaretleyin.
             </p>
           </div>
-          <LinkButton href="/admin/prospects/calendar" variant="secondary" className="gap-1.5">
-            <CalendarDays className="h-4 w-4" />
-            Takvim
-          </LinkButton>
+          <div className="flex gap-2">
+            <LinkButton href="/admin/prospects/followups" variant="secondary" className="gap-1.5">
+              <CalendarClock className="h-4 w-4" />
+              Takipte
+            </LinkButton>
+            <LinkButton href="/admin/prospects/calendar" variant="secondary" className="gap-1.5">
+              <CalendarDays className="h-4 w-4" />
+              Takvim
+            </LinkButton>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
         <StatCard label="Toplam Aday" value={prospects.length} tone="ink" />
-        <StatCard label="Açık" value={openCount} tone="brand" />
+        <StatCard label="Görüşüldü" value={contactedCount} tone="accent" />
         <StatCard label="Takipte" value={followupCount} tone="warning" />
-        <StatCard label="Müşteri Oldu" value={wonCount} tone="success" />
+        <StatCard label="Kayıp" value={lostCount} tone="danger" />
       </div>
 
       <CreateProspectForm />

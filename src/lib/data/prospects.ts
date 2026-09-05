@@ -75,6 +75,29 @@ export async function getProspectsCalendar(year: number, month: number): Promise
   return (data ?? []) as unknown as AgencyProspect[];
 }
 
+/**
+ * "Takipte" ekrani: takip tarihi verilmis, henuz kapanmamis (musteri
+ * oldu/kayip degil) adaylar, en yakin tarih once - leads.ts/getLeadsFollowup
+ * ile ayni yaklasim (spec: "takvime eklediğim kişiler oraya düşsün").
+ */
+export async function getProspectsFollowup(): Promise<AgencyProspect[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("agency_prospects")
+    .select(PROSPECT_COLUMNS)
+    .not("next_followup_at", "is", null)
+    .not("status", "in", "(won,lost)")
+    .order("next_followup_at", { ascending: true });
+
+  if (error) {
+    console.error("getProspectsFollowup error:", error.message);
+    return [];
+  }
+
+  return (data ?? []) as unknown as AgencyProspect[];
+}
+
 export type ProspectSelectItem = { id: string; company_name: string; contact_name: string | null };
 
 /** Takvimden dogrudan takip eklerken aday secim dropdown'u icin acik adaylar. */

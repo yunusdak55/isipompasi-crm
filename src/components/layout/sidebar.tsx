@@ -71,7 +71,10 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     label: "Satış Görüşmeleri",
     icon: PhoneCall,
     enabled: true,
-    children: [{ href: "/admin/prospects/calendar", label: "Görüşme Takvimi", icon: CalendarDays, enabled: true }],
+    children: [
+      { href: "/admin/prospects/followups", label: "Takipte", icon: CalendarClock, enabled: true },
+      { href: "/admin/prospects/calendar", label: "Görüşme Takvimi", icon: CalendarDays, enabled: true },
+    ],
   },
   { href: "/admin/users", label: "Kullanıcılar", icon: UserCog, enabled: true },
   { href: "/admin/integrations", label: "Entegrasyonlar", icon: Plug, enabled: true },

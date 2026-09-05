@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { CalendarClock, CalendarPlus, Pencil, Check, X } from "lucide-react";
+import { CalendarPlus, Pencil, Check, X } from "lucide-react";
 import { upsertProspectFollowupAction, type FollowupActionState } from "@/app/(dashboard)/admin/prospects/actions";
-import { formatDateTime } from "@/lib/utils";
+import { TodayCallBadge } from "@/components/leads/lead-indicators";
+import { cn, formatRelativeDays } from "@/lib/utils";
 
 const fieldClass =
   "w-full rounded-md border border-line bg-canvas px-2 py-1 text-xs text-ink-900 focus-visible:border-accent-400 focus-visible:outline-none";
@@ -41,15 +42,19 @@ export function ProspectFollowupForm({
         </button>
       );
     }
+    const relativeLabel = formatRelativeDays(nextFollowupAt);
+    const isOverdue = Boolean(relativeLabel?.includes("gecikti"));
+    const isToday = relativeLabel === "Bugün";
+
     return (
       <button type="button" onClick={() => setOpen(true)} className="group flex items-start gap-1.5 text-left">
         <span>
-          <span className="flex items-center gap-1 text-xs font-medium text-ink-900">
-            <CalendarClock className="h-3 w-3 text-accent-500" />
-            {formatDateTime(nextFollowupAt)}
-          </span>
+          {isToday ? (
+            <TodayCallBadge />
+          ) : (
+            <span className={cn("text-xs font-medium", isOverdue ? "text-danger-600" : "text-ink-900")}>{relativeLabel}</span>
+          )}
           {nextFollowupNote ? <span className="block text-xs text-ink-500">{nextFollowupNote}</span> : null}
-          <span className="block text-[10px] text-ink-400">Takvimde görünür</span>
         </span>
         <Pencil className="mt-0.5 h-3 w-3 shrink-0 text-ink-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
       </button>

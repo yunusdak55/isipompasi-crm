@@ -1,8 +1,9 @@
 import { cn } from "@/lib/utils";
 import { LEAD_STATUS_LABELS, LEAD_STATUS_COLOR } from "@/lib/constants/lead";
-import type { LeadStatus } from "@/lib/types/domain";
+import { PROSPECT_STATUS_LABELS, PROSPECT_STATUS_COLOR } from "@/lib/constants/prospects";
+import type { LeadStatus, ProspectStatus } from "@/lib/types/domain";
 
-type Tone = "brand" | "accent" | "success" | "danger" | "warning" | "ink";
+export type Tone = "brand" | "accent" | "success" | "danger" | "warning" | "ink";
 
 // Pastel -50/-100 dolgular acik zemin icindi; koyu lacivert temada bunun yerine
 // dusuk opakli renk dolgusu + acik renkli metin ("cam" rozet) kullaniliyor -
@@ -45,4 +46,8 @@ export function StatusBadge({ status }: { status: LeadStatus }) {
   // karsilasilabilir - bos/kirik gorunum yerine guvenli bir dusun.
   const safeStatus: LeadStatus = status in LEAD_STATUS_LABELS ? status : "discovery_offer";
   return <Badge tone={LEAD_STATUS_COLOR[safeStatus] as Tone}>{LEAD_STATUS_LABELS[safeStatus]}</Badge>;
+}
+
+export function ProspectStatusBadge({ status }: { status: ProspectStatus }) {
+  return <Badge tone={PROSPECT_STATUS_COLOR[status] as Tone}>{PROSPECT_STATUS_LABELS[status]}</Badge>;
 }
