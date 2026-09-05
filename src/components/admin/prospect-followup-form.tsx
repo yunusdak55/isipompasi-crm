@@ -29,6 +29,16 @@ export function ProspectFollowupForm({
     if (!isPending && state.error === null) setOpen(false);
   }, [isPending, state.error]);
 
+  const defaultDays = (() => {
+    if (!nextFollowupAt) return "";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(nextFollowupAt);
+    target.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
+    return diffDays >= 0 ? String(diffDays) : "0";
+  })();
+
   if (!open) {
     if (!nextFollowupAt) {
       return (
@@ -63,14 +73,11 @@ export function ProspectFollowupForm({
 
   return (
     <form action={formAction} className="flex min-w-[180px] flex-col gap-1.5">
-      <input
-        type="datetime-local"
-        name="followup_date"
-        required
-        defaultValue={nextFollowupAt ? nextFollowupAt.slice(0, 16) : ""}
-        className={fieldClass}
-      />
-      <p className="text-[10px] leading-tight text-ink-400">Girdiğin saatiyle Görüşme Takvimi'ne otomatik eklenir.</p>
+      <label className="flex flex-col gap-1">
+        <span className="text-[10px] font-medium text-ink-500">Kaç gün sonra aransın?</span>
+        <input type="number" name="followup_days" min={0} step={1} required defaultValue={defaultDays} placeholder="ör. 3" className={fieldClass} />
+      </label>
+      <p className="text-[10px] leading-tight text-ink-400">Görüşme Takvimi'ne otomatik eklenir.</p>
       <input type="text" name="followup_note" defaultValue={nextFollowupNote ?? ""} placeholder="Not (ör. tekrar ara)" className={fieldClass} />
       <div className="flex items-center gap-1.5">
         <button

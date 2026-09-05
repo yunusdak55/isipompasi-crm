@@ -18,6 +18,23 @@ function revalidateProspects() {
   revalidatePath("/admin/prospects/calendar");
 }
 
+/**
+ * "Kaç gün sonra aransın?" girdisini gerçek takip tarihine çevirir (spec:
+ * "tarih eklemek yerine kaç gün sonra aransın diye sorsun, ben yazınca
+ * otomatik kaydetsin"). `null` döner: gün sayısı geçersizse.
+ */
+function daysToFollowupDate(daysStr: string): Date | null {
+  if (daysStr === "") return null;
+  const days = Number(daysStr);
+  if (!Number.isFinite(days) || days < 0 || !Number.isInteger(days)) return null;
+
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  date.setHours(10, 0, 0, 0);
+  return date;
+}
+
 // ----------------------------------------------------------------------------
 // Yeni musteri adayi (ajansin aradigi firma) ekleme.
 // ----------------------------------------------------------------------------
@@ -139,13 +156,11 @@ export async function upsertProspectFollowupAction(
 ): Promise<FollowupActionState> {
   await requireAdmin();
 
-  const dateStr = String(formData.get("followup_date") ?? "");
+  const daysStr = String(formData.get("followup_days") ?? "");
   const note = String(formData.get("followup_note") ?? "").trim() || null;
 
-  if (!dateStr) return { error: "Takip tarihi zorunludur." };
-
-  const followupDate = new Date(dateStr);
-  if (Number.isNaN(followupDate.getTime())) return { error: "Geçersiz tarih." };
+  const followupDate = daysToFollowupDate(daysStr);
+  if (!followupDate) return { error: "Kaç gün sonra aranacağı zorunludur ve geçerli bir sayı olmalıdır." };
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -175,14 +190,13 @@ export async function createProspectWithFollowupAction(
 
   const companyName = String(formData.get("new_company_name") ?? "").trim();
   const phone = String(formData.get("new_company_phone") ?? "").trim() || null;
-  const dateStr = String(formData.get("followup_date") ?? "");
+  const daysStr = String(formData.get("followup_days") ?? "");
   const note = String(formData.get("followup_note") ?? "").trim() || null;
 
   if (!companyName) return { error: "Firma adı zorunludur." };
-  if (!dateStr) return { error: "Takip tarihi zorunludur." };
 
-  const followupDate = new Date(dateStr);
-  if (Number.isNaN(followupDate.getTime())) return { error: "Geçersiz tarih." };
+  const followupDate = daysToFollowupDate(daysStr);
+  if (!followupDate) return { error: "Kaç gün sonra aranacağı zorunludur ve geçerli bir sayı olmalıdır." };
 
   const supabase = await createClient();
   const { error } = await supabase.from("agency_prospects").insert({

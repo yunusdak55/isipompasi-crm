@@ -26,13 +26,33 @@ export function FollowupForm({
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
   const justSaved = useSaveFeedback(isPending, state.error);
 
-  const defaultDate = nextFollowupAt ? new Date(nextFollowupAt).toISOString().slice(0, 10) : "";
+  // Mevcut bir takip varsa, "kaç gün sonra" alanını o tarihe göre (bugünden
+  // farkı gün olarak) doldur - kullanıcı ekranı açtığında tarihi tekrar
+  // hesaplamak zorunda kalmasın.
+  const defaultDays = (() => {
+    if (!nextFollowupAt) return "";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(nextFollowupAt);
+    target.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
+    return diffDays >= 0 ? String(diffDays) : "0";
+  })();
 
   return (
     <form action={formAction} className="flex flex-col gap-2">
       <label className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-ink-600">Takip Tarihi</span>
-        <input type="date" name="followup_date" required defaultValue={defaultDate} className={inputClass} />
+        <span className="text-xs font-medium text-ink-600">Kaç Gün Sonra Aransın?</span>
+        <input
+          type="number"
+          name="followup_days"
+          min={0}
+          step={1}
+          required
+          defaultValue={defaultDays}
+          placeholder="ör. 3"
+          className={inputClass}
+        />
       </label>
       <label className="flex flex-col gap-1.5">
         <span className="text-xs font-medium text-ink-600">Not (opsiyonel)</span>

@@ -439,13 +439,23 @@ export async function upsertFollowupAction(
   prevState: FollowupActionState,
   formData: FormData
 ): Promise<FollowupActionState> {
-  const dateStr = String(formData.get("followup_date") ?? "");
+  // DUZELTME (spec: "tarih eklemek yerine kaç gün sonra aransın diye
+  // sorsun, ben yazınca otomatik kaydetsin") - kullanicidan artik takvimden
+  // tarih secmesi degil, sadece bir gun sayisi girmesi isteniyor; gercek
+  // tarih buradan hesaplaniyor. Boylece "3 gun sonra ara" gibi dogal bir
+  // giris, elle tarih hesaplamaya gerek kalmadan doğru takip tarihine
+  // donusuyor.
+  const daysStr = String(formData.get("followup_days") ?? "");
   const note = String(formData.get("followup_note") ?? "").trim() || null;
 
-  if (!dateStr) return { error: "Takip tarihi zorunludur." };
+  if (daysStr === "") return { error: "Kaç gün sonra aranacağı zorunludur." };
+  const days = Number(daysStr);
+  if (!Number.isFinite(days) || days < 0 || !Number.isInteger(days)) return { error: "Geçersiz gün sayısı." };
 
-  const followupDate = new Date(dateStr);
-  if (Number.isNaN(followupDate.getTime())) return { error: "Geçersiz tarih." };
+  const followupDate = new Date();
+  followupDate.setHours(0, 0, 0, 0);
+  followupDate.setDate(followupDate.getDate() + days);
+  followupDate.setHours(10, 0, 0, 0);
 
   const supabase = await createClient();
 

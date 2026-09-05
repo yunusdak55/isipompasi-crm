@@ -89,9 +89,9 @@ export function AppointmentForm({ leads }: { leads: LeadSelectItem[] }) {
           </>
         )}
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-white/55">Tarih &amp; Saat</span>
-          <input type="datetime-local" name="followup_date" required className={fieldClass} />
+        <label className="flex w-28 flex-col gap-1.5">
+          <span className="text-xs font-medium text-white/55">Kaç Gün Sonra?</span>
+          <input type="number" name="followup_days" min={0} step={1} required placeholder="ör. 3" className={fieldClass} />
         </label>
 
         <label className="flex min-w-[180px] flex-1 flex-col gap-1.5">
