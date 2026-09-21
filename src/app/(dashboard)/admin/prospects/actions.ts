@@ -19,19 +19,25 @@ function revalidateProspects() {
 }
 
 /**
- * "Kaç gün sonra aransın?" girdisini gerçek takip tarihine çevirir (spec:
- * "tarih eklemek yerine kaç gün sonra aransın diye sorsun, ben yazınca
- * otomatik kaydetsin"). `null` döner: gün sayısı geçersizse.
+ * "Kaç gün sonra aransın?" + saat girdisini gerçek takip tarihine çevirir
+ * (spec: "tarih eklemek yerine kaç gün sonra aransın diye sorsun, ben
+ * yazınca otomatik kaydetsin"). Görüşme takviminde saat anlamli olsun diye
+ * (spec: "zaman dilimiyle beraber takip") saat de ayrica soruluyor - gun
+ * secimi YINE tarih secmekten daha kolay oldugu icin korunuyor, sadece
+ * saat eklendi. `null` doner: gun sayisi veya saat gecersizse.
  */
-function daysToFollowupDate(daysStr: string): Date | null {
+function daysToFollowupDate(daysStr: string, timeStr: string): Date | null {
   if (daysStr === "") return null;
   const days = Number(daysStr);
   if (!Number.isFinite(days) || days < 0 || !Number.isInteger(days)) return null;
 
+  const timeMatch = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(timeStr);
+  const [hours, minutes] = timeMatch ? [Number(timeMatch[1]), Number(timeMatch[2])] : [10, 0];
+
   const date = new Date();
   date.setHours(0, 0, 0, 0);
   date.setDate(date.getDate() + days);
-  date.setHours(10, 0, 0, 0);
+  date.setHours(hours, minutes, 0, 0);
   return date;
 }
 
@@ -157,9 +163,10 @@ export async function upsertProspectFollowupAction(
   await requireAdmin();
 
   const daysStr = String(formData.get("followup_days") ?? "");
+  const timeStr = String(formData.get("followup_time") ?? "");
   const note = String(formData.get("followup_note") ?? "").trim() || null;
 
-  const followupDate = daysToFollowupDate(daysStr);
+  const followupDate = daysToFollowupDate(daysStr, timeStr);
   if (!followupDate) return { error: "Kaç gün sonra aranacağı zorunludur ve geçerli bir sayı olmalıdır." };
 
   const supabase = await createClient();
@@ -191,11 +198,12 @@ export async function createProspectWithFollowupAction(
   const companyName = String(formData.get("new_company_name") ?? "").trim();
   const phone = String(formData.get("new_company_phone") ?? "").trim() || null;
   const daysStr = String(formData.get("followup_days") ?? "");
+  const timeStr = String(formData.get("followup_time") ?? "");
   const note = String(formData.get("followup_note") ?? "").trim() || null;
 
   if (!companyName) return { error: "Firma adı zorunludur." };
 
-  const followupDate = daysToFollowupDate(daysStr);
+  const followupDate = daysToFollowupDate(daysStr, timeStr);
   if (!followupDate) return { error: "Kaç gün sonra aranacağı zorunludur ve geçerli bir sayı olmalıdır." };
 
   const supabase = await createClient();

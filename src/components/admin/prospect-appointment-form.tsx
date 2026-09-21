@@ -102,9 +102,14 @@ export function ProspectAppointmentForm({ prospects }: { prospects: ProspectSele
           </>
         )}
 
-        <label className="flex w-28 flex-col gap-1.5">
+        <label className="flex w-24 flex-col gap-1.5">
           <span className="text-xs font-medium text-white/55">Kaç Gün Sonra?</span>
           <input type="number" name="followup_days" min={0} step={1} required placeholder="ör. 3" className={fieldClass} />
+        </label>
+
+        <label className="flex w-28 flex-col gap-1.5">
+          <span className="text-xs font-medium text-white/55">Saat</span>
+          <input type="time" name="followup_time" required defaultValue="10:00" className={fieldClass} />
         </label>
 
         <label className="flex min-w-[180px] flex-1 flex-col gap-1.5">

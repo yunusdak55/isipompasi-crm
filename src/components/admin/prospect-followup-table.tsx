@@ -3,6 +3,8 @@ import { ProspectStatusBadge } from "@/components/ui/badge";
 import { formatRelativeDays, formatRelativeTimeAgo, isLeadOverdue } from "@/lib/utils";
 import type { AgencyProspect } from "@/lib/types/domain";
 
+const TIME_FORMATTER = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
+
 /** "Takipte" ekrani: takvime eklenen her aday buraya, tek listede toplanir. */
 export function ProspectFollowupTable({ prospects }: { prospects: AgencyProspect[] }) {
   if (prospects.length === 0) {
@@ -54,7 +56,12 @@ export function ProspectFollowupTable({ prospects }: { prospects: AgencyProspect
                   <p className="mt-0.5 text-xs text-white/45">{[p.contact_name, p.phone].filter(Boolean).join(" · ") || "—"}</p>
                 </td>
                 <td className={`px-4 py-3.5 font-medium ${followupOverdue ? "text-[#ffb4a3]" : "text-white"}`}>
-                  {followupToday ? <TodayCallBadge /> : (followupLabel ?? "—")}
+                  <span className="flex items-center gap-1.5">
+                    {followupToday ? <TodayCallBadge /> : <span>{followupLabel ?? "—"}</span>}
+                    {p.next_followup_at ? (
+                      <span className="text-xs font-normal tabular-nums text-white/50">{TIME_FORMATTER.format(new Date(p.next_followup_at))}</span>
+                    ) : null}
+                  </span>
                   {p.next_followup_note ? <p className="mt-0.5 text-xs font-normal text-white/50">{p.next_followup_note}</p> : null}
                 </td>
                 <td className="px-4 py-3.5">
