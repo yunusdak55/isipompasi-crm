@@ -474,6 +474,26 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["agency_prospects"]["Insert"]>;
         Relationships: [];
       };
+      agency_prospect_activities: {
+        Row: {
+          id: string;
+          prospect_id: string;
+          type: "note" | "status_change" | "system";
+          description: string;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          prospect_id: string;
+          type?: "note" | "status_change" | "system";
+          description: string;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["agency_prospect_activities"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { X, Phone } from "lucide-react";
 import { OverdueBadge } from "@/components/leads/lead-indicators";
 import { isLeadOverdue } from "@/lib/utils";
@@ -14,15 +15,15 @@ export type ProspectCalendarCell = {
 };
 
 const TR_WEEKDAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
-const TIME_FORMATTER = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
 
 /**
  * Görüşme takvimi ay izgarasi + gun detay modali - leads/calendar-grid.tsx
- * ile AYNI desen (spec: "firmanın kullandığı panele benzer"). Aday satirlari
- * SAAT ile birlikte gosterilir (spec: "zaman dilimiyle beraber takip") ve
- * detay sayfasi olmadigi icin (adaylar liste sayfasinda duzenleniyor) modal
- * dogrudan aranabilir bir telefon linki sunar - "kimi ne zaman arayacagim"
- * sorusuna tek ekranda cevap.
+ * ile AYNI desen (spec: "firmanın kullandığı panele benzer"). DUZELTME
+ * (spec: "manuel saat girme falanı da kaldır") - saat artik ne giriliyor
+ * ne gosteriliyor, sadece GUN takip ediliyor (leads/calendar-grid.tsx ile
+ * birebir ayni). Profil sayfasi eklendigi icin (bkz. admin/prospects/[id])
+ * modal artik hem profile hem de dogrudan aranabilir bir telefon linkine
+ * gidiyor.
  */
 export function ProspectCalendarGrid({ cells, monthLabel }: { cells: ProspectCalendarCell[]; monthLabel: string }) {
   const [openDay, setOpenDay] = useState<ProspectCalendarCell | null>(null);
@@ -75,10 +76,8 @@ export function ProspectCalendarGrid({ cells, monthLabel }: { cells: ProspectCal
                     <span
                       key={p.id}
                       className="truncate rounded border border-accent-500/25 bg-accent-500/[0.12] px-1.5 py-0.5 text-[11px] font-medium text-accent-200"
-                      title={`${TIME_FORMATTER.format(new Date(p.next_followup_at as string))} — ${p.company_name}`}
                     >
                       {overdue ? <OverdueBadge className="mr-1 px-1 py-0 text-[8px]" /> : null}
-                      <span className="text-accent-100/80">{TIME_FORMATTER.format(new Date(p.next_followup_at as string))}</span>{" "}
                       {p.company_name}
                     </span>
                   );
@@ -127,9 +126,13 @@ export function ProspectCalendarGrid({ cells, monthLabel }: { cells: ProspectCal
                   createdAt: p.created_at,
                   nextFollowupAt: p.next_followup_at,
                 });
-                const row = (
-                  <>
-                    <span className="flex min-w-0 flex-col">
+                return (
+                  <div
+                    key={p.id}
+                    className="animate-slide-up flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 transition-colors duration-150 hover:border-accent-400/40 hover:bg-white/[0.08]"
+                    style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
+                  >
+                    <Link href={`/admin/prospects/${p.id}`} className="flex min-w-0 flex-1 flex-col">
                       <span className="flex items-center gap-1.5">
                         {overdue ? <OverdueBadge className="shrink-0" /> : null}
                         <span className="truncate text-sm font-medium text-white">{p.company_name}</span>
@@ -139,31 +142,16 @@ export function ProspectCalendarGrid({ cells, monthLabel }: { cells: ProspectCal
                           {[p.contact_name, p.next_followup_note].filter(Boolean).join(" — ")}
                         </span>
                       ) : null}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs tabular-nums text-white/60">
-                        {p.next_followup_at ? TIME_FORMATTER.format(new Date(p.next_followup_at)) : ""}
-                      </span>
-                      {p.phone ? <Phone className="h-3.5 w-3.5 text-accent-300" /> : null}
-                    </span>
-                  </>
-                );
-                return p.phone ? (
-                  <a
-                    key={p.id}
-                    href={`tel:${p.phone}`}
-                    className="animate-slide-up flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 transition-colors duration-150 hover:border-accent-400/40 hover:bg-white/[0.08]"
-                    style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
-                  >
-                    {row}
-                  </a>
-                ) : (
-                  <div
-                    key={p.id}
-                    className="animate-slide-up flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3"
-                    style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
-                  >
-                    {row}
+                    </Link>
+                    {p.phone ? (
+                      <a
+                        href={`tel:${p.phone}`}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent-300 transition-colors duration-150 hover:bg-accent-500/15"
+                        aria-label={`${p.company_name} numarasını ara`}
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                      </a>
+                    ) : null}
                   </div>
                 );
               })}

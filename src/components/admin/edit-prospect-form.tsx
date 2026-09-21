@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Pencil, Check, X } from "lucide-react";
+import Link from "next/link";
+import { Pencil, Check, X, NotebookText } from "lucide-react";
 import { updateProspectAction, type UpdateProspectState } from "@/app/(dashboard)/admin/prospects/actions";
 import { useSaveFeedback } from "@/lib/hooks/use-save-feedback";
 import { cn } from "@/lib/utils";
@@ -44,16 +45,26 @@ export function EditProspectForm({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="group flex w-full items-start gap-1.5 text-left">
-        <span className="min-w-0 flex-1">
-          <p className="font-medium text-ink-900">{companyName}</p>
+      <div className="group flex w-full items-start gap-1.5">
+        <button type="button" onClick={() => setOpen(true)} className="min-w-0 flex-1 text-left">
+          <p className="font-medium text-ink-900 hover:text-accent-300">{companyName}</p>
           <p className="truncate text-xs text-ink-600">
             {[contactName, phone].filter(Boolean).join(" · ") || "—"}
           </p>
           {notes ? <p className="mt-0.5 truncate text-xs text-ink-400" title={notes}>{notes}</p> : null}
-        </span>
-        <Pencil className="mt-0.5 h-3 w-3 shrink-0 text-ink-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
-      </button>
+        </button>
+        <Link
+          href={`/admin/prospects/${prospectId}`}
+          className="mt-0.5 shrink-0 text-ink-400 opacity-0 transition-opacity duration-150 hover:text-accent-300 group-hover:opacity-100"
+          title="Notlar ve geçmişi aç"
+        >
+          <NotebookText className="h-3.5 w-3.5" />
+        </Link>
+        <Pencil
+          className="mt-0.5 h-3 w-3 shrink-0 cursor-pointer text-ink-400 opacity-0 transition-opacity duration-150 hover:text-ink-900 group-hover:opacity-100"
+          onClick={() => setOpen(true)}
+        />
+      </div>
     );
   }
 

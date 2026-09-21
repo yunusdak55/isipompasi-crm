@@ -11,8 +11,6 @@ const fieldClass =
 
 const initialState: FollowupActionState = { error: null };
 
-const TIME_FORMATTER = new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit" });
-
 /** "Sonraki Takip" hucresi: tarih goster, tiklayinca duzenle - kayittaki telefon/not takibini tamamlar. */
 export function ProspectFollowupForm({
   prospectId,
@@ -41,11 +39,6 @@ export function ProspectFollowupForm({
     return diffDays >= 0 ? String(diffDays) : "0";
   })();
 
-  // Saat, gorusme takviminde anlamli bir "zaman dilimi" olsun diye ayrica
-  // tutuluyor (spec: "notlar ile zaman dilimiyle beraber takip"). Mevcut
-  // kayittan HH:MM cikarilir, yoksa makul bir varsayilan (10:00) gosterilir.
-  const defaultTime = nextFollowupAt ? TIME_FORMATTER.format(new Date(nextFollowupAt)) : "10:00";
-
   if (!open) {
     if (!nextFollowupAt) {
       return (
@@ -66,14 +59,11 @@ export function ProspectFollowupForm({
     return (
       <button type="button" onClick={() => setOpen(true)} className="group flex items-start gap-1.5 text-left">
         <span>
-          <span className="flex items-center gap-1.5">
-            {isToday ? (
-              <TodayCallBadge />
-            ) : (
-              <span className={cn("text-xs font-medium", isOverdue ? "text-danger-600" : "text-ink-900")}>{relativeLabel}</span>
-            )}
-            <span className="text-xs tabular-nums text-ink-500">{defaultTime}</span>
-          </span>
+          {isToday ? (
+            <TodayCallBadge />
+          ) : (
+            <span className={cn("text-xs font-medium", isOverdue ? "text-danger-600" : "text-ink-900")}>{relativeLabel}</span>
+          )}
           {nextFollowupNote ? <span className="block text-xs text-ink-500">{nextFollowupNote}</span> : null}
         </span>
         <Pencil className="mt-0.5 h-3 w-3 shrink-0 text-ink-400 opacity-0 transition-opacity duration-150 group-hover:opacity-100" />
@@ -82,17 +72,11 @@ export function ProspectFollowupForm({
   }
 
   return (
-    <form action={formAction} className="flex min-w-[200px] flex-col gap-1.5">
-      <div className="flex gap-1.5">
-        <label className="flex flex-1 flex-col gap-1">
-          <span className="text-[10px] font-medium text-ink-500">Kaç gün sonra?</span>
-          <input type="number" name="followup_days" min={0} step={1} required defaultValue={defaultDays} placeholder="ör. 3" className={fieldClass} />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium text-ink-500">Saat</span>
-          <input type="time" name="followup_time" required defaultValue={defaultTime} className={fieldClass} />
-        </label>
-      </div>
+    <form action={formAction} className="flex min-w-[180px] flex-col gap-1.5">
+      <label className="flex flex-col gap-1">
+        <span className="text-[10px] font-medium text-ink-500">Kaç gün sonra aransın?</span>
+        <input type="number" name="followup_days" min={0} step={1} required defaultValue={defaultDays} placeholder="ör. 3" className={fieldClass} />
+      </label>
       <p className="text-[10px] leading-tight text-ink-400">Görüşme Takvimi'ne otomatik eklenir.</p>
       <input type="text" name="followup_note" defaultValue={nextFollowupNote ?? ""} placeholder="Not (ör. tekrar ara)" className={fieldClass} />
       <div className="flex items-center gap-1.5">

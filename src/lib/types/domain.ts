@@ -50,6 +50,17 @@ export type AgencyProspect = {
   updated_at: string;
 };
 
+/** Aday profilindeki zaman çizelgesi girdisi (manuel not veya otomatik olay). */
+export type ProspectActivityType = "note" | "status_change" | "system";
+
+export type ProspectActivity = {
+  id: string;
+  prospect_id: string;
+  type: ProspectActivityType;
+  description: string;
+  created_at: string;
+};
+
 /** Dashboard ust kisimdaki durum sayaclari (spec md.7). */
 export type PipelineStats = {
   status: LeadStatus;

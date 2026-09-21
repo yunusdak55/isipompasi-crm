@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { AgencyProspect, ProspectStatus } from "@/lib/types/domain";
+import type { AgencyProspect, ProspectActivity, ProspectStatus } from "@/lib/types/domain";
 
 const PROSPECT_COLUMNS =
   "id, company_name, contact_name, phone, notes, status, next_followup_at, next_followup_note, last_contact_at, created_at, updated_at";
@@ -46,6 +46,28 @@ export async function getProspectById(id: string): Promise<AgencyProspect | null
   }
 
   return data as unknown as AgencyProspect;
+}
+
+/**
+ * Aday profilindeki zaman çizelgesi (spec: "bir zaman çizelgesi notlar
+ * kısmı olsun... tarihi ve zamanıyla birlikte kendisi gözüksün") - en yeni
+ * en üstte, leads.ts/getLeadActivities ile aynı desen.
+ */
+export async function getProspectActivities(prospectId: string): Promise<ProspectActivity[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("agency_prospect_activities")
+    .select("id, prospect_id, type, description, created_at")
+    .eq("prospect_id", prospectId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("getProspectActivities error:", error.message);
+    return [];
+  }
+
+  return (data ?? []) as unknown as ProspectActivity[];
 }
 
 /**
