@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { X, Phone } from "lucide-react";
 import { OverdueBadge } from "@/components/leads/lead-indicators";
-import { isLeadOverdue } from "@/lib/utils";
+import { isProspectOverdue } from "@/lib/utils";
 import type { AgencyProspect } from "@/lib/types/domain";
 
 export type ProspectCalendarCell = {
@@ -66,7 +66,7 @@ export function ProspectCalendarGrid({ cells, monthLabel }: { cells: ProspectCal
               </span>
               <div className="flex flex-col gap-1">
                 {cell.prospects.slice(0, 3).map((p) => {
-                  const overdue = isLeadOverdue({
+                  const overdue = isProspectOverdue({
                     status: p.status,
                     lastContactAt: p.last_contact_at,
                     createdAt: p.created_at,
@@ -120,7 +120,7 @@ export function ProspectCalendarGrid({ cells, monthLabel }: { cells: ProspectCal
             </div>
             <div className="scrollbar-kanban flex flex-col gap-1.5 overflow-y-auto p-3">
               {openDay.prospects.map((p, index) => {
-                const overdue = isLeadOverdue({
+                const overdue = isProspectOverdue({
                   status: p.status,
                   lastContactAt: p.last_contact_at,
                   createdAt: p.created_at,

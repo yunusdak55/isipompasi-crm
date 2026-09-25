@@ -36,9 +36,13 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ["panel.iklimlen.com"],
     },
+    // DUZELTME (next dev başlangıç uyarısı: "Number must be greater than or
+    // equal to 30 at experimental.staleTimes.static") - bu Next.js sürümü artık
+    // 0'a izin vermiyor, izin verilen en düşük değer (30s) buraya alındı; niyet
+    // (client router cache'i pratikte etkisiz kılmak) korunuyor.
     staleTimes: {
       dynamic: 0,
-      static: 0,
+      static: 30,
     },
   },
 };

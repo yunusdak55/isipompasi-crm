@@ -79,7 +79,7 @@ export type Database = {
         Row: {
           id: string;
           company_id: string;
-          first_name: string;
+          first_name: string | null;
           last_name: string | null;
           phone: string;
           email: string | null;
@@ -131,6 +131,7 @@ export type Database = {
           priority: "hot" | "cold";
           notes: string | null;
           last_contact_at: string | null;
+          last_activity_at: string | null;
           next_followup_at: string | null;
           next_followup_note: string | null;
           created_at: string;
@@ -141,7 +142,7 @@ export type Database = {
         Insert: {
           id?: string;
           company_id: string;
-          first_name: string;
+          first_name?: string | null;
           last_name?: string | null;
           phone: string;
           email?: string | null;
@@ -165,6 +166,7 @@ export type Database = {
           priority?: Database["public"]["Tables"]["leads"]["Row"]["priority"];
           notes?: string | null;
           last_contact_at?: string | null;
+          last_activity_at?: string | null;
           next_followup_at?: string | null;
           next_followup_note?: string | null;
           created_at?: string;
@@ -320,6 +322,40 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "followups_lead_id_fkey";
+            columns: ["lead_id"];
+            referencedRelation: "leads";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+
+      discovery_visits: {
+        Row: {
+          id: string;
+          company_id: string;
+          lead_id: string;
+          visit_date: string;
+          location: string | null;
+          outcome_note: string | null;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          lead_id: string;
+          visit_date?: string;
+          location?: string | null;
+          outcome_note?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["discovery_visits"]["Insert"]>;
+        Relationships: [
+          {
+            foreignKeyName: "discovery_visits_lead_id_fkey";
             columns: ["lead_id"];
             referencedRelation: "leads";
             referencedColumns: ["id"];

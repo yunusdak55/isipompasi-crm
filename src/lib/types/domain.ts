@@ -11,6 +11,7 @@ export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Lead = Database["public"]["Tables"]["leads"]["Row"];
 export type Activity = Database["public"]["Tables"]["activities"]["Row"];
 export type Followup = Database["public"]["Tables"]["followups"]["Row"];
+export type DiscoveryVisit = Database["public"]["Tables"]["discovery_visits"]["Row"];
 export type Sale = Database["public"]["Tables"]["sales"]["Row"];
 export type Competitor = Database["public"]["Tables"]["competitors"]["Row"];
 export type Integration = Database["public"]["Tables"]["integrations"]["Row"];

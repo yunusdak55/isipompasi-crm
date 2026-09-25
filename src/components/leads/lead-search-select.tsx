@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LeadSelectItem } from "@/lib/data/leads";
+import { leadDisplayName } from "@/lib/utils";
 
 const fieldClass =
   "w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-white/35 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.07] focus-visible:outline-none";
@@ -32,14 +33,14 @@ export function LeadSearchSelect({ leads, name = "lead_id" }: { leads: LeadSelec
   const normalizedQuery = query.trim().toLocaleLowerCase("tr");
   const filtered = normalizedQuery
     ? leads.filter((l) => {
-        const fullName = `${l.first_name} ${l.last_name ?? ""}`.toLocaleLowerCase("tr");
+        const fullName = leadDisplayName(l).toLocaleLowerCase("tr");
         return fullName.includes(normalizedQuery) || l.phone.includes(normalizedQuery);
       })
     : leads;
 
   function handlePick(lead: LeadSelectItem) {
     setSelectedId(lead.id);
-    setQuery(`${lead.first_name} ${lead.last_name ?? ""}`.trim());
+    setQuery(leadDisplayName(lead));
     setOpen(false);
   }
 
@@ -74,7 +75,7 @@ export function LeadSearchSelect({ leads, name = "lead_id" }: { leads: LeadSelec
                 className="flex w-full flex-col items-start px-3 py-1.5 text-left transition-colors duration-100 hover:bg-white/[0.08]"
               >
                 <span className="text-sm font-medium text-white">
-                  {lead.first_name} {lead.last_name ?? ""}
+                  {leadDisplayName(lead)}
                 </span>
                 <span className="text-xs text-white/45">{lead.phone}</span>
               </button>

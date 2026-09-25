@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { LEAD_STATUS_ORDER } from "@/lib/constants/lead";
-import { OVERDUE_HOURS } from "@/lib/utils";
+import { NO_CONTACT_OVERDUE_HOURS, isLeadOverdue } from "@/lib/utils";
 import type { LeadPriority, LeadStatus } from "@/lib/types/domain";
 
 /** ILIKE joker karakterlerini ve .or() sozdizimini bozabilecek karakterleri temizler. */
@@ -10,7 +10,7 @@ export function sanitizeSearchTerm(term: string) {
 
 export type LeadListItem = {
   id: string;
-  first_name: string;
+  first_name: string | null;
   last_name: string | null;
   phone: string;
   city: string | null;
@@ -22,12 +22,13 @@ export type LeadListItem = {
   next_followup_note: string | null;
   offered_amount: number | null;
   last_contact_at: string | null;
+  last_activity_at: string | null;
   created_at: string;
   assigned_profile: { full_name: string | null } | null;
 };
 
 const LEAD_LIST_COLUMNS =
-  "id, first_name, last_name, phone, city, area_m2, property_type, status, priority, next_followup_at, next_followup_note, offered_amount, last_contact_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name)";
+  "id, first_name, last_name, phone, city, area_m2, property_type, status, priority, next_followup_at, next_followup_note, offered_amount, last_contact_at, last_activity_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name)";
 
 /**
  * Lead listesini SERVER-SIDE sayfalama + filtre ile getirir (spec md.29:
@@ -128,7 +129,7 @@ export async function getSaleForLead(leadId: string) {
   return data;
 }
 
-export type LeadSelectItem = { id: string; first_name: string; last_name: string | null; phone: string };
+export type LeadSelectItem = { id: string; first_name: string | null; last_name: string | null; phone: string };
 
 /** Takvimden dogrudan randevu olustururken lead secim dropdown'u icin acik leadler. */
 export async function getOpenLeadsForSelect(): Promise<LeadSelectItem[]> {
@@ -170,7 +171,7 @@ export async function getAssignableProfiles(companyId: string) {
 
 export type BoardLead = {
   id: string;
-  first_name: string;
+  first_name: string | null;
   last_name: string | null;
   phone: string;
   city: string | null;
@@ -178,6 +179,7 @@ export type BoardLead = {
   priority: LeadPriority;
   offered_amount: number | null;
   last_contact_at: string | null;
+  last_activity_at: string | null;
   next_followup_at: string | null;
   created_at: string;
   assigned_profile: { full_name: string | null } | null;
@@ -193,7 +195,7 @@ export async function getLeadsForBoard(): Promise<Record<LeadStatus, BoardLead[]
   const { data, error } = await supabase
     .from("leads")
     .select(
-      "id, first_name, last_name, phone, city, status, priority, offered_amount, last_contact_at, next_followup_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name)"
+      "id, first_name, last_name, phone, city, status, priority, offered_amount, last_contact_at, last_activity_at, next_followup_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name)"
     )
     .order("created_at", { ascending: false });
 
@@ -298,28 +300,21 @@ export async function getLeadsCalendar(year: number, month: number): Promise<Lea
 }
 
 /**
- * "Gecikenler" ekrani (spec md.5): son temastan (last_contact_at, yoksa
- * created_at) 48 saatten fazla gecmis, hala aktif leadler - ILERIDE planli
- * bir takibi OLMAYAN leadler (varsa zaten "gecikmis" degil, bkz. isLeadOverdue).
+ * "Gecikenler" ekrani (spec: iki bagimsiz tetikleyici - bkz. isLeadOverdue()
+ * dokumantasyonu): (A) hic cevap verilmemis + 24 saat gecmis, (B) takip gunu
+ * tamamen gecmis + o gunden beri hicbir aktivite yok.
  *
- * DUZELTME (denetim raporu): once tum aktif leadler cekilip JS tarafinda
- * filtreleniyordu ("kucuk olcekli V1 kumesi" varsayimiyla) - 100-200 leadde
- * bu sayfa olculebilir sekilde en yavas ekrandi. COALESCE(last_contact_at,
- * created_at) < esik mantigi, PostgREST'in .or()+.and() kombinasyonuyla
- * dogrudan SQL WHERE'e tasindi; JS'e sadece zaten kucuk olan sonuc kumesi
- * (gercekten gecikmis leadler) dusuyor, sirali cekiliyor.
+ * SQL burada sadece KABA bir on-filtre (aday kume, veritabaninda kucuk
+ * tutmak icin) - Kural B'nin "o takip gununden BERI hicbir aktivite yok"
+ * kismi (last_activity_at ile GUN-hassas kolon-kolon karsilastirma)
+ * PostgREST filtre sozdiziminde ifade edilemez. Kesin karar isLeadOverdue()
+ * ile (bkz. lib/utils.ts) AYNI, TEK yerden yonetilen mantikla JS'te veriliyor -
+ * Takipte/Kanban rozetleriyle bu sayfa arasinda ASLA celisme olmaz (gecmiste
+ * yasanan, ayri kopya mantiklardan kaynaklanan bug'lar bu sayede imkansiz hale gelir).
  */
 export async function getLeadsOverdue(): Promise<LeadListItem[]> {
   const supabase = await createClient();
-  const cutoff = new Date(Date.now() - OVERDUE_HOURS * 60 * 60 * 1000).toISOString();
-
-  // DUZELTME (canli denetimde yakalanan celiski): bu satir eskiden `now`
-  // (SAAT hassasiyeti) kullaniyordu - bugun icin planli ama saati gecmis bir
-  // takibi olan lead burada "gecikmis" sayilip listeleniyordu, AYNI ANDA
-  // isLeadOverdue() (Leadler/Takipte tablolarindaki GECIKMIS rozeti) o
-  // leadi GUN bazli kural geregi "gecikmis degil" sayiyordu - kullanici ayni
-  // lead icin Gecikenler sayfasinda rozet gorup Takipte sayfasinda gormuyordu.
-  // Artik HER IKI yer de ayni GUN bazli esigi (gunun basi) kullaniyor.
+  const noContactCutoff = new Date(Date.now() - NO_CONTACT_OVERDUE_HOURS * 60 * 60 * 1000).toISOString();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
@@ -327,17 +322,28 @@ export async function getLeadsOverdue(): Promise<LeadListItem[]> {
     .from("leads")
     .select(LEAD_LIST_COLUMNS)
     .not("status", "in", "(won,lost)")
-    .or(`last_contact_at.lt.${cutoff},and(last_contact_at.is.null,created_at.lt.${cutoff})`)
-    .or(`next_followup_at.is.null,next_followup_at.lt.${todayStart.toISOString()}`);
+    .or(
+      `and(last_contact_at.is.null,created_at.lt.${noContactCutoff}),and(next_followup_at.not.is.null,next_followup_at.lt.${todayStart.toISOString()})`
+    );
 
   if (error) {
     console.error("getLeadsOverdue error:", error.message);
     return [];
   }
 
-  return ((data ?? []) as unknown as LeadListItem[]).sort((a, b) => {
-    const aRef = new Date(a.last_contact_at ?? a.created_at).getTime();
-    const bRef = new Date(b.last_contact_at ?? b.created_at).getTime();
+  const overdue = ((data ?? []) as unknown as LeadListItem[]).filter((lead) =>
+    isLeadOverdue({
+      status: lead.status,
+      lastContactAt: lead.last_contact_at,
+      createdAt: lead.created_at,
+      nextFollowupAt: lead.next_followup_at,
+      lastActivityAt: lead.last_activity_at,
+    })
+  );
+
+  return overdue.sort((a, b) => {
+    const aRef = new Date(a.last_activity_at ?? a.last_contact_at ?? a.created_at).getTime();
+    const bRef = new Date(b.last_activity_at ?? b.last_contact_at ?? b.created_at).getTime();
     return aRef - bRef;
   });
 }

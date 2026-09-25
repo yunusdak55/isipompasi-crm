@@ -16,16 +16,18 @@ import type {
  * yaparken Turkce karakter (I/i, ş, ğ vb.) kaynakli sorunlarla ugrasilmaz.
  */
 
-// Ana satis pipeline'i (sirali): Lead -> Kesif/Teklif -> Satis. "Arandi" artik
-// bir pipeline asamasi DEGIL (spec: "aradığımda arandı diyorum ama kayıp
-// olduğunda da arandı demem lazım, o yüzden arandı kısmını durum listesinden
-// kaldıralım, durumu değişen her müşteriye aynı arandı rozetini basalım") -
-// bunun yerine ContactedBadge (bkz. lead-indicators.tsx) her durum
-// degisikliginde otomatik gorunur, hangi asamada olursa olsun. "On Teklif"
-// ve "Ulasilamadi" asamalari da kaldirilmisti (spec: kullanicida gercek bir
-// karsiligi olmadigi icin ayri tutulmuyor - bkz. migration 0006/0007).
-// Takip/Kayip ana hat disinda, ayri (yan) durumlardir; ana hattan herhangi
-// bir noktada bu ikisine gecilebilir.
+// Ana satis pipeline'i (sirali): Lead -> Kesif/Teklif -> Satis. "Arandi" hic
+// bir zaman ayri bir pipeline asamasi olmadi (spec: "aradığımda arandı
+// diyorum ama kayıp olduğunda da arandı demem lazım") - once bunun yerine
+// otomatik bir "Arandı" rozeti kondu, sonra o rozet de tamamen kaldirildi
+// (spec: "ARANDI ROZETİNİ HER TÜRLÜ KALDIR" - agent'in WhatsApp'tan attigi
+// mesaj da last_contact_at'i degistirebilecegi icin "arandi" ibaresi artik
+// yaniltici olurdu; last_contact_at hala "gercek temas" icin dahili olarak
+// kullanilir, sadece kullaniciya ayrica bir rozet olarak gosterilmez). "On
+// Teklif" ve "Ulasilamadi" asamalari da kaldirilmisti (spec: kullanicida
+// gercek bir karsiligi olmadigi icin ayri tutulmuyor - bkz. migration
+// 0006/0007). Takip/Kayip ana hat disinda, ayri (yan) durumlardir; ana
+// hattan herhangi bir noktada bu ikisine gecilebilir.
 export const LEAD_STATUS_ORDER: LeadStatus[] = [
   "new",
   "discovery_offer",

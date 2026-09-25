@@ -191,6 +191,26 @@
   animation: sales-bar-grow 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
+/* Satış Personeli Performansı - yatay bar buyume animasyonu, dikey versiyonla
+   (sales-bar-grow) AYNI "spring" hissi, genislik uzerinden. */
+@keyframes salesperson-bar-grow {
+  from {
+    width: 0%;
+    box-shadow: 0 0 0 0 rgba(244, 124, 32, 0);
+  }
+  55% {
+    box-shadow: 4px 0 14px 0 rgba(244, 124, 32, 0.35);
+  }
+  to {
+    width: var(--bar-w);
+    box-shadow: 2px 0 8px 0 rgba(244, 124, 32, 0.16);
+  }
+}
+.salesperson-bar-grow {
+  width: var(--bar-w);
+  animation: salesperson-bar-grow 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 /* ============================================================================
    PREMIUM MIKRO-EFEKTLER (spec: "en premium ve güzel efektleri kullan")
    ============================================================================ */

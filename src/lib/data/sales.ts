@@ -115,7 +115,7 @@ export type SaleListItem = {
   saleDate: string;
   lead: {
     id: string;
-    firstName: string;
+    firstName: string | null;
     lastName: string | null;
     phone: string;
     city: string | null;
@@ -155,7 +155,7 @@ export async function getSalesList(): Promise<SaleListItem[]> {
     sale_date: string;
     lead: {
       id: string;
-      first_name: string;
+      first_name: string | null;
       last_name: string | null;
       phone: string;
       city: string | null;

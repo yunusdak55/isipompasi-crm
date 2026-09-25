@@ -9,7 +9,7 @@ import { ProspectFollowupForm } from "@/components/admin/prospect-followup-form"
 import { ProspectNoteForm } from "@/components/admin/prospect-note-form";
 import { EditProspectForm } from "@/components/admin/edit-prospect-form";
 import { OverdueBadge } from "@/components/leads/lead-indicators";
-import { formatDateTime, isLeadOverdue } from "@/lib/utils";
+import { formatDateTime, isProspectOverdue } from "@/lib/utils";
 
 /**
  * Musteri adayi profili - liste sayfasindaki hizli satir yerine, tek bir
@@ -33,7 +33,7 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
 
   const activities = await getProspectActivities(id);
 
-  const overdue = isLeadOverdue({
+  const overdue = isProspectOverdue({
     status: prospect.status,
     lastContactAt: prospect.last_contact_at,
     createdAt: prospect.created_at,

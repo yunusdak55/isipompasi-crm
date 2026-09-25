@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Loader2 } from "lucide-react";
 import { LEAD_STATUS_ORDER, LEAD_STATUS_LABELS } from "@/lib/constants/lead";
 import { searchLeadSuggestionsAction, type LeadSuggestion } from "@/app/(dashboard)/leads/actions";
+import { leadDisplayName } from "@/lib/utils";
 
 const fieldClass =
   "rounded-lg border border-white/15 bg-white/[0.07] text-sm text-white transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.11] focus-visible:outline-none";
@@ -119,7 +120,7 @@ export function LeadFilters({ defaultSearch, defaultStatus }: { defaultSearch?: 
               >
                 <span>
                   <span className="block text-sm font-medium text-white">
-                    {lead.first_name} {lead.last_name ?? ""}
+                    {leadDisplayName(lead)}
                   </span>
                   <span className="block text-xs text-white/45">{lead.phone}</span>
                 </span>

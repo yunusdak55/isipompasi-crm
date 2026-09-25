@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { OverdueBadge } from "@/components/leads/lead-indicators";
-import { isLeadOverdue, formatDateTime } from "@/lib/utils";
+import { isLeadOverdue, formatDateTime, leadDisplayName } from "@/lib/utils";
 import type { LeadListItem } from "@/lib/data/leads";
 
 export type CalendarCell = {
@@ -70,6 +70,7 @@ export function CalendarGrid({ cells, monthLabel }: { cells: CalendarCell[]; mon
                     lastContactAt: lead.last_contact_at,
                     createdAt: lead.created_at,
                     nextFollowupAt: lead.next_followup_at,
+                    lastActivityAt: lead.last_activity_at,
                   });
                   return (
                     <span
@@ -77,7 +78,7 @@ export function CalendarGrid({ cells, monthLabel }: { cells: CalendarCell[]; mon
                       className="truncate rounded border border-accent-500/25 bg-accent-500/[0.12] px-1.5 py-0.5 text-[11px] font-medium text-accent-200"
                     >
                       {overdue ? <OverdueBadge className="mr-1 px-1 py-0 text-[8px]" /> : null}
-                      {lead.first_name} {lead.last_name ?? ""}
+                      {leadDisplayName(lead)}
                     </span>
                   );
                 })}
@@ -124,6 +125,7 @@ export function CalendarGrid({ cells, monthLabel }: { cells: CalendarCell[]; mon
                   lastContactAt: lead.last_contact_at,
                   createdAt: lead.created_at,
                   nextFollowupAt: lead.next_followup_at,
+                  lastActivityAt: lead.last_activity_at,
                 });
                 return (
                   <Link
@@ -135,7 +137,7 @@ export function CalendarGrid({ cells, monthLabel }: { cells: CalendarCell[]; mon
                     <span className="flex min-w-0 items-center gap-1.5">
                       {overdue ? <OverdueBadge className="shrink-0" /> : null}
                       <span className="truncate text-sm font-medium text-white">
-                        {lead.first_name} {lead.last_name ?? ""}
+                        {leadDisplayName(lead)}
                       </span>
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-white/45">

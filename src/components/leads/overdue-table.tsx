@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/badge";
-import { OverdueBadge, ContactedBadge } from "@/components/leads/lead-indicators";
-import { formatCurrency, formatRelativeTimeAgo } from "@/lib/utils";
+import { OverdueBadge } from "@/components/leads/lead-indicators";
+import { formatCurrency, formatRelativeTimeAgo, leadDisplayName } from "@/lib/utils";
 import type { LeadListItem } from "@/lib/data/leads";
 
-/** "Gecikenler" ekrani (spec md.5): 48 saattir gorusulmemis, hala acik leadler. */
+/**
+ * "Gecikenler" ekrani (spec): hic cevap verilmeyen (24 saat) VEYA takip
+ * gunu gelipte guncelleme almayan (bkz. isLeadOverdue) leadler.
+ */
 export function OverdueTable({ leads }: { leads: LeadListItem[] }) {
   if (leads.length === 0) {
     return (
       <div className="animate-fade-in flex flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] py-16 text-center">
         <p className="text-sm font-medium text-white">Gecikmiş lead yok</p>
-        <p className="text-sm text-white/50">Tüm aktif leadlerle son 48 saat içinde ilgilenilmiş.</p>
+        <p className="text-sm text-white/50">Tüm leadlere zamanında dönülmüş, bekleyen takip yok.</p>
       </div>
     );
   }
@@ -44,9 +47,8 @@ export function OverdueTable({ leads }: { leads: LeadListItem[] }) {
                       href={`/leads/${lead.id}`}
                       className="font-medium text-white transition-colors group-hover:text-accent-300"
                     >
-                      {lead.first_name} {lead.last_name ?? ""}
+                      {leadDisplayName(lead)}
                     </Link>
-                    {lead.last_contact_at ? <ContactedBadge /> : null}
                   </div>
                   <p className="mt-0.5 text-xs text-white/45">{lead.phone}</p>
                 </td>

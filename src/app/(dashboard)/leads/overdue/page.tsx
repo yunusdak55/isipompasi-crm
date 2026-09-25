@@ -12,7 +12,7 @@ export default async function OverduePage() {
         <div>
           <h1 className="text-xl font-semibold text-white">Gecikenler</h1>
           <p className="text-sm text-white/55">
-            {leads.length} lead ile 48 saatten uzun süredir görüşülmedi — en uzun süredir bekleyen önce.
+            {leads.length} lead: hiç dönüş yapılmamış veya takip günü geçmiş — en uzun süredir bekleyen önce.
           </p>
         </div>
 

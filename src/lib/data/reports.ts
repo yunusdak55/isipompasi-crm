@@ -90,14 +90,26 @@ export type ReportsData = {
   monthlyFunnel: MonthlyFunnelPoint[];
 };
 
-/** Ay bazinda huni kirilimi (spec: "bu ay kac lead geldi, kaci arandi, kaci kesif oldu, kaci satis oldu"). */
+/**
+ * Ay bazinda huni kirilimi (spec: "bu ay kac lead geldi, kaci kesif oldu,
+ * kaci satis oldu"). DUZELTME: "calledCount" (last_contact_at doluysa
+ * "Arandı" sayilirdi) kaldirildi - spec: "ARANDI ROZETİNİ HER TÜRLÜ
+ * KALDIR". Ayrica bu, status bazli diger sayaçlarla ORTUSEBİLEN
+ * (ayni lead'i iki kez sayan) bir metrikti - ornegin "Keşif/Teklif"
+ * durumundaki bir lead'in last_contact_at'i de dolu olacagi icin hem
+ * "Keşif" hem "Arandı" dilimine giriyordu. Bunun yerine durum (status)
+ * BASINA, birbiriyle KESISMEYEN sayaçlar kullanilir - toplamlari her
+ * zaman tam olarak leadCount'a eşittir.
+ */
 export type MonthlyFunnelPoint = {
   key: string;
   label: string;
   leadCount: number;
-  calledCount: number;
+  newCount: number;
   discoveryCount: number;
+  followupCount: number;
   wonCount: number;
+  lostCount: number;
 };
 
 export async function getReportsData(period: string = "all"): Promise<ReportsData> {
@@ -241,11 +253,11 @@ export async function getReportsData(period: string = "all"): Promise<ReportsDat
       key: m.key,
       label: m.label,
       leadCount: monthLeads.length,
-      // "Arandi" artik ayri bir status degil (bkz. migration 0015) - en az bir
-      // kez gercek temas kurulmus mu diye last_contact_at'e bakiyoruz.
-      calledCount: monthLeads.filter((l) => l.last_contact_at !== null).length,
+      newCount: monthLeads.filter((l) => l.status === "new").length,
       discoveryCount: monthLeads.filter((l) => l.status === "discovery_offer").length,
+      followupCount: monthLeads.filter((l) => l.status === "followup").length,
       wonCount: monthLeads.filter((l) => l.status === "won").length,
+      lostCount: monthLeads.filter((l) => l.status === "lost").length,
     };
   });
 

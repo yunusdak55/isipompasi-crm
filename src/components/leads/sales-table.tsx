@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Phone } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, getInitials, leadDisplayName } from "@/lib/utils";
 import type { SaleListItem } from "@/lib/data/sales";
 
 /** Satışlar sayfasında kime ne satıldığını gösteren liste (spec: "adam kime ne sattığını görsün") - diğer lead tablolarıyla aynı görünüm dili. */
@@ -22,7 +22,7 @@ export function SalesTable({ sales }: { sales: SaleListItem[] }) {
             <th className="px-4 py-3 font-medium">Müşteri</th>
             <th className="px-4 py-3 font-medium">Şehir</th>
             <th className="px-4 py-3 font-medium">Ürün</th>
-            <th className="px-4 py-3 font-medium">Tutar</th>
+            <th className="px-4 py-3 text-right font-medium">Tutar</th>
             <th className="px-4 py-3 font-medium">Tarih</th>
             <th className="px-4 py-3 font-medium">Satış Personeli</th>
           </tr>
@@ -36,25 +36,38 @@ export function SalesTable({ sales }: { sales: SaleListItem[] }) {
             >
               <td className="px-4 py-3.5">
                 {sale.lead ? (
-                  <>
-                    <Link
-                      href={`/leads/${sale.lead.id}`}
-                      className="font-medium text-white transition-colors group-hover:text-accent-300"
-                    >
-                      {sale.lead.firstName} {sale.lead.lastName ?? ""}
-                    </Link>
-                    <p className="mt-0.5 flex items-center gap-1 text-xs text-white/60">
-                      <Phone className="h-3 w-3 shrink-0 text-white/40" strokeWidth={2} />
-                      {sale.lead.phone}
-                    </p>
-                  </>
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success-500/15 text-[11px] font-semibold text-[#7ee2ad] ring-1 ring-inset ring-success-500/25">
+                      {getInitials(leadDisplayName({ first_name: sale.lead.firstName, last_name: sale.lead.lastName }))}
+                    </span>
+                    <div>
+                      <Link
+                        href={`/leads/${sale.lead.id}`}
+                        className="font-medium text-white transition-colors group-hover:text-accent-300"
+                      >
+                        {leadDisplayName({ first_name: sale.lead.firstName, last_name: sale.lead.lastName })}
+                      </Link>
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-white/60">
+                        <Phone className="h-3 w-3 shrink-0 text-white/40" strokeWidth={2} />
+                        {sale.lead.phone}
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <span className="text-white/40">Lead silinmiş</span>
                 )}
               </td>
               <td className="px-4 py-3.5 text-white/70">{sale.lead?.city ?? "—"}</td>
-              <td className="px-4 py-3.5 text-white/70">{sale.lead?.productLabel ?? "—"}</td>
-              <td className="px-4 py-3.5 font-semibold tabular-nums text-success-300">{formatCurrency(sale.saleAmount)}</td>
+              <td className="px-4 py-3.5">
+                {sale.lead?.productLabel ? (
+                  <span className="inline-flex items-center rounded-full bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-white/75 ring-1 ring-inset ring-white/10">
+                    {sale.lead.productLabel}
+                  </span>
+                ) : (
+                  <span className="text-white/40">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-[#7ee2ad]">{formatCurrency(sale.saleAmount)}</td>
               <td className="px-4 py-3.5 text-white/70">{formatDate(sale.saleDate)}</td>
               <td className="px-4 py-3.5 text-white/70">{sale.salespersonName ?? "Atanmamış"}</td>
             </tr>

@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getLeadById } from "@/lib/data/leads";
 import { LeadForm } from "@/components/leads/lead-form";
 import { getProductCategories } from "@/lib/data/product-categories";
+import { leadDisplayName } from "@/lib/utils";
 import { updateLeadAction } from "../../actions";
 
 export default async function EditLeadPage({ params }: { params: Promise<{ id: string }> }) {
@@ -30,7 +31,7 @@ export default async function EditLeadPage({ params }: { params: Promise<{ id: s
       <div>
         <h1 className="text-xl font-semibold text-ink-900">Lead Düzenle</h1>
         <p className="text-sm text-ink-600">
-          {lead.first_name} {lead.last_name ?? ""}
+          {leadDisplayName(lead)}
         </p>
       </div>
 

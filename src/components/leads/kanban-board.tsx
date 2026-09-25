@@ -20,8 +20,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { updateLeadStatusAction, upsertSaleAction } from "@/app/(dashboard)/leads/actions";
 import { LEAD_STATUS_ORDER, LEAD_STATUS_LABELS } from "@/lib/constants/lead";
 import { Button } from "@/components/ui/button";
-import { NewLeadBadge, OverdueBadge, ContactedBadge } from "@/components/leads/lead-indicators";
-import { cn, formatCurrency, isLeadNew, isLeadOverdue } from "@/lib/utils";
+import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
+import { cn, formatCurrency, isLeadNew, isLeadOverdue, leadDisplayName } from "@/lib/utils";
 import type { BoardLead } from "@/lib/data/leads";
 import type { LeadStatus } from "@/lib/types/domain";
 
@@ -83,6 +83,7 @@ function KanbanCard({
     lastContactAt: lead.last_contact_at,
     createdAt: lead.created_at,
     nextFollowupAt: lead.next_followup_at,
+    lastActivityAt: lead.last_activity_at,
   });
   const compact = density === "compact";
 
@@ -104,9 +105,8 @@ function KanbanCard({
           href={`/leads/${lead.id}`}
           className={cn("truncate font-medium text-white transition-colors hover:text-accent-300", status === "lost" && "lost-name")}
         >
-          {lead.first_name} {lead.last_name ?? ""}
+          {leadDisplayName(lead)}
         </Link>
-        {lead.last_contact_at ? <ContactedBadge className={compact ? "px-1.5 py-0.5 text-[9px]" : undefined} /> : null}
       </div>
       {showNew ? <NewLeadBadge className={cn("w-fit", compact && "px-1.5 py-0.5 text-[9px]")} /> : null}
       <p className={cn("truncate text-white/55", compact ? "text-[11px]" : "text-xs")}>
@@ -150,7 +150,7 @@ function CardPreview({ lead }: { lead: BoardLead }) {
   return (
     <div className="animate-scale-in flex w-64 origin-center scale-[1.045] cursor-grabbing flex-col gap-2 rounded-lg border border-accent-200 bg-surface p-3 text-sm shadow-glow-accent-lg ring-2 ring-accent-500/15">
       <p className="truncate font-medium text-ink-900">
-        {lead.first_name} {lead.last_name ?? ""}
+        {leadDisplayName(lead)}
       </p>
       <p className="truncate text-xs text-ink-600">
         {lead.phone}
@@ -369,7 +369,7 @@ export function KanbanBoard({
       // onizleme) - ama sunucuya YAZMIYORUZ, once tutar modalini aciyoruz.
       // Vazgecilirse asagida (handleSaleCancel) karti eski kolonuna geri aliriz.
       const lead = board.won.find((l) => l.id === active.id);
-      setSaleModal({ leadId: active.id as string, from, name: lead ? `${lead.first_name} ${lead.last_name ?? ""}`.trim() : "" });
+      setSaleModal({ leadId: active.id as string, from, name: lead ? leadDisplayName(lead) : "" });
       return;
     }
 
@@ -384,7 +384,7 @@ export function KanbanBoard({
       // Board state'i henuz DEGISTIRMIYORUZ - tutar modali onaylanana kadar
       // kart oldugu kolonda kalir (bkz. handleSaleConfirm).
       const lead = board[from].find((l) => l.id === leadId);
-      setSaleModal({ leadId, from, name: lead ? `${lead.first_name} ${lead.last_name ?? ""}`.trim() : "" });
+      setSaleModal({ leadId, from, name: lead ? leadDisplayName(lead) : "" });
       return;
     }
     setBoard((prev) => {

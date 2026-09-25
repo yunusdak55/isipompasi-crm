@@ -8,14 +8,14 @@ import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { AnimatedStatValue } from "@/components/ui/animated-number";
 import { StatusBadge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
-import { NewLeadBadge, OverdueBadge, ContactedBadge } from "@/components/leads/lead-indicators";
+import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
 import {
   PROPERTY_TYPE_LABELS,
   BUILDING_STATUS_LABELS,
   HEATING_TYPE_LABELS,
   PURCHASE_TIMELINE_LABELS,
 } from "@/lib/constants/lead";
-import { formatCurrency, formatDate, formatDateTime, isLeadNew, isLeadOverdue } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateTime, isLeadNew, isLeadOverdue, leadDisplayName } from "@/lib/utils";
 import { MeetingOutcomeForm } from "@/components/leads/meeting-outcome-form";
 import { FollowupForm } from "@/components/leads/followup-panel";
 import { AssignPanel } from "@/components/leads/assign-panel";
@@ -40,20 +40,27 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   // kullaniyor; supabase-js'in otomatik tip cikarimi bu tur takma adli
   // join'leri her zaman birebir yakalayamayabilir - gerekirse ileride bu
   // satir icin elle bir donus tipi tanimlanabilir.
-  const lead = await getLeadById(id);
+  //
+  // PERF DUZELTMESI (denetim: canli tur sirasinda bu sayfa 700-1000ms
+  // suruyordu): activities/profile, lead'in SONUCUNA bagli degil - sadece
+  // `id`'ye ihtiyaclari var, yine de eskiden lead COZULENE KADAR
+  // baslatilmiyordu (sirali/gecikmis network round-trip'leri). Artik
+  // UCU BIRDEN paralel baslatiliyor.
+  const [lead, activities, profile] = await Promise.all([getLeadById(id), getLeadActivities(id), getCurrentProfile()]);
 
   if (!lead) {
     notFound();
   }
 
-  const [activities, profile] = await Promise.all([getLeadActivities(id), getCurrentProfile()]);
-
   const canAssign = profile?.role === "owner" || profile?.role === "admin";
-  const assignableProfiles = canAssign && lead.company_id ? await getAssignableProfiles(lead.company_id) : [];
-  const salespeople = canAssign && lead.company_id ? await getSalespeople(lead.company_id) : [];
-  // sales tablosu RLS geregi sadece owner/admin gorebilir ("ciro hassas veri") -
-  // sales rolundeyken sorgu bile atilmiyor.
-  const sale = canAssign ? await getSaleForLead(id) : null;
+  // Ayni sekilde: bu ucu birbirine BAGIMLI degil, sirayla (await...await...await)
+  // degil PARALEL cekilir - sales tablosu RLS geregi sadece owner/admin
+  // gorebilir ("ciro hassas veri"), sales rolundeyken sorgu bile atilmaz.
+  const [assignableProfiles, salespeople, sale] = await Promise.all([
+    canAssign && lead.company_id ? getAssignableProfiles(lead.company_id) : Promise.resolve([]),
+    canAssign && lead.company_id ? getSalespeople(lead.company_id) : Promise.resolve([]),
+    canAssign ? getSaleForLead(id) : Promise.resolve(null),
+  ]);
 
   const cityLine = [lead.city, lead.district].filter(Boolean).join(" / ");
   const showNew = isLeadNew(lead.status);
@@ -62,6 +69,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     lastContactAt: lead.last_contact_at,
     createdAt: lead.created_at,
     nextFollowupAt: lead.next_followup_at,
+    lastActivityAt: lead.last_activity_at,
   });
 
   return (
@@ -80,10 +88,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <div className="flex flex-wrap items-center gap-2">
             {showOverdue ? <OverdueBadge /> : null}
             <h1 className={`text-xl font-semibold text-ink-900 ${lead.status === "lost" ? "lost-name" : ""}`}>
-              {lead.first_name} {lead.last_name ?? ""}
+              {leadDisplayName(lead)}
             </h1>
             {showNew ? <NewLeadBadge /> : null}
-            {lead.last_contact_at ? <ContactedBadge /> : null}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-600">
             <span className="inline-flex items-center gap-1.5">

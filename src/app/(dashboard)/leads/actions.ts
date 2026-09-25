@@ -20,7 +20,7 @@ import type { Database } from "@/lib/types/database.types";
 
 export type LeadSuggestion = {
   id: string;
-  first_name: string;
+  first_name: string | null;
   last_name: string | null;
   phone: string;
   status: LeadStatus;
@@ -414,13 +414,32 @@ export async function logMeetingOutcomeAction(
   // yukarida) - yani bu lead icin bekleyen takip gorevi fiilen yerine
   // getirilmis demektir. O yuzden acik (is_completed=false) bir takip varsa
   // burada kapatiyoruz.
-  const { error: followupCompleteError } = await supabase
+  const { data: completedFollowups, error: followupCompleteError } = await supabase
     .from("followups")
     .update({ is_completed: true, completed_at: new Date().toISOString() })
     .eq("lead_id", leadId)
-    .eq("is_completed", false);
+    .eq("is_completed", false)
+    .select("id");
   if (followupCompleteError) {
     console.error("logMeetingOutcomeAction followup complete error:", followupCompleteError.message);
+  }
+
+  // HATA DUZELTMESI (denetim: "gecikenler kısmındaki leadler o günkü
+  // güncellemeyi alsa bile takipte listesinde eski tarihiyle sonsuza dek
+  // kalıyordu"): yukarida acik takip(ler) tamamlandi ama leads.
+  // next_followup_at/next_followup_note HICBIR ZAMAN temizlenmiyordu - lead
+  // "Takipte" listesinde (next_followup_at NOT NULL filtresiyle) eski/gecmis
+  // tarihiyle sonsuza kadar gorunmeye devam ediyordu, yeni bir takip
+  // planlanana kadar. Az once gercekten acik bir takibi kapattiysak burada
+  // da temizliyoruz.
+  if (completedFollowups && completedFollowups.length > 0) {
+    const { error: clearFollowupError } = await supabase
+      .from("leads")
+      .update({ next_followup_at: null, next_followup_note: null })
+      .eq("id", leadId);
+    if (clearFollowupError) {
+      console.error("logMeetingOutcomeAction clear next_followup error:", clearFollowupError.message);
+    }
   }
 
   revalidateLead(leadId);

@@ -65,7 +65,8 @@ export function formatRelativeTimeAgo(value: string | null | undefined) {
   return `${diffDays} gün önce`;
 }
 
-export const OVERDUE_HOURS = 48;
+/** "Hiç cevap verilmeyen" lead esigi (spec: "Gecikenler kısmı 24 saat boyunca dönüş yapılmayan leadler olarak güncellensin"). */
+export const NO_CONTACT_OVERDUE_HOURS = 24;
 
 /** Item: "Yeni Lead" gostergesi - status='new' zaten "henuz ilk temas kurulmadi" anlamina gelir. */
 export function isLeadNew(status: string) {
@@ -73,17 +74,61 @@ export function isLeadNew(status: string) {
 }
 
 /**
- * Item: "Gecikmis Lead" gostergesi. Musteriyle son gercek temas (last_contact_at;
- * hic temas yoksa lead'in olusturulma tarihi) uzerinden 48 saatten fazla gecmisse
- * ve lead hala aktifse (satis/kayip degilse) gecikmis sayilir.
+ * "Gecikmis Lead" gostergesi - IKI BAGIMSIZ tetikleyici (spec, kelimesi
+ * kelimesine): (A) "hiç cevap verilmeyen leadler" - hic gercek temas
+ * kurulmamis (last_contact_at bos) VE olusturulmasindan 24 saatten fazla
+ * gecmis; (B) "takipteki görüşmeler eğer günü geldiğinde gerekli
+ * güncellemeyi almazsa" - planli bir takip GUNU tamamen gecmis VE o gunden
+ * beri lead uzerinde HICBIR aktivite (durum degisikligi DEGIL, "zaman
+ * çizelgesindeki herhangi bir not bile durum değişikliği sayılır" - yani
+ * activities tablosuna dusen HERHANGI bir kayit, bkz. last_activity_at ve
+ * onu guncelleyen trigger) olmamis.
  *
- * DUZELTME: eger lead'in ILERIDE (henuz gelmemis) planli bir takibi varsa artik
- * gecikmis sayilmiyor - bir sonraki arama zaten takvimde, "gecikmis" damgasi
- * yanlis alarm veriyordu (denetim raporu: 156 leadin %61'i bu yuzden gecikmis
- * gorunuyordu). Takip tarihinin KENDISI de gecmisse (planlanan aramayi da
- * kacirdiysa) bu istisna gecerli degil - o durumda hala gecikmis sayilir.
+ * Kontrastla: bir kez temas kurulmus (last_contact_at dolu) ama HENUZ bir
+ * takip tarihi atanmamis lead artik "gecikmis" SAYILMAZ - spec'te bu ucuncu
+ * bir tetikleyici olarak tanimlanmadi (eski 48-saatlik genel esik kaldirildi).
  */
 export function isLeadOverdue(params: {
+  status: string;
+  lastContactAt: string | null;
+  createdAt: string;
+  nextFollowupAt?: string | null;
+  lastActivityAt?: string | null;
+}) {
+  if (params.status === "won" || params.status === "lost") return false;
+
+  // Kural A: hic cevap verilmemis.
+  if (!params.lastContactAt) {
+    const hoursSinceCreated = (Date.now() - new Date(params.createdAt).getTime()) / (1000 * 60 * 60);
+    if (hoursSinceCreated > NO_CONTACT_OVERDUE_HOURS) return true;
+  }
+
+  // Kural B: takip gunu tamamen gecti VE o gunden beri hicbir aktivite yok.
+  if (params.nextFollowupAt) {
+    const followupDayStart = new Date(params.nextFollowupAt);
+    followupDayStart.setHours(0, 0, 0, 0);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (followupDayStart.getTime() < todayStart.getTime()) {
+      const lastUpdate = params.lastActivityAt ?? params.createdAt;
+      if (new Date(lastUpdate).getTime() < followupDayStart.getTime()) return true;
+    }
+  }
+
+  return false;
+}
+
+const PROSPECT_OVERDUE_HOURS = 48;
+
+/**
+ * Ajansin KENDI musteri adaylari (agency_prospects - admin/prospects) icin
+ * "gecikmis" hesabi. BILEREK isLeadOverdue'dan AYRI: bu domain (ajansin yeni
+ * musteri kazanmak icin aradigi firmalar) spec'teki "Gecikenler" degisikligi
+ * kapsamina hic girmedi ve last_activity_at gibi bir aktivite-tabanli izleme
+ * hic olmadi - eski (48 saat, last_contact_at??created_at) davranisi
+ * degismeden burada korunur.
+ */
+export function isProspectOverdue(params: {
   status: string;
   lastContactAt: string | null;
   createdAt: string;
@@ -91,22 +136,23 @@ export function isLeadOverdue(params: {
 }) {
   if (params.status === "won" || params.status === "lost") return false;
   if (params.nextFollowupAt) {
-    // DUZELTME (canli denetimde yakalanan celiski): bu satir eskiden SAAT
-    // hassasiyetiyle karsilastiriyordu ("> Date.now()") - bugun icin planli
-    // ama gunun ilerleyen saatine ayarlanmis bir takip, saat gecince BURADA
-    // "gecikmis" sayilmaya basliyordu, ayni anda Takipte sayfasindaki GUN
-    // bazli karsilastirma ("Bugün Ara") onu hala gecikmemis gosteriyordu -
-    // ayni lead icin ayni anda iki farkli ekranda birbirini yalanlayan durum.
-    // Artik HER IKI yer de ayni GUN bazli kurali kullaniyor: takip GUNU bugun
-    // veya sonrasindaysa (saat kac olursa olsun) "gecikmis" sayilmaz, gun
-    // tamamen gecmeden gecikmis damgasi vurulmaz.
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     if (new Date(params.nextFollowupAt).getTime() >= todayStart.getTime()) return false;
   }
   const reference = params.lastContactAt ?? params.createdAt;
   const hoursSince = (Date.now() - new Date(reference).getTime()) / (1000 * 60 * 60);
-  return hoursSince > OVERDUE_HOURS;
+  return hoursSince > PROSPECT_OVERDUE_HOURS;
+}
+
+/**
+ * Agent (WhatsApp) profil adini bulamazsa first_name/last_name bos
+ * kalabilir (spec: "bu olmazsa boş bırakacak") - listelerde/kartlarda bos
+ * bir isim yerine tutarli bir yer tutucu gosterir.
+ */
+export function leadDisplayName(lead: { first_name: string | null; last_name?: string | null }) {
+  const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim();
+  return name || "İsimsiz Lead";
 }
 
 export function getInitials(name: string | null | undefined) {

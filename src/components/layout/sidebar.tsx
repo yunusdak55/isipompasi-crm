@@ -20,6 +20,7 @@ import {
   Compass,
   Radar,
   PhoneCall,
+  MapPinned,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -41,6 +42,7 @@ const SALES_NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, enabled: true },
   { href: "/leads", label: "Leadler", icon: Users, enabled: true },
   { href: "/leads/followups", label: "Takipte", icon: CalendarClock, enabled: true },
+  { href: "/leads/discoveries", label: "Keşifler", icon: MapPinned, enabled: true },
   { href: "/leads/calendar", label: "Takvim", icon: CalendarDays, enabled: true },
   { href: "/leads/overdue", label: "Gecikenler", icon: AlertTriangle, enabled: true },
 ];

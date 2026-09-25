@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Phone } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
-import { NewLeadBadge, OverdueBadge, ContactedBadge } from "@/components/leads/lead-indicators";
+import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
 import { PROPERTY_TYPE_LABELS } from "@/lib/constants/lead";
-import { formatCurrency, formatRelativeDays, isLeadNew, isLeadOverdue } from "@/lib/utils";
+import { formatCurrency, formatRelativeDays, isLeadNew, isLeadOverdue, leadDisplayName } from "@/lib/utils";
 import type { LeadListItem } from "@/lib/data/leads";
 import type { PropertyType } from "@/lib/types/domain";
 
@@ -47,6 +47,7 @@ export function LeadTable({ leads }: { leads: LeadListItem[] }) {
               lastContactAt: lead.last_contact_at,
               createdAt: lead.created_at,
               nextFollowupAt: lead.next_followup_at,
+              lastActivityAt: lead.last_activity_at,
             });
 
             return (
@@ -64,10 +65,9 @@ export function LeadTable({ leads }: { leads: LeadListItem[] }) {
                         lead.status === "lost" ? "lost-name" : ""
                       }`}
                     >
-                      {lead.first_name} {lead.last_name ?? ""}
+                      {leadDisplayName(lead)}
                     </Link>
                     {showNew ? <NewLeadBadge /> : null}
-                    {lead.last_contact_at ? <ContactedBadge /> : null}
                   </div>
                   <p className="mt-0.5 flex items-center gap-1 text-xs text-white/60">
                     <Phone className="h-3 w-3 shrink-0 text-white/40" strokeWidth={2} />

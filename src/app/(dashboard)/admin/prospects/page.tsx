@@ -11,7 +11,7 @@ import { ProspectStatusSelect } from "@/components/admin/prospect-status-select"
 import { ProspectFollowupForm } from "@/components/admin/prospect-followup-form";
 import { DeleteProspectButton } from "@/components/admin/delete-prospect-button";
 import { OverdueBadge } from "@/components/leads/lead-indicators";
-import { isLeadOverdue } from "@/lib/utils";
+import { isProspectOverdue } from "@/lib/utils";
 
 /**
  * Ajansin KENDI musteri adayi (yeni musteri kazanmak icin aradigi isi
@@ -93,7 +93,7 @@ export default async function AdminProspectsPage() {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {prospects.map((p, index) => {
-                    const overdue = isLeadOverdue({
+                    const overdue = isProspectOverdue({
                       status: p.status,
                       lastContactAt: p.last_contact_at,
                       createdAt: p.created_at,

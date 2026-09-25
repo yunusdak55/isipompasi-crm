@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { OverdueBadge, TodayCallBadge } from "@/components/leads/lead-indicators";
 import { ProspectStatusBadge } from "@/components/ui/badge";
-import { formatRelativeDays, formatRelativeTimeAgo, isLeadOverdue } from "@/lib/utils";
+import { formatRelativeDays, formatRelativeTimeAgo, isProspectOverdue } from "@/lib/utils";
 import type { AgencyProspect } from "@/lib/types/domain";
 
 /** "Takipte" ekrani: takvime eklenen her aday buraya, tek listede toplanir. */
@@ -32,7 +32,7 @@ export function ProspectFollowupTable({ prospects }: { prospects: AgencyProspect
             const followupOverdue = Boolean(followupLabel?.includes("gecikti"));
             const followupToday = followupLabel === "Bugün";
             const lastContactLabel = formatRelativeTimeAgo(p.last_contact_at);
-            const showOverdue = isLeadOverdue({
+            const showOverdue = isProspectOverdue({
               status: p.status,
               lastContactAt: p.last_contact_at,
               createdAt: p.created_at,

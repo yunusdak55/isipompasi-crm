@@ -11,13 +11,15 @@ const selectClass =
 
 type Segment = { label: string; value: number; colorVar: string; dotClass: string };
 
+// Durum bazli, BIRBIRIYLE KESISMEYEN dilimler - toplamlari her zaman
+// leadCount'a esittir (spec: "Arandı" gibi ortusen/yanlis bir kategori yok).
 function buildSegments(point: MonthlyFunnelPoint): Segment[] {
-  const other = Math.max(0, point.leadCount - point.calledCount - point.discoveryCount - point.wonCount);
   return [
     { label: "Satış", value: point.wonCount, colorVar: "var(--color-success-500)", dotClass: "bg-success-500" },
-    { label: "Keşif", value: point.discoveryCount, colorVar: "var(--color-accent-500)", dotClass: "bg-accent-500" },
-    { label: "Arandı", value: point.calledCount, colorVar: "var(--color-brand-500)", dotClass: "bg-brand-500" },
-    { label: "Diğer", value: other, colorVar: "var(--color-ink-300)", dotClass: "bg-ink-300" },
+    { label: "Keşif/Teklif", value: point.discoveryCount, colorVar: "var(--color-accent-500)", dotClass: "bg-accent-500" },
+    { label: "Takip", value: point.followupCount, colorVar: "var(--color-warning-500)", dotClass: "bg-warning-500" },
+    { label: "Lead", value: point.newCount, colorVar: "var(--color-brand-500)", dotClass: "bg-brand-500" },
+    { label: "Kayıp", value: point.lostCount, colorVar: "var(--color-danger-500)", dotClass: "bg-danger-500" },
   ];
 }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/badge";
-import { NewLeadBadge, OverdueBadge, TodayCallBadge, ContactedBadge } from "@/components/leads/lead-indicators";
-import { formatCurrency, formatRelativeDays, formatRelativeTimeAgo, isLeadNew, isLeadOverdue } from "@/lib/utils";
+import { NewLeadBadge, OverdueBadge, TodayCallBadge } from "@/components/leads/lead-indicators";
+import { formatCurrency, formatRelativeDays, formatRelativeTimeAgo, isLeadNew, isLeadOverdue, leadDisplayName } from "@/lib/utils";
 import type { LeadListItem } from "@/lib/data/leads";
 
 /** "Takipte" ekrani (spec md.4): satiscinin takip isini tek yerde toplar. */
@@ -40,6 +40,7 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
               lastContactAt: lead.last_contact_at,
               createdAt: lead.created_at,
               nextFollowupAt: lead.next_followup_at,
+              lastActivityAt: lead.last_activity_at,
             });
 
             return (
@@ -57,10 +58,9 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
                       href={`/leads/${lead.id}`}
                       className="font-medium text-white transition-colors group-hover:text-accent-300"
                     >
-                      {lead.first_name} {lead.last_name ?? ""}
+                      {leadDisplayName(lead)}
                     </Link>
                     {showNew ? <NewLeadBadge /> : null}
-                    {lead.last_contact_at ? <ContactedBadge /> : null}
                   </div>
                   <p className="mt-0.5 text-xs text-white/45">{lead.phone}</p>
                 </td>
