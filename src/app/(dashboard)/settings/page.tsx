@@ -65,15 +65,17 @@ export default async function SettingsPage() {
   // admin buraya hic ulasmiyor (yukarida yonlendiriliyor) - kalan roller owner/sales.
   const canEdit = profile.role === "owner";
 
-  let company: Company | null = null;
-  if (profile.company_id) {
-    const { data } = await supabase.from("companies").select("*").eq("id", profile.company_id).single();
-    company = data;
-  }
-
-  const users = profile.company_id ? await getAssignableProfiles(profile.company_id) : [];
-  const salespeople = profile.company_id ? await getSalespeople(profile.company_id) : [];
-  const categories = profile.company_id ? await getProductCategories(profile.company_id) : [];
+  // PERF (jet hizi): bu 4 sorgu birbirine BAGIMLI degil (hepsi sadece company_id
+  // ister) - eskiden art arda bekleniyordu (~1.2 sn), simdi tek turda paralel.
+  const companyId = profile.company_id;
+  const [company, users, salespeople, categories] = await Promise.all([
+    companyId
+      ? supabase.from("companies").select("*").eq("id", companyId).single().then(({ data }) => (data as Company | null) ?? null)
+      : Promise.resolve<Company | null>(null),
+    companyId ? getAssignableProfiles(companyId) : Promise.resolve([]),
+    companyId ? getSalespeople(companyId) : Promise.resolve([]),
+    companyId ? getProductCategories(companyId) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">

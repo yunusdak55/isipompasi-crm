@@ -13,8 +13,6 @@ export const INTEGRATION_PROVIDERS: IntegrationProvider[] = [
  * Ajans admin paneli icin firma bazinda ozet veri - sadece "admin" rolu
  * RLS geregi tum firmalarin satirlarini gorebildigi icin calisir (bkz.
  * 0002_rls_policies.sql, 'admin' her tabloda company_id filtresiz gorur).
- * Kucuk olcek (V1) icin gruplama JS tarafinda yapiliyor - reports.ts'teki
- * ayni yaklasim.
  */
 
 export type AgencyCompanyStat = {
@@ -32,40 +30,29 @@ export type AgencyCompanyStat = {
 export async function getAgencyCompanyStats(): Promise<AgencyCompanyStat[]> {
   const supabase = await createClient();
 
-  const [companiesRes, leadsRes, salesRes] = await Promise.all([
-    supabase.from("companies").select("id, name, city, is_active").order("name"),
-    supabase.from("leads").select("company_id, status, offered_amount"),
-    supabase.from("sales").select("company_id, sale_amount"),
-  ]);
+  // PERF (jet hizi): eskiden tum firmalarin TUM lead/satis satirlari cekilip JS'te
+  // gruplaniyordu. Simdi veritabani firma basina tek satir dondurur (migration
+  // 0025, SECURITY INVOKER - RLS aynen gecerli).
+  const { data, error } = await supabase.rpc("agency_company_stats");
 
-  if (companiesRes.error || !companiesRes.data) {
-    if (companiesRes.error) console.error("getAgencyCompanyStats companies error:", companiesRes.error.message);
+  if (error || !data) {
+    if (error) console.error("getAgencyCompanyStats error:", error.message);
     return [];
   }
-  if (leadsRes.error) console.error("getAgencyCompanyStats leads error:", leadsRes.error.message);
-  if (salesRes.error) console.error("getAgencyCompanyStats sales error:", salesRes.error.message);
 
-  const leads = leadsRes.data ?? [];
-  const sales = salesRes.data ?? [];
-
-  return companiesRes.data.map((company) => {
-    const companyLeads = leads.filter((l) => l.company_id === company.id);
-    const companySales = sales.filter((s) => s.company_id === company.id);
-    const pipelineValue = companyLeads
-      .filter((l) => l.status !== "won" && l.status !== "lost")
-      .reduce((sum, l) => sum + (l.offered_amount ?? 0), 0);
-    const totalSales = companySales.reduce((sum, s) => sum + Number(s.sale_amount), 0);
-
+  return data.map((row) => {
+    const leadCount = Number(row.lead_count);
+    const salesCount = Number(row.sales_count);
     return {
-      id: company.id,
-      name: company.name,
-      city: company.city,
-      isActive: company.is_active,
-      leadCount: companyLeads.length,
-      pipelineValue,
-      totalSales,
-      salesCount: companySales.length,
-      conversionRate: companyLeads.length > 0 ? (companySales.length / companyLeads.length) * 100 : 0,
+      id: row.id,
+      name: row.name,
+      city: row.city,
+      isActive: row.is_active,
+      leadCount,
+      pipelineValue: Number(row.pipeline_value),
+      totalSales: Number(row.total_sales),
+      salesCount,
+      conversionRate: leadCount > 0 ? (salesCount / leadCount) * 100 : 0,
     };
   });
 }

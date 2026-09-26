@@ -25,13 +25,12 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
   }
 
   const { id } = await params;
-  const prospect = await getProspectById(id);
+  // PERF: aday ve zaman cizelgesi birbirine bagimli degil - paralel.
+  const [prospect, activities] = await Promise.all([getProspectById(id), getProspectActivities(id)]);
 
   if (!prospect) {
     notFound();
   }
-
-  const activities = await getProspectActivities(id);
 
   const overdue = isProspectOverdue({
     status: prospect.status,

@@ -13,6 +13,21 @@
  * @type {import('next').NextConfig}
  */
 const nextConfig = {
+  poweredByHeader: false,
+
+  // PERF (jet hizi): public/ altindaki gorseller (logo vb.) Next.js varsayilaniyla
+  // `max-age=0` geliyordu - tarayici HER sayfa gecisinde yeniden dogruluyordu.
+  // 1 gun taze + 7 gun "eskiyi goster, arkada yenile" - tekrar ziyaretlerde
+  // sifir ag istegi. (/_next/static zaten Next tarafindan `immutable`.)
+  async headers() {
+    return [
+      {
+        source: "/:all*(png|jpg|jpeg|svg|webp|ico|gif)",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
+      },
+    ];
+  },
+
   // İleride resim domainleri (ör. teklif/kesif fotoğrafları), redirect
   // ve rewrite kuralları gerektiğinde buraya eklenecek.
 

@@ -19,7 +19,7 @@ export function OverdueTable({ leads }: { leads: LeadListItem[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-sm">
+    <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.06]">
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="border-b border-white/10 bg-white/[0.03] text-xs font-medium uppercase tracking-wide text-white/45">
           <tr>

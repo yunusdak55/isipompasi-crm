@@ -17,62 +17,64 @@ import { createClient } from "@/lib/supabase/server";
  */
 export type Salesperson = { id: string; full_name: string; is_active: boolean; is_owner: boolean };
 
+const SALESPEOPLE_COLUMNS = "id, full_name, is_active, is_owner";
+
 /**
- * Firma sahibini "Görüşen Kişi" listesinde HER ZAMAN garanti eder - satir
- * yoksa olusturur, isim degismisse senkron tutar. `getSalespeople` her
- * cagrisinda otomatik calisir, cagiran tarafin ayrica hatirlamasina gerek
- * yok (spec: "Firma Sahibi dahil olmak üzere eklensin").
+ * PERF (jet hizi): "firma sahibi bu listede HER ZAMAN olsun" (spec: "Firma
+ * Sahibi dahil olmak üzere eklensin") garantisi eskiden OKUMA yolunda 2 ek
+ * SIRALI sorgu + asil liste = 3 art arda ag turuydu, her lead detay/ayarlar
+ * gorunumunde. Simdi sahip profili ve liste AYNI turda paralel gelir; kayit
+ * eksik/eski ise (nadir) sadece o zaman yazilir ve liste guncellenir.
  */
-async function ensureOwnerSalesperson(companyId: string): Promise<void> {
+export async function getSalespeople(companyId: string): Promise<Salesperson[]> {
   const supabase = await createClient();
 
-  const { data: owner } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("company_id", companyId)
-    .eq("role", "owner")
-    .limit(1)
-    .maybeSingle();
+  const [ownerRes, listRes] = await Promise.all([
+    supabase.from("profiles").select("id, full_name").eq("company_id", companyId).eq("role", "owner").limit(1).maybeSingle(),
+    supabase
+      .from("salespeople")
+      .select(SALESPEOPLE_COLUMNS)
+      .eq("company_id", companyId)
+      .order("is_owner", { ascending: false })
+      .order("full_name"),
+  ]);
 
-  if (!owner) return; // henuz sahibi atanmamis bir firma
+  if (listRes.error) {
+    console.error("getSalespeople error:", listRes.error.message);
+    return [];
+  }
+
+  let list: Salesperson[] = listRes.data ?? [];
+  const owner = ownerRes.data;
+  if (!owner) return list; // henuz sahibi atanmamis bir firma
 
   const ownerName = owner.full_name?.trim() || "Firma Sahibi";
-
-  const { data: existing } = await supabase
-    .from("salespeople")
-    .select("id, full_name")
-    .eq("company_id", companyId)
-    .eq("is_owner", true)
-    .maybeSingle();
+  const existing = list.find((sp) => sp.is_owner);
 
   if (!existing) {
     const { error } = await supabase
       .from("salespeople")
       .insert({ company_id: companyId, full_name: ownerName, is_owner: true, created_by: owner.id });
-    if (error) console.error("ensureOwnerSalesperson insert error:", error.message);
+    if (error) {
+      console.error("ensureOwnerSalesperson insert error:", error.message);
+    } else {
+      const { data } = await supabase
+        .from("salespeople")
+        .select(SALESPEOPLE_COLUMNS)
+        .eq("company_id", companyId)
+        .order("is_owner", { ascending: false })
+        .order("full_name");
+      list = data ?? list;
+    }
   } else if (existing.full_name !== ownerName) {
     // Firma sahibi profildeki ismini degistirmis olabilir - senkron tut.
     const { error } = await supabase.from("salespeople").update({ full_name: ownerName }).eq("id", existing.id);
-    if (error) console.error("ensureOwnerSalesperson update error:", error.message);
-  }
-}
-
-export async function getSalespeople(companyId: string): Promise<Salesperson[]> {
-  await ensureOwnerSalesperson(companyId);
-
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("salespeople")
-    .select("id, full_name, is_active, is_owner")
-    .eq("company_id", companyId)
-    .order("is_owner", { ascending: false })
-    .order("full_name");
-
-  if (error) {
-    console.error("getSalespeople error:", error.message);
-    return [];
+    if (error) {
+      console.error("ensureOwnerSalesperson update error:", error.message);
+    } else {
+      list = list.map((sp) => (sp.id === existing.id ? { ...sp, full_name: ownerName } : sp));
+    }
   }
 
-  return data ?? [];
+  return list;
 }

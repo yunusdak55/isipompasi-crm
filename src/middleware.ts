@@ -35,11 +35,17 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // getUser() JWT'yi Supabase Auth sunucusunda dogrular (guvenli).
-  // getSession() SADECE cookie'yi okur, dogrulamaz - server tarafinda kullanilmamali.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // PERF (jet hizi): getUser() HER istekte Supabase Auth sunucusuna gercek bir
+  // ag turu (~80-200ms) yapiyordu. getClaims() JWT'nin IMZASINI asimetrik
+  // (ES256) acik anahtarla YEREL olarak dogrular (anahtar seti bir kere
+  // cekilip bellekte tutulur) - ag turu YOK. Imza + sure hala dogrulanir,
+  // sahte/suresi dolmus token reddedilir; veri erisimi ayrica her sorguda
+  // PostgREST/RLS tarafindan yeniden dogrulanir. Tek ODUN: oturumu sunucuda
+  // iptal edilen (cikis yapilan) bir token, suresi (1 saat) dolana kadar
+  // gecerli sayilir - simetrik anahtarli projelerde kutuphane otomatik
+  // getUser()'a geri duser.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = claimsData?.claims ?? null;
 
   const { pathname } = request.nextUrl;
   const isAuthRoute = pathname.startsWith("/login");

@@ -541,6 +541,23 @@ export type Database = {
         Args: Record<string, never>;
         Returns: string;
       };
+      dashboard_stats: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      agency_company_stats: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          name: string;
+          city: string | null;
+          is_active: boolean;
+          lead_count: number;
+          pipeline_value: number;
+          total_sales: number;
+          sales_count: number;
+        }[];
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

@@ -21,25 +21,38 @@ import type { Profile } from "@/lib/types/domain";
  * sayfa/renders suresince gecerlidir, farkli kullanicilar/firmalar arasinda
  * ASLA veri sizdirmaz (staleTimes: 0 ile cakismaz, onu degistirmiyoruz).
  */
-export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
+export type ProfileWithCompany = Profile & { company: { name: string } | null };
+
+/**
+ * PERF (jet hizi): eskiden bu fonksiyon (1) getUser() ile Supabase Auth'a ag
+ * turu, (2) profiles sorgusu, ve layout'ta (3) ayri bir companies sorgusu
+ * yapiyordu - ust uste 3 SIRALI ag turu. Simdi: (1) getClaims() JWT'yi YEREL
+ * dogrular (ag turu yok, bkz. middleware.ts), (2) profil + firma adi TEK
+ * sorguda (profiles -> companies iliskisi embed) gelir. Veri erisimi yine RLS
+ * ile korunur (JWT her sorguda PostgREST'e gider).
+ */
+export const getCurrentProfile = cache(async (): Promise<ProfileWithCompany | null> => {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
 
-  if (!user) return null;
+  if (!userId) return null;
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*, company:companies(name)")
+    .eq("id", userId)
+    .single();
 
-  return profile;
+  return (profile as unknown as ProfileWithCompany | null) ?? null;
 });
 
 /**
  * getCurrentProfile'in "zorunlu" versiyonu: profil yoksa /login'e atar.
  * (dashboard) layout'u ve korumali sayfalar bunu kullanir.
  */
-export async function requireProfile(): Promise<Profile> {
+export async function requireProfile(): Promise<ProfileWithCompany> {
   const profile = await getCurrentProfile();
   if (!profile) {
     redirect("/login");

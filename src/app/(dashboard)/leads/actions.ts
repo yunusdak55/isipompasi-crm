@@ -352,7 +352,7 @@ export async function logMeetingOutcomeAction(
 
   const { data: current, error: fetchError } = await supabase
     .from("leads")
-    .select("status, company_id")
+    .select("status, company_id, next_followup_at")
     .eq("id", leadId)
     .single();
 
@@ -369,77 +369,74 @@ export async function logMeetingOutcomeAction(
     return { error: "Durum değiştirin veya bir not yazın." };
   }
 
-  if (statusChanged) {
-    const { error } = await supabase
-      .from("leads")
-      .update({ status: nextStatus, last_contact_at: new Date().toISOString() })
-      .eq("id", leadId);
-    if (error) {
-      console.error("logMeetingOutcomeAction status update error:", error.message);
-      return { error: `Durum güncellenemedi: ${error.message}` };
-    }
-    await logActivity(supabase, {
-      leadId,
-      companyId: current.company_id,
-      type: "status_change",
-      description: `Durum değişti: ${LEAD_STATUS_LABELS[current.status]} → ${LEAD_STATUS_LABELS[nextStatus]}`,
-      fromStatus: current.status,
-      toStatus: nextStatus,
-    });
-  } else if (note) {
-    // Durum degismedi ama gercek bir temas var - not eklerken de last_contact_at
-    // guncellenir (spec md.3: "gecikmis lead" hesabi bu alanı kullanır).
-    await supabase.from("leads").update({ last_contact_at: new Date().toISOString() }).eq("id", leadId);
+  // PERF (jet hizi): eskiden bu akis 5-6 SIRALI yazmaydi (lead guncelle ->
+  // durum aktivitesi -> not -> takibi kapat -> takip tarihini temizle,
+  // ~1 sn). Simdi: (1) lead TEK guncelleme (durum + last_contact_at + varsa
+  // takip tarihi temizligi), (2) aktivite satirlari TEK insert + acik takipleri
+  // kapatma PARALEL. Toplam 3 ag turu.
+  //
+  // Bir takip tarihi varsa artik gercek bir temas oldu -> takip gorevi yerine
+  // getirilmis sayilir (bkz. asagidaki followups kapatma) ve leads.
+  // next_followup_at/next_followup_note temizlenir; aksi halde lead "Takipte"
+  // listesinde eski tarihiyle sonsuza dek kalirdi (onceki denetimde bulunan hata).
+  const nowIso = new Date().toISOString();
+  const leadUpdate: Database["public"]["Tables"]["leads"]["Update"] = { last_contact_at: nowIso };
+  if (statusChanged) leadUpdate.status = nextStatus as LeadStatus;
+  if (current.next_followup_at) {
+    leadUpdate.next_followup_at = null;
+    leadUpdate.next_followup_note = null;
   }
 
+  const { error: leadUpdateError } = await supabase.from("leads").update(leadUpdate).eq("id", leadId);
+  if (leadUpdateError) {
+    console.error("logMeetingOutcomeAction lead update error:", leadUpdateError.message);
+    return { error: `Güncellenemedi: ${leadUpdateError.message}` };
+  }
+
+  // Zaman cizelgesi satirlari: durum degisikligi + not TEK insert'te; created_at
+  // 1ms arayla verilir ki cizelgedeki sira (once durum, sonra not) sabit kalsin.
+  const t0 = Date.now();
+  const activityRows: Database["public"]["Tables"]["activities"]["Insert"][] = [];
+  if (statusChanged && nextStatus) {
+    activityRows.push({
+      lead_id: leadId,
+      company_id: current.company_id,
+      type: "status_change",
+      description: `Durum değişti: ${LEAD_STATUS_LABELS[current.status]} → ${LEAD_STATUS_LABELS[nextStatus]}`,
+      from_status: current.status,
+      to_status: nextStatus,
+      created_at: new Date(t0).toISOString(),
+    });
+  }
   if (note) {
-    const { error } = await supabase.from("activities").insert({
+    activityRows.push({
       lead_id: leadId,
       company_id: current.company_id,
       type: "note",
       description: note,
+      created_at: new Date(t0 + 1).toISOString(),
     });
-    if (error) {
-      console.error("logMeetingOutcomeAction note insert error:", error.message);
-      return { error: `Not eklenemedi: ${error.message}` };
-    }
   }
 
-  // Raporlar sayfasindaki "Tamamlanan Takip" (bkz. reports.ts) `followups.
-  // is_completed` alanini sayiyor ama bu satira kadar HICBIR yerde bu alan
-  // true yapilmiyordu - yani bu istatistik sonsuza dek 0 gosteriyordu
-  // (kullanici sorusu: "tamamlanan takip kısmı neye göre artıyor?" - cevap:
-  // artmıyordu, bu bir eksikti). Buraya kadar gelindiyse zaten gercek bir
-  // temas oldu (durum degisti veya not yazildi -> last_contact_at guncellendi
-  // yukarida) - yani bu lead icin bekleyen takip gorevi fiilen yerine
-  // getirilmis demektir. O yuzden acik (is_completed=false) bir takip varsa
-  // burada kapatiyoruz.
-  const { data: completedFollowups, error: followupCompleteError } = await supabase
-    .from("followups")
-    .update({ is_completed: true, completed_at: new Date().toISOString() })
-    .eq("lead_id", leadId)
-    .eq("is_completed", false)
-    .select("id");
-  if (followupCompleteError) {
-    console.error("logMeetingOutcomeAction followup complete error:", followupCompleteError.message);
-  }
+  // Raporlar "Tamamlanan Takip" `followups.is_completed`'i sayar: bu noktada
+  // gercek bir temas oldu, acik (is_completed=false) takip gorevi kapatilir.
+  const [activityResult, followupResult] = await Promise.all([
+    supabase.from("activities").insert(activityRows),
+    current.next_followup_at
+      ? supabase
+          .from("followups")
+          .update({ is_completed: true, completed_at: nowIso })
+          .eq("lead_id", leadId)
+          .eq("is_completed", false)
+      : Promise.resolve({ error: null }),
+  ]);
 
-  // HATA DUZELTMESI (denetim: "gecikenler kısmındaki leadler o günkü
-  // güncellemeyi alsa bile takipte listesinde eski tarihiyle sonsuza dek
-  // kalıyordu"): yukarida acik takip(ler) tamamlandi ama leads.
-  // next_followup_at/next_followup_note HICBIR ZAMAN temizlenmiyordu - lead
-  // "Takipte" listesinde (next_followup_at NOT NULL filtresiyle) eski/gecmis
-  // tarihiyle sonsuza kadar gorunmeye devam ediyordu, yeni bir takip
-  // planlanana kadar. Az once gercekten acik bir takibi kapattiysak burada
-  // da temizliyoruz.
-  if (completedFollowups && completedFollowups.length > 0) {
-    const { error: clearFollowupError } = await supabase
-      .from("leads")
-      .update({ next_followup_at: null, next_followup_note: null })
-      .eq("id", leadId);
-    if (clearFollowupError) {
-      console.error("logMeetingOutcomeAction clear next_followup error:", clearFollowupError.message);
-    }
+  if (followupResult.error) {
+    console.error("logMeetingOutcomeAction followup complete error:", followupResult.error.message);
+  }
+  if (activityResult.error) {
+    console.error("logMeetingOutcomeAction activity insert error:", activityResult.error.message);
+    return { error: `Kaydedilemedi: ${activityResult.error.message}` };
   }
 
   revalidateLead(leadId);
@@ -478,57 +475,51 @@ export async function upsertFollowupAction(
 
   const supabase = await createClient();
 
-  const { data: lead, error: leadFetchError } = await supabase
-    .from("leads")
-    .select("company_id")
-    .eq("id", leadId)
-    .single();
+  // PERF (jet hizi): lead + acik takip sorgulari birbirine bagimli degil
+  // (paralel); sonraki 3 yazma (takip kaydi, lead ozeti, zaman cizelgesi) da
+  // birbirinden bagimsiz (paralel) - eskiden 5 sirali ag turuydu, simdi 2.
+  const [leadRes, existingRes] = await Promise.all([
+    supabase.from("leads").select("company_id").eq("id", leadId).single(),
+    supabase
+      .from("followups")
+      .select("id")
+      .eq("lead_id", leadId)
+      .eq("is_completed", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  if (leadFetchError || !lead) return { error: "Lead bulunamadı." };
-
-  const { data: existing } = await supabase
-    .from("followups")
-    .select("id")
-    .eq("lead_id", leadId)
-    .eq("is_completed", false)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const lead = leadRes.data;
+  if (leadRes.error || !lead) return { error: "Lead bulunamadı." };
+  const existing = existingRes.data;
 
   const isoDate = followupDate.toISOString();
 
-  if (existing) {
-    const { error } = await supabase.from("followups").update({ followup_date: isoDate, note }).eq("id", existing.id);
-    if (error) {
-      console.error("upsertFollowupAction update error:", error.message);
-      return { error: `Takip güncellenemedi: ${error.message}` };
-    }
-  } else {
-    const { error } = await supabase
-      .from("followups")
-      .insert({ lead_id: leadId, company_id: lead.company_id, followup_date: isoDate, note });
-    if (error) {
-      console.error("upsertFollowupAction insert error:", error.message);
-      return { error: `Takip oluşturulamadı: ${error.message}` };
-    }
+  const [followupResult, leadUpdateResult, activityResult] = await Promise.all([
+    existing
+      ? supabase.from("followups").update({ followup_date: isoDate, note }).eq("id", existing.id)
+      : supabase.from("followups").insert({ lead_id: leadId, company_id: lead.company_id, followup_date: isoDate, note }),
+    supabase.from("leads").update({ next_followup_at: isoDate, next_followup_note: note }).eq("id", leadId),
+    supabase.from("activities").insert({
+      lead_id: leadId,
+      company_id: lead.company_id,
+      type: "system",
+      description: `Takip planlandı: ${followupDate.toLocaleDateString("tr-TR")}${note ? " — " + note : ""}`,
+    }),
+  ]);
+
+  if (followupResult.error) {
+    console.error("upsertFollowupAction followup error:", followupResult.error.message);
+    return { error: `Takip kaydedilemedi: ${followupResult.error.message}` };
   }
-
-  const { error: leadUpdateError } = await supabase
-    .from("leads")
-    .update({ next_followup_at: isoDate, next_followup_note: note })
-    .eq("id", leadId);
-
-  if (leadUpdateError) {
-    console.error("upsertFollowupAction lead update error:", leadUpdateError.message);
-    return { error: `Lead güncellenemedi: ${leadUpdateError.message}` };
+  if (leadUpdateResult.error) {
+    console.error("upsertFollowupAction lead update error:", leadUpdateResult.error.message);
+    return { error: `Lead güncellenemedi: ${leadUpdateResult.error.message}` };
   }
-
-  await logActivity(supabase, {
-    leadId,
-    companyId: lead.company_id,
-    type: "system",
-    description: `Takip planlandı: ${followupDate.toLocaleDateString("tr-TR")}${note ? " — " + note : ""}`,
-  });
+  if (activityResult.error) {
+    console.error("upsertFollowupAction activity error:", activityResult.error.message);
+  }
 
   revalidateLead(leadId);
   return { error: null };
