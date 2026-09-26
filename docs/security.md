@@ -70,6 +70,16 @@ Bunlar proje **Auth yapılandırması** olduğu için otomatik araçla değişti
    **Supabase Personal Access Token'ı** (`SUPABASE_ACCESS_TOKEN`, `.env.local`) da iş bitince iptal edin.
 7. (İleri seviye) Ajans admin hesabı için 2 adımlı doğrulama (TOTP) — admin hesabı tüm firmalara erişir.
 
+## Dağıtım notları
+
+- **Sıra:** DB migration'ları (0026/0027) canlıda ZATEN uygulandı. Yeni panel kodu (GitHub → Hostinger) yayına çıkana kadar
+  eski kod çalışır. Bu aralıkta eski panelden **yeni firma/kullanıcı oluşturmayın** — eski kod rolü `user_metadata`'da gönderir,
+  yeni tetikleyici buna (bilerek) güvenmez ve hesap profilsiz kalır. Olduysa: `node scripts/fix-orphan-users.mjs --apply`.
+- **CSP acil anahtarı:** yayına çıkınca sayfa bozuk/boş görünürse Hostinger ortam değişkenlerine `CSP_REPORT_ONLY=1` ekleyip
+  yeniden başlatın (CSP yalnızca raporlama moduna geçer, hiçbir şey engellenmez) ve durumu bildirin.
+- Yayın sonrası hızlı kontrol: `/login` açılıyor mu, giriş yapılıyor mu, Dashboard/Satışlar/Ayarlar açılıyor mu, admin →
+  Denetim Kaydı açılıyor mu.
+
 ## Bilinen / kabul edilen riskler
 
 - Oturumu sunucuda iptal edilen (çıkış) bir JWT ≤1 saat geçerli kalır (`getClaims` yerel doğrulama — performans için).

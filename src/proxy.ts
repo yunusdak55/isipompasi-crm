@@ -46,11 +46,14 @@ export async function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const isHttps = request.headers.get("x-forwarded-proto") === "https" || request.nextUrl.protocol === "https:";
   const csp = buildCsp(nonce, isHttps);
+  // Acil durum anahtari: CSP beklenmedik bir seyi engellerse (ortam degiskeni CSP_REPORT_ONLY=1)
+  // ilke yalnizca RAPOR modunda uygulanir (hicbir sey engellenmez, tarayici konsoluna yazar).
+  const cspHeaderName = process.env.CSP_REPORT_ONLY === "1" ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy";
 
   // Next.js nonce'u ISTEK basligindaki CSP'den okuyup kendi script'lerine ekler.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", csp);
+  requestHeaders.set(cspHeaderName, csp);
 
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
 
@@ -110,7 +113,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  supabaseResponse.headers.set("Content-Security-Policy", csp);
+  supabaseResponse.headers.set(cspHeaderName, csp);
   return supabaseResponse;
 }
 
