@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { validatePassword } from "@/lib/auth/password";
 import type { IntegrationProvider, IntegrationStatus } from "@/lib/types/domain";
 
 async function requireAdmin() {
@@ -12,6 +13,20 @@ async function requireAdmin() {
     throw new Error("Bu işlem için yetkiniz yok.");
   }
   return profile;
+}
+
+/**
+ * createUser sonrasi profil satirinin gercekten olustugunu dogrular (profil, DB
+ * tetikleyicisiyle olusur). Olusmadiysa auth kullanicisi ORPHAN kalmasin diye
+ * silinir - aksi halde giris yapabilen ama hicbir yetkisi/profili olmayan hayalet
+ * hesap birikir.
+ */
+async function verifyProfileProvisioned(adminClient: ReturnType<typeof createAdminClient>, userId: string): Promise<string | null> {
+  const { data: profile } = await adminClient.from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (profile) return null;
+  await adminClient.auth.admin.deleteUser(userId);
+  console.error("verifyProfileProvisioned: profil olusmadi, auth kullanicisi silindi:", userId);
+  return "hesabın profili oluşturulamadı (hesap geri alındı).";
 }
 
 // ----------------------------------------------------------------------------
@@ -38,7 +53,8 @@ export async function createCompanyWithOwnerAction(
 
   if (!name) return { error: "Firma adı zorunludur." };
   if (!email || !password) return { error: "E-posta ve şifre zorunludur." };
-  if (password.length < 8) return { error: "Şifre en az 8 karakter olmalıdır." };
+  const passwordError = validatePassword(password);
+  if (passwordError) return { error: passwordError };
 
   const str = (field: string) => {
     const v = String(formData.get(field) ?? "").trim();
@@ -82,11 +98,15 @@ export async function createCompanyWithOwnerAction(
   }
 
   const adminClient = createAdminClient();
-  const { error: userError } = await adminClient.auth.admin.createUser({
+  // GUVENLIK: rol/firma `app_metadata`'da gonderilir (yalnizca service_role yazabilir,
+  // kullanici DEGISTIREMEZ). `user_metadata` kullanicinin kendi duzenleyebildigi
+  // alandir; profil tetikleyicisi (migration 0026) rol/firmayi ASLA oradan okumaz.
+  const { data: created, error: userError } = await adminClient.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: fullName || name, role: "owner", company_id: company.id },
+    app_metadata: { role: "owner", company_id: company.id },
+    user_metadata: { full_name: fullName || name },
   });
 
   if (userError) {
@@ -96,6 +116,11 @@ export async function createCompanyWithOwnerAction(
     return {
       error: `Firma oluşturuldu ama giriş hesabı oluşturulamadı: ${userError.message}. "Kullanıcılar" sayfasından bu firma için tekrar deneyebilirsiniz.`,
     };
+  }
+
+  const verifyError = await verifyProfileProvisioned(adminClient, created.user.id);
+  if (verifyError) {
+    return { error: `Firma oluşturuldu ama ${verifyError} "Kullanıcılar" sayfasından tekrar deneyebilirsiniz.` };
   }
 
   revalidatePath("/admin/companies");
@@ -231,7 +256,7 @@ export async function updateCompanyNameAction(
 // ajansim, musterilerime kullanici adi sifre olusturup verecegim" - bu artik
 // elle script yerine panelden yapilabiliyor). Gercek Supabase Auth kullanicisi
 // olusturur; profiles kaydi handle_new_user() trigger'i ile otomatik olusur
-// (raw_user_meta_data'dan role/company_id/full_name okuyor).
+// (raw_app_meta_data'dan role/company_id okuyor - bkz. migration 0026).
 // ----------------------------------------------------------------------------
 
 export type CreateUserState = { error: string | null };
@@ -246,24 +271,35 @@ export async function createCompanyUserAction(prevState: CreateUserState, formDa
   const role = String(formData.get("role") ?? "owner");
 
   if (!email || !password) return { error: "E-posta ve şifre zorunludur." };
-  if (password.length < 8) return { error: "Şifre en az 8 karakter olmalıdır." };
+  const passwordError = validatePassword(password);
+  if (passwordError) return { error: passwordError };
   if (!fullName) return { error: "Ad soyad zorunludur." };
   if (!companyId) return { error: "Firma seçimi zorunludur." };
   if (role !== "owner" && role !== "sales") return { error: "Geçersiz rol." };
 
+  // Var olmayan bir firma kimligiyle yarim (profilsiz) hesap olusmasin.
+  const supabase = await createClient();
+  const { data: company } = await supabase.from("companies").select("id").eq("id", companyId).maybeSingle();
+  if (!company) return { error: "Seçilen firma bulunamadı." };
+
   const adminClient = createAdminClient();
 
-  const { error } = await adminClient.auth.admin.createUser({
+  // GUVENLIK: rol/firma app_metadata'da (bkz. createCompanyWithOwnerAction).
+  const { data: created, error } = await adminClient.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: fullName, role, company_id: companyId },
+    app_metadata: { role, company_id: companyId },
+    user_metadata: { full_name: fullName },
   });
 
-  if (error) {
-    console.error("createCompanyUserAction error:", error.message);
-    return { error: `Kullanıcı oluşturulamadı: ${error.message}` };
+  if (error || !created?.user) {
+    console.error("createCompanyUserAction error:", error?.message);
+    return { error: `Kullanıcı oluşturulamadı: ${error?.message ?? "bilinmeyen hata"}` };
   }
+
+  const verifyError = await verifyProfileProvisioned(adminClient, created.user.id);
+  if (verifyError) return { error: `Kullanıcı oluşturulamadı: ${verifyError}` };
 
   revalidatePath("/admin/users");
   return { error: null };
@@ -276,7 +312,8 @@ export async function toggleUserActiveAction(
   nextActive: boolean,
   prevState: ToggleUserActiveState
 ): Promise<ToggleUserActiveState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
+  if (userId === admin.id) return { error: "Kendi hesabınızı pasifleştiremezsiniz." };
 
   const supabase = await createClient();
   const { error } = await supabase.from("profiles").update({ is_active: nextActive }).eq("id", userId);
@@ -285,6 +322,14 @@ export async function toggleUserActiveAction(
     console.error("toggleUserActiveAction error:", error.message);
     return { error: `Güncellenemedi: ${error.message}` };
   }
+
+  // Ek katman: pasif hesap Auth tarafinda da "banli" olur (yeniden giris ve
+  // jeton yenileme reddedilir). Veri erisimi zaten profiles.is_active ile
+  // veritabaninda ANINDA kesilir; ban basarisiz olsa da guvenlik bozulmaz.
+  const { error: banError } = await createAdminClient().auth.admin.updateUserById(userId, {
+    ban_duration: nextActive ? "none" : "876000h",
+  });
+  if (banError) console.error("toggleUserActiveAction ban error:", banError.message);
 
   revalidatePath("/admin/users");
   return { error: null };

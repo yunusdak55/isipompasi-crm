@@ -3,7 +3,7 @@ import { getDueFollowups } from "@/lib/data/leads";
 import { AppShell } from "@/components/layout/app-shell";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  // Girisi olmayan kullanici burada /login'e yonlendirilir (middleware'e ek
+  // Girisi olmayan kullanici burada /login'e yonlendirilir (proxy'ye ek
   // ikinci savunma katmani - spec md.28 guvenlik oncelikli).
   //
   // PERF (jet hizi): profil (+ firma adi, tek sorguda embed) ile hatirlatma

@@ -12,7 +12,7 @@ maddenin nasıl karşılandığını ve projeyi nasıl ayağa kaldıracağınız
 |---|-------|-------|--------|
 | 1 | Proje klasör yapısı | ✅ | `src/app`, `src/components`, `src/lib`, `supabase/migrations` |
 | 2 | Next.js + TypeScript kurulumu | ✅ (dosyalar hazır, `npm install` gerekli — bkz. §3) | `package.json`, `tsconfig.json` |
-| 3 | Supabase bağlantısı | ✅ | `src/lib/supabase/client.ts`, `server.ts`, `src/middleware.ts` |
+| 3 | Supabase bağlantısı | ✅ | `src/lib/supabase/server.ts`, `src/proxy.ts` |
 | 4 | Database schema taslağı | ✅ 11 tablo | `supabase/migrations/0001_init_schema.sql` |
 | 5 | Authentication yapısı | ✅ e-posta+şifre, session cookie | `src/app/login`, `src/lib/supabase/*` |
 | 6 | Company / tenant / user / role yapısı | ✅ `profiles.role` + `company_id` | migration 0001 + `handle_new_user()` |
@@ -174,7 +174,7 @@ Tüm tablolarda `company_id` (tenant anahtarı) ve gerekli yerlerde
 ## 5) Authentication + RLS mantığı
 
 **Authentication:** Supabase Auth (e-posta+şifre). `@supabase/ssr` paketi
-oturumu HTTP-only cookie'de tutar; `src/middleware.ts` her istekte token'ı
+oturumu HTTP-only cookie'de tutar; `src/proxy.ts` her istekte token'ı
 tazeler ve girişsiz kullanıcıyı `/login`'e yönlendirir. Yeni bir
 `auth.users` satırı oluştuğunda `handle_new_user()` trigger'ı otomatik
 olarak `profiles` satırı açar.
@@ -218,7 +218,7 @@ src/
     constants/                  # İngilizce anahtar -> Türkçe etiket eşlemesi
     data/                       # server-side veri erişim fonksiyonları
     auth/                       # oturum/profil yardımcıları + sign-out action
-  middleware.ts
+  proxy.ts
 supabase/migrations/           # 0001 şema, 0002 RLS
 ```
 

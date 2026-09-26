@@ -6,6 +6,7 @@ import { upsertFollowupAction, type FollowupActionState } from "@/app/(dashboard
 import { Button } from "@/components/ui/button";
 import { useSaveFeedback } from "@/lib/hooks/use-save-feedback";
 import { cn } from "@/lib/utils";
+import { DAY_MS, startOfDayTR } from "@/lib/time";
 
 const inputClass =
   "w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.03]";
@@ -31,11 +32,8 @@ export function FollowupForm({
   // hesaplamak zorunda kalmasın.
   const defaultDays = (() => {
     if (!nextFollowupAt) return "";
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(nextFollowupAt);
-    target.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
+    // Turkiye takvim gunu (sunucu SSR'i UTC olsa da tarayiciyla ayni sonuc - bkz. lib/time.ts).
+    const diffDays = Math.round((startOfDayTR(new Date(nextFollowupAt)).getTime() - startOfDayTR().getTime()) / DAY_MS);
     return diffDays >= 0 ? String(diffDays) : "0";
   })();
 

@@ -8,6 +8,8 @@ import { LEAD_STATUS_LABELS } from "@/lib/constants/lead";
 import { sanitizeSearchTerm } from "@/lib/data/leads";
 import type { LeadStatus } from "@/lib/types/domain";
 import type { Database } from "@/lib/types/database.types";
+import { friendlyDbError } from "@/lib/errors";
+import { TR_TZ, followupDateTR } from "@/lib/time";
 
 // ----------------------------------------------------------------------------
 // Leadler sayfasi "Google gibi" canli oneri kutusu (spec: "S yazınca S ile
@@ -220,7 +222,7 @@ export async function createLeadAction(prevState: LeadFormState, formData: FormD
 
   if (error || !data) {
     console.error("createLeadAction error:", error?.message);
-    return { error: `Lead oluşturulamadı: ${error?.message ?? "bilinmeyen hata"}` };
+    return { error: `Lead oluşturulamadı: ${friendlyDbError(error)}` };
   }
 
   await logActivity(supabase, { leadId: data.id, companyId: data.company_id, type: "system", description: "Lead oluşturuldu." });
@@ -247,7 +249,7 @@ export async function updateLeadAction(leadId: string, prevState: LeadFormState,
 
   if (error || !data) {
     console.error("updateLeadAction error:", error?.message);
-    return { error: `Kaydedilemedi: ${error?.message ?? "bilinmeyen hata"}` };
+    return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
   }
 
   await logActivity(supabase, { leadId, companyId: data.company_id, type: "system", description: "Müşteri bilgileri güncellendi." });
@@ -303,7 +305,7 @@ export async function updateLeadStatusAction(leadId: string, payload: StatusPayl
 
   if (error) {
     console.error("updateLeadStatusAction error:", error.message);
-    return { error: `Durum güncellenemedi: ${error.message}` };
+    return { error: `Durum güncellenemedi: ${friendlyDbError(error)}` };
   }
 
   if (current.status !== payload.status) {
@@ -390,7 +392,7 @@ export async function logMeetingOutcomeAction(
   const { error: leadUpdateError } = await supabase.from("leads").update(leadUpdate).eq("id", leadId);
   if (leadUpdateError) {
     console.error("logMeetingOutcomeAction lead update error:", leadUpdateError.message);
-    return { error: `Güncellenemedi: ${leadUpdateError.message}` };
+    return { error: `Güncellenemedi: ${friendlyDbError(leadUpdateError)}` };
   }
 
   // Zaman cizelgesi satirlari: durum degisikligi + not TEK insert'te; created_at
@@ -436,7 +438,7 @@ export async function logMeetingOutcomeAction(
   }
   if (activityResult.error) {
     console.error("logMeetingOutcomeAction activity insert error:", activityResult.error.message);
-    return { error: `Kaydedilemedi: ${activityResult.error.message}` };
+    return { error: `Kaydedilemedi: ${friendlyDbError(activityResult.error)}` };
   }
 
   revalidateLead(leadId);
@@ -466,12 +468,11 @@ export async function upsertFollowupAction(
 
   if (daysStr === "") return { error: "Kaç gün sonra aranacağı zorunludur." };
   const days = Number(daysStr);
-  if (!Number.isFinite(days) || days < 0 || !Number.isInteger(days)) return { error: "Geçersiz gün sayısı." };
+  // Ust sinir: cok buyuk sayi gecersiz tarih uretir (toISOString RangeError -> 500).
+  if (!Number.isFinite(days) || days < 0 || days > 3650 || !Number.isInteger(days)) return { error: "Geçersiz gün sayısı." };
 
-  const followupDate = new Date();
-  followupDate.setHours(0, 0, 0, 0);
-  followupDate.setDate(followupDate.getDate() + days);
-  followupDate.setHours(10, 0, 0, 0);
+  // Turkiye saatiyle bugunden `days` gun sonrasinin 10:00'i (sunucu UTC olsa da - bkz. lib/time.ts).
+  const followupDate = followupDateTR(days);
 
   const supabase = await createClient();
 
@@ -505,17 +506,17 @@ export async function upsertFollowupAction(
       lead_id: leadId,
       company_id: lead.company_id,
       type: "system",
-      description: `Takip planlandı: ${followupDate.toLocaleDateString("tr-TR")}${note ? " — " + note : ""}`,
+      description: `Takip planlandı: ${followupDate.toLocaleDateString("tr-TR", { timeZone: TR_TZ })}${note ? " — " + note : ""}`,
     }),
   ]);
 
   if (followupResult.error) {
     console.error("upsertFollowupAction followup error:", followupResult.error.message);
-    return { error: `Takip kaydedilemedi: ${followupResult.error.message}` };
+    return { error: `Takip kaydedilemedi: ${friendlyDbError(followupResult.error)}` };
   }
   if (leadUpdateResult.error) {
     console.error("upsertFollowupAction lead update error:", leadUpdateResult.error.message);
-    return { error: `Lead güncellenemedi: ${leadUpdateResult.error.message}` };
+    return { error: `Lead güncellenemedi: ${friendlyDbError(leadUpdateResult.error)}` };
   }
   if (activityResult.error) {
     console.error("upsertFollowupAction activity error:", activityResult.error.message);
@@ -567,7 +568,7 @@ export async function createAppointmentAction(
 
     if (leadError || !newLead) {
       console.error("createAppointmentAction lead insert error:", leadError?.message);
-      return { error: `Lead oluşturulamadı: ${leadError?.message ?? "bilinmeyen hata"}` };
+      return { error: `Lead oluşturulamadı: ${friendlyDbError(leadError)}` };
     }
 
     await logActivity(supabase, {
@@ -617,7 +618,7 @@ export async function assignSalespersonAction(
 
   if (error) {
     console.error("assignSalespersonAction error:", error.message);
-    return { error: `Atama başarısız: ${error.message}` };
+    return { error: `Atama başarısız: ${friendlyDbError(error)}` };
   }
 
   let salespersonName = "Atanmadı";
@@ -673,7 +674,7 @@ export async function setContactedByAction(
 
   if (error) {
     console.error("setContactedByAction error:", error.message);
-    return { error: `Kaydedilemedi: ${error.message}` };
+    return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
   }
 
   let name = "Belirtilmedi";
@@ -742,7 +743,7 @@ export async function upsertSaleAction(
       .eq("id", existing.id);
     if (error) {
       console.error("upsertSaleAction update error:", error.message);
-      return { error: `Satış güncellenemedi: ${error.message}` };
+      return { error: `Satış güncellenemedi: ${friendlyDbError(error)}` };
     }
   } else {
     const { error } = await supabase
@@ -750,7 +751,7 @@ export async function upsertSaleAction(
       .insert({ lead_id: leadId, company_id: lead.company_id, sale_amount: amount, salesperson: lead.assigned_salesperson });
     if (error) {
       console.error("upsertSaleAction insert error:", error.message);
-      return { error: `Satış kaydedilemedi: ${error.message}` };
+      return { error: `Satış kaydedilemedi: ${friendlyDbError(error)}` };
     }
   }
 
@@ -822,7 +823,7 @@ export async function updateAgentNoteAction(
 
   if (error) {
     console.error("updateAgentNoteAction error:", error.message);
-    return { error: `Kaydedilemedi: ${error.message}` };
+    return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
   }
 
   await logActivity(supabase, { leadId, companyId: lead.company_id, type: "system", description: "Ajan görüşü güncellendi." });

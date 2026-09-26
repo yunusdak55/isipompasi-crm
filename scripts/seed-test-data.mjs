@@ -39,7 +39,9 @@ async function main() {
   const { data: userRes, error: userError } = await supabase.auth.admin.createUser({
     email,
     email_confirm: true,
-    user_metadata: { full_name: "Test Sahibi", role: "owner", company_id: companyId },
+    // GUVENLIK: rol/firma app_metadata'da (kullanici degistiremez); bkz. migration 0026.
+    app_metadata: { role: "owner", company_id: companyId },
+    user_metadata: { full_name: "Test Sahibi" },
   });
   if (userError) throw new Error("user: " + userError.message);
   console.log("owner_user_id:", userRes.user.id);
@@ -57,7 +59,8 @@ async function main() {
   const { data: salesUserRes, error: salesUserError } = await supabase.auth.admin.createUser({
     email: salesEmail,
     email_confirm: true,
-    user_metadata: { full_name: "Test Satışçı", role: "sales", company_id: companyId },
+    app_metadata: { role: "sales", company_id: companyId },
+    user_metadata: { full_name: "Test Satışçı" },
   });
   if (salesUserError) throw new Error("salesUser: " + salesUserError.message);
   const salesUserId = salesUserRes.user.id;

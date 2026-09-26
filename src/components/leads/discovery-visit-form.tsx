@@ -6,6 +6,7 @@ import { createDiscoveryVisitAction, type DiscoveryVisitActionState } from "@/ap
 import { Button } from "@/components/ui/button";
 import { LeadSearchSelect } from "@/components/leads/lead-search-select";
 import type { LeadSelectItem } from "@/lib/data/leads";
+import { partsTR } from "@/lib/time";
 
 const fieldClass =
   "w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-white/35 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.07] focus-visible:outline-none [&>option]:bg-surface [&>option]:text-[#111827]";
@@ -13,8 +14,8 @@ const fieldClass =
 const initialState: DiscoveryVisitActionState = { error: null };
 
 function todayIso() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const p = partsTR(new Date());
+  return `${p.year}-${String(p.month + 1).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
 /** "Keşif Ekle" formu: kime, ne zaman, nerede kesife gidildigi + nasil gectigi (spec). */

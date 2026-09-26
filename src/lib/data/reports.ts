@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { LEAD_STATUS_ORDER, LEAD_STATUS_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/constants/lead";
+import { fetchAllRows } from "@/lib/data/paginate";
+import { monthStartTR, partsTR, shiftMonth, startOfDayTR } from "@/lib/time";
 import type { LeadStatus, PropertyType } from "@/lib/types/domain";
 
 /**
@@ -29,30 +31,31 @@ const TR_MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Ey
 
 /** Ay kiyaslama araci icin genis (12 aylik) pencere - "Agustos ile Temmuz'u kiyasla" gibi secimler icin. */
 function lastNMonthBuckets(n: number) {
-  const now = new Date();
+  const cur = partsTR(new Date());
   const months: { key: string; label: string }[] = [];
   for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: `${TR_MONTHS[d.getMonth()]} ${d.getFullYear()}` });
+    const d = shiftMonth(cur.year, cur.month, -i);
+    months.push({ key: `${d.year}-${d.month}`, label: `${TR_MONTHS[d.month]} ${d.year}` });
   }
   return months;
 }
 
+/** Turkiye takvimine gore "yil-ay" kovasi (sunucu saat diliminden bagimsiz). */
 function monthKey(dateStr: string) {
-  const d = new Date(dateStr);
-  return `${d.getFullYear()}-${d.getMonth()}`;
+  const p = partsTR(new Date(dateStr));
+  return `${p.year}-${p.month}`;
 }
 
 export type ReportPeriodOption = { value: string; label: string };
 
 /** Raporlar sayfasindaki donem secici icin secenekler: son 12 ay + "Tüm Zamanlar". */
 export function getReportPeriodOptions(): ReportPeriodOption[] {
-  const now = new Date();
+  const cur = partsTR(new Date());
   const options: ReportPeriodOption[] = [{ value: "all", label: "Tüm Zamanlar" }];
   for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = i === 0 ? `Bu Ay (${TR_MONTHS[d.getMonth()]})` : i === 1 ? `Geçen Ay (${TR_MONTHS[d.getMonth()]})` : `${TR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+    const d = shiftMonth(cur.year, cur.month, -i);
+    const value = `${d.year}-${String(d.month + 1).padStart(2, "0")}`;
+    const label = i === 0 ? `Bu Ay (${TR_MONTHS[d.month]})` : i === 1 ? `Geçen Ay (${TR_MONTHS[d.month]})` : `${TR_MONTHS[d.month]} ${d.year}`;
     options.push({ value, label });
   }
   return options;
@@ -64,7 +67,7 @@ function periodToRange(period: string): { start: Date; end: Date } | null {
   if (!match) return null;
   const year = Number(match[1]);
   const monthIndex = Number(match[2]) - 1;
-  return { start: new Date(year, monthIndex, 1), end: new Date(year, monthIndex + 1, 1) };
+  return { start: monthStartTR(year, monthIndex), end: monthStartTR(year, monthIndex + 1) };
 }
 
 function inRange(dateStr: string, range: { start: Date; end: Date } | null) {
@@ -137,13 +140,20 @@ export async function getReportsData(period: string = "all"): Promise<ReportsDat
   // TEK sorguyla TUM veri cekilir (donem filtresi yok) - "Tüm Zamanlar" ve
   // tek bir ayin gorunumu ayni ham kumeden turer, JS tarafinda filtrelenir.
   const [leadsRes, salesRes, followupsRes] = await Promise.all([
-    supabase
-      .from("leads")
-      .select(
-        "id, status, city, district, property_type, offered_amount, created_at, last_contact_at, product_category:product_categories(label)"
-      ),
-    supabase.from("sales").select("sale_amount, sale_date"),
-    supabase.from("followups").select("is_completed, followup_date, completed_at"),
+    // fetchAllRows: PostgREST 1000 satirda sessizce keser (bkz. data/paginate.ts).
+    fetchAllRows((from, to) =>
+      supabase
+        .from("leads")
+        .select(
+          "id, status, city, district, property_type, offered_amount, created_at, last_contact_at, product_category:product_categories(label)"
+        )
+        .order("id")
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) => supabase.from("sales").select("id, sale_amount, sale_date").order("id").range(from, to)),
+    fetchAllRows((from, to) =>
+      supabase.from("followups").select("id, is_completed, followup_date, completed_at").order("id").range(from, to)
+    ),
   ]);
 
   if (leadsRes.error || !leadsRes.data) {
@@ -173,8 +183,7 @@ export async function getReportsData(period: string = "all"): Promise<ReportsDat
   const conversionRate = leads.length > 0 ? (sales.length / leads.length) * 100 : 0;
 
   // Takip performansi.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfDayTR();
   let completed = 0;
   let pending = 0;
   let overdue = 0;

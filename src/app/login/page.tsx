@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
@@ -60,8 +61,15 @@ function useCardTilt() {
   return cardRef;
 }
 
+const NOTICES: Record<string, string> = {
+  inactive: "Hesabınız pasif durumda olduğu için oturumunuz kapatıldı. Lütfen yöneticinizle iletişime geçin.",
+  no_profile: "Hesabınız henüz yapılandırılmamış. Lütfen ajansla iletişime geçin.",
+  auth_callback: "Giriş bağlantısı geçersiz ya da süresi dolmuş. Lütfen tekrar deneyin.",
+};
+
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(signInAction, initialState);
+  const notice = NOTICES[useSearchParams().get("error") ?? ""] ?? null;
   const cardRef = useCardTilt();
 
   return (
@@ -109,6 +117,12 @@ export default function LoginPage() {
                   className="rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.03]"
                 />
               </label>
+
+              {!state.error && notice ? (
+                <p role="status" className="rounded-lg border border-accent-400/30 bg-accent-500/10 px-3 py-2 text-sm text-white/85">
+                  {notice}
+                </p>
+              ) : null}
 
               {state.error ? (
                 <p role="alert" className="animate-slide-up rounded-lg border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-[#ffb4a3]">

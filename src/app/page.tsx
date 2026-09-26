@@ -3,7 +3,7 @@ import { getCurrentProfile } from "@/lib/auth/session";
 
 /**
  * Kok sayfa: oturum durumuna gore yonlendirir.
- * (Middleware zaten korumali rotalari kapatiyor; burasi "/" icin ayrica
+ * (Proxy (src/proxy.ts) zaten korumali rotalari kapatiyor; burasi "/" icin ayrica
  * dogru ilk yonlendirmeyi yapar.)
  */
 export default async function RootPage() {

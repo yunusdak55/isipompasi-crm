@@ -1,4 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeSearchTerm } from "@/lib/data/leads";
+import { fetchAllRows } from "@/lib/data/paginate";
+import { monthStartTR, startOfDayTR } from "@/lib/time";
 import type { AgencyProspect, ProspectActivity, ProspectStatus } from "@/lib/types/domain";
 
 const PROSPECT_COLUMNS =
@@ -19,7 +22,7 @@ export async function getProspects(params?: { status?: ProspectStatus; search?: 
   }
 
   if (params?.search) {
-    const term = params.search.replace(/[,()%_]/g, " ").trim();
+    const term = sanitizeSearchTerm(params.search);
     if (term.length > 0) {
       query = query.or(`company_name.ilike.%${term}%,contact_name.ilike.%${term}%,phone.ilike.%${term}%`);
     }
@@ -78,8 +81,8 @@ export async function getProspectActivities(prospectId: string): Promise<Prospec
 export async function getProspectsCalendar(year: number, month: number): Promise<AgencyProspect[]> {
   const supabase = await createClient();
 
-  const rangeStart = new Date(Date.UTC(year, month, 1)).toISOString();
-  const rangeEnd = new Date(Date.UTC(year, month + 1, 1)).toISOString();
+  const rangeStart = monthStartTR(year, month).toISOString();
+  const rangeEnd = monthStartTR(year, month + 1).toISOString();
 
   const { data, error } = await supabase
     .from("agency_prospects")
@@ -148,8 +151,7 @@ export async function getOpenProspectsForSelect(): Promise<ProspectSelectItem[]>
  */
 export async function getProspectsOverdue(): Promise<AgencyProspect[]> {
   const supabase = await createClient();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfDayTR();
 
   const { data, error } = await supabase
     .from("agency_prospects")
@@ -177,12 +179,16 @@ export type ProspectLastNote = { description: string; created_at: string };
 export async function getLastNotesByProspect(): Promise<Record<string, ProspectLastNote>> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("agency_prospect_activities")
-    .select("prospect_id, description, created_at")
-    .eq("type", "note")
-    .order("created_at", { ascending: false })
-    .limit(2000);
+  // fetchAllRows: PostgREST 1000 satirda sessizce keser (bkz. data/paginate.ts).
+  const { data, error } = await fetchAllRows((from, to) =>
+    supabase
+      .from("agency_prospect_activities")
+      .select("id, prospect_id, description, created_at")
+      .eq("type", "note")
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, to)
+  );
 
   if (error) {
     console.error("getLastNotesByProspect error:", error.message);

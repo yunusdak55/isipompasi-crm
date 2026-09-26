@@ -89,6 +89,18 @@ n8n flow'una sadece "insert to leads", "update leads.notes", "insert to
 activities" adımları eklenmeli; `status`/`last_contact_at`/`assigned_salesperson`
 güncelleyen hiçbir adım olmamalı.
 
+**Anahtar güvenliği (bkz. docs/security.md):**
+- Agent için YALNIZCA yeni format `sb_secret_...` anahtarı kullanılmalı ve sadece
+  n8n'in şifreli credential deposunda tutulmalı (workflow JSON'una, loglara, sohbete,
+  repoya ASLA yazılmamalı). Sızdığından şüphelenilirse Supabase → Settings → API Keys
+  üzerinden hemen yenilenmeli.
+- Projede hâlâ **eski (legacy) `service_role` JWT anahtarı** etkin. Agent artık
+  `sb_secret_...` kullanıyorsa, Settings → API Keys → "Legacy API keys" altından
+  eski anahtarlar devre dışı bırakılmalı (ikinci bir tam-yetkili anahtar gereksiz risk).
+- Veritabanı artık lead'e bağlı kayıtlarda (`activities` vb.) `lead_id` ile `company_id`
+  uyuşmazlığını reddeder (migration 0026) — agent yanlış firmanın `company_id`'siyle
+  yazmaya çalışırsa `23514` hatası alır.
+
 ## `discovery_visits`, `followups`, `sales` — agent'ın hiç dokunmadığı tablolar
 
 Bunlar tamamen insan tarafından (satış personeli/firma sahibi) panelden

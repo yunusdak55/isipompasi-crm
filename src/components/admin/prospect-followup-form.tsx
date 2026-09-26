@@ -5,6 +5,7 @@ import { CalendarPlus, Pencil, Check, X } from "lucide-react";
 import { upsertProspectFollowupAction, type FollowupActionState } from "@/app/(dashboard)/admin/prospects/actions";
 import { TodayCallBadge } from "@/components/leads/lead-indicators";
 import { cn, formatRelativeDays } from "@/lib/utils";
+import { DAY_MS, startOfDayTR } from "@/lib/time";
 
 const fieldClass =
   "w-full rounded-md border border-line bg-canvas px-2 py-1 text-xs text-ink-900 focus-visible:border-accent-400 focus-visible:outline-none";
@@ -31,11 +32,8 @@ export function ProspectFollowupForm({
 
   const defaultDays = (() => {
     if (!nextFollowupAt) return "";
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(nextFollowupAt);
-    target.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
+    // Turkiye takvim gunu (sunucu SSR'i UTC olsa da tarayiciyla ayni sonuc - bkz. lib/time.ts).
+    const diffDays = Math.round((startOfDayTR(new Date(nextFollowupAt)).getTime() - startOfDayTR().getTime()) / DAY_MS);
     return diffDays >= 0 ? String(diffDays) : "0";
   })();
 
@@ -77,7 +75,7 @@ export function ProspectFollowupForm({
         <span className="text-[10px] font-medium text-ink-500">Kaç gün sonra aransın?</span>
         <input type="number" name="followup_days" min={0} step={1} required defaultValue={defaultDays} placeholder="ör. 3" className={fieldClass} />
       </label>
-      <p className="text-[10px] leading-tight text-ink-400">Görüşme Takvimi'ne otomatik eklenir.</p>
+      <p className="text-[10px] leading-tight text-ink-400">Görüşme Takvimi&apos;ne otomatik eklenir.</p>
       <input type="text" name="followup_note" defaultValue={nextFollowupNote ?? ""} placeholder="Not (ör. tekrar ara)" className={fieldClass} />
       <div className="flex items-center gap-1.5">
         <button

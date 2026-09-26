@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { DAY_MS, TR_TZ, startOfDayTR } from "@/lib/time";
 
 /** Tailwind class isimlerini guvenle birlestirir (cakisan utility'leri cozer). */
 export function cn(...inputs: ClassValue[]) {
@@ -18,6 +19,7 @@ export function formatCurrency(value: number | null | undefined) {
 }
 
 const dateFormatter = new Intl.DateTimeFormat("tr-TR", {
+  timeZone: TR_TZ, // sunucu UTC olsa da Turkiye saati gosterilir (bkz. lib/time.ts)
   day: "numeric",
   month: "long",
   year: "numeric",
@@ -29,6 +31,7 @@ export function formatDate(value: string | null | undefined) {
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat("tr-TR", {
+  timeZone: TR_TZ,
   day: "numeric",
   month: "short",
   hour: "2-digit",
@@ -42,10 +45,8 @@ export function formatDateTime(value: string | null | undefined) {
 
 export function formatRelativeDays(value: string | null | undefined) {
   if (!value) return null;
-  const target = new Date(value);
-  const now = new Date();
-  const diffMs = target.setHours(0, 0, 0, 0) - now.setHours(0, 0, 0, 0);
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const diffMs = startOfDayTR(new Date(value)).getTime() - startOfDayTR().getTime();
+  const diffDays = Math.round(diffMs / DAY_MS);
 
   if (diffDays === 0) return "Bugün";
   if (diffDays === 1) return "Yarın";
@@ -105,10 +106,8 @@ export function isLeadOverdue(params: {
 
   // Kural B: takip gunu tamamen gecti VE o gunden beri hicbir aktivite yok.
   if (params.nextFollowupAt) {
-    const followupDayStart = new Date(params.nextFollowupAt);
-    followupDayStart.setHours(0, 0, 0, 0);
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const followupDayStart = startOfDayTR(new Date(params.nextFollowupAt));
+    const todayStart = startOfDayTR();
     if (followupDayStart.getTime() < todayStart.getTime()) {
       const lastUpdate = params.lastActivityAt ?? params.createdAt;
       if (new Date(lastUpdate).getTime() < followupDayStart.getTime()) return true;
@@ -139,9 +138,7 @@ export function isProspectOverdue(params: {
     // Spec (admin paneli): "gecikenlere takip tarihi geçen müşterileri koy" -
     // takip GUNU tamamen gectiyse gecikmis, gecmediyse degil (gun bazli, saat
     // degil). Takip tarihi olan adayda eski 48-saat kurali artik uygulanmaz.
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    return new Date(params.nextFollowupAt).getTime() < todayStart.getTime();
+    return new Date(params.nextFollowupAt).getTime() < startOfDayTR().getTime();
   }
   const reference = params.lastContactAt ?? params.createdAt;
   const hoursSince = (Date.now() - new Date(reference).getTime()) / (1000 * 60 * 60);

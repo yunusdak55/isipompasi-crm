@@ -5,6 +5,7 @@ import { getOpenLeadsForSelect } from "@/lib/data/leads";
 import { DiscoveryVisitForm } from "@/components/leads/discovery-visit-form";
 import { DiscoveryVisitTable } from "@/components/leads/discovery-visit-table";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
+import { parseYearMonth, partsTR } from "@/lib/time";
 
 const TR_MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -26,9 +27,8 @@ export default async function DiscoveriesPage({
   searchParams: Promise<{ y?: string; m?: string }>;
 }) {
   const params = await searchParams;
-  const now = new Date();
-  const year = params.y ? Number(params.y) : now.getFullYear();
-  const month = params.m ? Number(params.m) : now.getMonth();
+  const today = partsTR(new Date());
+  const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
   const [visits, selectableLeads] = await Promise.all([
     getDiscoveryVisitsForMonth(year, month),

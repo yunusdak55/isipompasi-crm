@@ -7,7 +7,10 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "security:check": "node scripts/security-audit.mjs",
+    "backup": "node scripts/backup-db.mjs",
+    "check": "npm run typecheck && npm run lint && npm audit --omit=dev && npm run security:check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

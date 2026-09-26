@@ -15,14 +15,23 @@ birbirine bağlı olmayanları **aynı turda** çalıştırmak.
    yapmak lead sayısıyla doğrusal yavaşlar. Örnek: `dashboard_stats()` ve `agency_company_stats()`
    (`SECURITY INVOKER` SQL fonksiyonu + `supabase.rpc(...)`; RLS aynen geçerli kalır).
 4. **Listeleri sayfala / sınırla** (`.range()`, `.limit()`). Sınırsız `select` yazma.
+   **DİKKAT:** PostgREST tek istekte en fazla **1000 satır** döndürür ve fazlasını **sessizce keser**
+   (`.limit(5000)` bunu aşmaz). Tüm satırları toplaması gereken sorgular için
+   `fetchAllRows` (`src/lib/data/paginate.ts`) kullan; sıralamayı benzersiz bir kolonla bitir (`.order("id")`).
+   Mümkünse toplamı veritabanında hesapla (madde 3).
+7. **Tarih/gün sınırı için `src/lib/time.ts` kullan** (`startOfDayTR`, `partsTR`, `monthStartTR`, `followupDateTR`).
+   `setHours(0,0,0,0)`, `getDate()`, `toLocaleDateString()` **sunucu saat dilimini** (Hostinger'da büyük olasılıkla UTC)
+   kullanır: "bugün" 03:00'e kayar, ay/gün kovaları 3 saat sapar. Geliştirici makinesi Türkiye saatinde olduğu için
+   yerelde HİÇ görünmez. `Intl.DateTimeFormat`'a daima `timeZone: "Europe/Istanbul"` ver.
 5. **Server action'larda** bağımsız yazmaları paralel yap veya tek `insert([...])` ile birleştir
    (örnek: `logMeetingOutcomeAction`).
 6. Her yeni sayfaya bir `loading.tsx` ekle; sidebar bağlantıları prefetch'lidir, iskelet anında gelir.
    İstemci önbelleği `next.config.mjs` → `staleTimes.dynamic = 0` ile kapalıdır, veri hep taze gelir.
 
 ## Veritabanı (migration) yazarken
-- RLS politikalarında **her zaman** `(select auth.uid())`, `(select public.current_user_role())`,
-  `(select public.current_user_company_id())` biçimini kullan (satır başına değil, sorgu başına bir kez hesaplanır).
+- RLS politikalarında **her zaman** `(select auth.uid())`, `(select private.current_user_role())`,
+  `(select private.current_user_company_id())` biçimini kullan (satır başına değil, sorgu başına bir kez hesaplanır).
+  (Yardımcılar `private` şemadadır — bkz. docs/security.md.)
 - Aynı tablo + eylem için **birden fazla permissive politika bırakma**; `FOR ALL` yerine
   `insert / update / delete` ayrı yaz.
 - Sık filtrelenen/sıralanan kolonlara ve `lead_id` gibi ilişki kolonlarına indeks ekle.

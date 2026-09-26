@@ -86,8 +86,8 @@ export function CreateCompanyForm() {
             <input type="email" name="email" required placeholder="ornek@firma.com" className={fieldClass} />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-white/55">Şifre * (en az 8 karakter)</span>
-            <input type="text" name="password" required minLength={8} placeholder="Firmaya ileteceğiniz şifre" className={fieldClass} />
+            <span className="text-xs font-medium text-white/55">Şifre * (en az 10 karakter, büyük/küçük harf + rakam)</span>
+            <input type="text" name="password" required minLength={10} placeholder="Firmaya ileteceğiniz şifre" className={fieldClass} />
           </label>
         </div>
       </div>

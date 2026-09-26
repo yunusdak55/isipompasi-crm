@@ -7,6 +7,7 @@ import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { ProspectAppointmentForm } from "@/components/admin/prospect-appointment-form";
 import { ProspectCalendarGrid, type ProspectCalendarCell } from "@/components/admin/prospect-calendar-grid";
 import type { AgencyProspect } from "@/lib/types/domain";
+import { daysInMonth, firstWeekdayOfMonth, parseYearMonth, partsTR } from "@/lib/time";
 
 const TR_MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -40,9 +41,8 @@ export default async function ProspectsCalendarPage({
   }
 
   const params = await searchParams;
-  const now = new Date();
-  const year = params.y ? Number(params.y) : now.getFullYear();
-  const month = params.m ? Number(params.m) : now.getMonth();
+  const today = partsTR(new Date());
+  const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
   const [prospects, selectable] = await Promise.all([
     getProspectsCalendar(year, month),
@@ -52,24 +52,24 @@ export default async function ProspectsCalendarPage({
   const byDay = new Map<number, AgencyProspect[]>();
   for (const p of prospects) {
     if (!p.next_followup_at) continue;
-    const day = new Date(p.next_followup_at).getDate();
+    const day = partsTR(new Date(p.next_followup_at)).day;
     const list = byDay.get(day) ?? [];
     list.push(p);
     byDay.set(day, list);
   }
 
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstWeekday = mondayIndex(new Date(year, month, 1).getDay());
-  const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+  const totalDays = daysInMonth(year, month);
+  const firstWeekday = mondayIndex(firstWeekdayOfMonth(year, month));
+  const totalCells = Math.ceil((firstWeekday + totalDays) / 7) * 7;
 
   const prevMonth = month === 0 ? { y: year - 1, m: 11 } : { y: year, m: month - 1 };
   const nextMonth = month === 11 ? { y: year + 1, m: 0 } : { y: year, m: month + 1 };
 
-  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const todayKey = `${today.year}-${today.month}-${today.day}`;
 
   const cells: ProspectCalendarCell[] = Array.from({ length: totalCells }).map((_, i) => {
     const dayNum = i - firstWeekday + 1;
-    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
+    const inMonth = dayNum >= 1 && dayNum <= totalDays;
     return {
       dayNum,
       inMonth,

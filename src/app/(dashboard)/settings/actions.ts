@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { friendlyDbError } from "@/lib/errors";
 
 export type CompanyActionState = { error: string | null };
 
@@ -40,7 +41,7 @@ export async function updateCompanyAction(
 
   if (error) {
     console.error("updateCompanyAction error:", error.message);
-    return { error: `Kaydedilemedi: ${error.message}` };
+    return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
   }
 
   revalidatePath("/settings");
@@ -80,7 +81,7 @@ export async function createSalespersonAction(
 
   if (error) {
     console.error("createSalespersonAction error:", error.message);
-    return { error: `Eklenemedi: ${error.message}` };
+    return { error: `Eklenemedi: ${friendlyDbError(error)}` };
   }
 
   revalidatePath("/settings");
@@ -118,7 +119,7 @@ export async function deleteSalespersonAction(
 
   if (error) {
     console.error("deleteSalespersonAction error:", error.message);
-    return { error: `Kaldırılamadı: ${error.message}` };
+    return { error: `Kaldırılamadı: ${friendlyDbError(error)}` };
   }
 
   revalidatePath("/settings");
@@ -161,7 +162,7 @@ export async function createProductCategoryAction(
 
   if (error) {
     console.error("createProductCategoryAction error:", error.message);
-    const message = error.code === "23505" ? "Bu isimde bir kategori zaten var." : `Eklenemedi: ${error.message}`;
+    const message = error.code === "23505" ? "Bu isimde bir kategori zaten var." : `Eklenemedi: ${friendlyDbError(error)}`;
     return { error: message };
   }
 
@@ -195,7 +196,7 @@ export async function deleteProductCategoryAction(
 
   if (error) {
     console.error("deleteProductCategoryAction error:", error.message);
-    return { error: `Kaldırılamadı: ${error.message}` };
+    return { error: `Kaldırılamadı: ${friendlyDbError(error)}` };
   }
 
   revalidatePath("/settings");

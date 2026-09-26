@@ -1,11 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
 import { LEAD_STATUS_ORDER } from "@/lib/constants/lead";
-import { NO_CONTACT_OVERDUE_HOURS, isLeadOverdue } from "@/lib/utils";
+import { NO_CONTACT_OVERDUE_HOURS, isLeadOverdue, leadDisplayName } from "@/lib/utils";
+import { fetchAllRows } from "@/lib/data/paginate";
+import { endOfDayTR, monthStartTR, startOfDayTR } from "@/lib/time";
 import type { LeadPriority, LeadStatus } from "@/lib/types/domain";
 
-/** ILIKE joker karakterlerini ve .or() sozdizimini bozabilecek karakterleri temizler. */
+/**
+ * ILIKE joker karakterlerini ve PostgREST `.or()` filtre sozdizimini
+ * (`,` `(` `)` `"` `\` `:` `*`) bozabilecek karakterleri temizler. Aksi halde arama
+ * kutusuna yazilan metin ek filtre kosulu enjekte edebilir. Uzunluk da sinirlidir.
+ */
 export function sanitizeSearchTerm(term: string) {
-  return term.replace(/[,()%_]/g, " ").trim();
+  return term.replace(/[,()%_"'\\*:;]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
 export type LeadListItem = {
@@ -135,11 +141,15 @@ export type LeadSelectItem = { id: string; first_name: string | null; last_name:
 export async function getOpenLeadsForSelect(): Promise<LeadSelectItem[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("leads")
-    .select("id, first_name, last_name, phone")
-    .not("status", "in", "(won,lost)")
-    .order("first_name");
+  const { data, error } = await fetchAllRows((from, to) =>
+    supabase
+      .from("leads")
+      .select("id, first_name, last_name, phone")
+      .not("status", "in", "(won,lost)")
+      .order("first_name")
+      .order("id")
+      .range(from, to)
+  );
 
   if (error) {
     console.error("getOpenLeadsForSelect error:", error.message);
@@ -192,12 +202,16 @@ export type BoardLead = {
 export async function getLeadsForBoard(): Promise<Record<LeadStatus, BoardLead[]>> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("leads")
-    .select(
-      "id, first_name, last_name, phone, city, status, priority, offered_amount, last_contact_at, last_activity_at, next_followup_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name)"
-    )
-    .order("created_at", { ascending: false });
+  const { data, error } = await fetchAllRows((from, to) =>
+    supabase
+      .from("leads")
+      .select(
+        "id, first_name, last_name, phone, city, status, priority, offered_amount, last_contact_at, last_activity_at, next_followup_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name)"
+      )
+      .order("created_at", { ascending: false })
+      .order("id")
+      .range(from, to)
+  );
 
   const grouped = Object.fromEntries(LEAD_STATUS_ORDER.map((status) => [status, [] as BoardLead[]])) as Record<
     LeadStatus,
@@ -223,12 +237,16 @@ export async function getLeadsForBoard(): Promise<Record<LeadStatus, BoardLead[]
 export async function getLeadsFollowup(): Promise<LeadListItem[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("leads")
-    .select(LEAD_LIST_COLUMNS)
-    .not("next_followup_at", "is", null)
-    .not("status", "in", "(won,lost)")
-    .order("next_followup_at", { ascending: true });
+  const { data, error } = await fetchAllRows((from, to) =>
+    supabase
+      .from("leads")
+      .select(LEAD_LIST_COLUMNS)
+      .not("next_followup_at", "is", null)
+      .not("status", "in", "(won,lost)")
+      .order("next_followup_at", { ascending: true })
+      .order("id")
+      .range(from, to)
+  );
 
   if (error) {
     console.error("getLeadsFollowup error:", error.message);
@@ -246,8 +264,7 @@ export type DueFollowup = { leadId: string; name: string; date: string; overdue:
  */
 export async function getDueFollowups(): Promise<DueFollowup[]> {
   const supabase = await createClient();
-  const now = new Date();
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString();
+  const todayEnd = endOfDayTR().toISOString();
 
   const { data, error } = await supabase
     .from("leads")
@@ -263,9 +280,11 @@ export async function getDueFollowups(): Promise<DueFollowup[]> {
     return [];
   }
 
+  const now = new Date();
   return (data ?? []).map((lead) => ({
     leadId: lead.id,
-    name: [lead.first_name, lead.last_name].filter(Boolean).join(" "),
+    // Agent WhatsApp adini bulamazsa first_name bos olabilir (bkz. leadDisplayName).
+    name: leadDisplayName(lead),
     date: lead.next_followup_at as string,
     overdue: new Date(lead.next_followup_at as string) < now,
   }));
@@ -280,8 +299,8 @@ export async function getDueFollowups(): Promise<DueFollowup[]> {
 export async function getLeadsCalendar(year: number, month: number): Promise<LeadListItem[]> {
   const supabase = await createClient();
 
-  const rangeStart = new Date(Date.UTC(year, month, 1)).toISOString();
-  const rangeEnd = new Date(Date.UTC(year, month + 1, 1)).toISOString();
+  const rangeStart = monthStartTR(year, month).toISOString();
+  const rangeEnd = monthStartTR(year, month + 1).toISOString();
 
   const { data, error } = await supabase
     .from("leads")
@@ -315,8 +334,7 @@ export async function getLeadsCalendar(year: number, month: number): Promise<Lea
 export async function getLeadsOverdue(): Promise<LeadListItem[]> {
   const supabase = await createClient();
   const noContactCutoff = new Date(Date.now() - NO_CONTACT_OVERDUE_HOURS * 60 * 60 * 1000).toISOString();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfDayTR();
 
   const { data, error } = await supabase
     .from("leads")

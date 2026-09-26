@@ -23,6 +23,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# yerel veri yedekleri (kisisel veri icerir - ASLA commit etme)
+/backups
+
 # local env files
 .env
 .env*.local

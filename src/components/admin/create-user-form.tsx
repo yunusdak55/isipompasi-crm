@@ -68,8 +68,8 @@ export function CreateUserForm({ companies }: { companies: CompanySelectItem[] }
           <input type="email" name="email" required placeholder="ornek@firma.com" className={fieldClass} />
         </label>
         <label className="flex flex-col gap-1.5 sm:col-span-2">
-          <span className="text-xs font-medium text-white/55">Şifre * (en az 8 karakter)</span>
-          <input type="text" name="password" required minLength={8} placeholder="Müşteriye ileteceğiniz şifre" className={fieldClass} />
+          <span className="text-xs font-medium text-white/55">Şifre * (en az 10 karakter, büyük/küçük harf + rakam)</span>
+          <input type="text" name="password" required minLength={10} placeholder="Müşteriye ileteceğiniz şifre" className={fieldClass} />
         </label>
       </div>
 

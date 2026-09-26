@@ -6,6 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { PROSPECT_STATUS_LABELS } from "@/lib/constants/prospects";
 import type { ProspectStatus } from "@/lib/types/domain";
 import type { Database } from "@/lib/types/database.types";
+import { friendlyDbError } from "@/lib/errors";
+import { TR_TZ, followupDateTR } from "@/lib/time";
+
+/** Takip icin en fazla 10 yil sonrasi (gecersiz tarih/asiri deger koruması). */
+const MAX_FOLLOWUP_DAYS = 3650;
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 type ProspectActivityType = Database["public"]["Tables"]["agency_prospect_activities"]["Row"]["type"];
@@ -59,13 +64,11 @@ async function logProspectActivity(
 function daysToFollowupDate(daysStr: string): Date | null {
   if (daysStr === "") return null;
   const days = Number(daysStr);
-  if (!Number.isFinite(days) || days < 0 || !Number.isInteger(days)) return null;
+  // Ust sinir: cok buyuk sayi gecersiz tarih uretir (toISOString RangeError -> 500).
+  if (!Number.isFinite(days) || days < 0 || days > MAX_FOLLOWUP_DAYS || !Number.isInteger(days)) return null;
 
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + days);
-  date.setHours(10, 0, 0, 0);
-  return date;
+  // Turkiye saatiyle bugunden `days` gun sonrasinin 10:00'i (sunucu UTC olsa da - bkz. lib/time.ts).
+  return followupDateTR(days);
 }
 
 // ----------------------------------------------------------------------------
@@ -100,7 +103,7 @@ export async function createProspectAction(prevState: CreateProspectState, formD
 
   if (error || !data) {
     console.error("createProspectAction error:", error?.message);
-    return { error: `Eklenemedi: ${error?.message ?? "bilinmeyen hata"}` };
+    return { error: `Eklenemedi: ${friendlyDbError(error)}` };
   }
 
   await logProspectActivity(supabase, { prospectId: data.id, type: "system", description: "Aday oluşturuldu." });
@@ -133,7 +136,7 @@ export async function updateProspectStatusAction(
 
   if (error) {
     console.error("updateProspectStatusAction error:", error.message);
-    return { error: `Güncellenemedi: ${error.message}` };
+    return { error: `Güncellenemedi: ${friendlyDbError(error)}` };
   }
 
   await logProspectActivity(supabase, {
@@ -181,7 +184,7 @@ export async function updateProspectAction(
 
   if (error) {
     console.error("updateProspectAction error:", error.message);
-    return { error: `Güncellenemedi: ${error.message}` };
+    return { error: `Güncellenemedi: ${friendlyDbError(error)}` };
   }
 
   revalidateProspects(prospectId);
@@ -219,10 +222,10 @@ export async function upsertProspectFollowupAction(
 
   if (error) {
     console.error("upsertProspectFollowupAction error:", error.message);
-    return { error: `Kaydedilemedi: ${error.message}` };
+    return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
   }
 
-  const dayLabel = followupDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
+  const dayLabel = followupDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long", timeZone: TR_TZ });
   await logProspectActivity(supabase, {
     prospectId,
     type: "system",
@@ -266,10 +269,10 @@ export async function createProspectWithFollowupAction(
 
   if (error || !data) {
     console.error("createProspectWithFollowupAction error:", error?.message);
-    return { error: `Eklenemedi: ${error?.message ?? "bilinmeyen hata"}` };
+    return { error: `Eklenemedi: ${friendlyDbError(error)}` };
   }
 
-  const dayLabel = followupDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
+  const dayLabel = followupDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long", timeZone: TR_TZ });
   await logProspectActivity(supabase, {
     prospectId: data.id,
     type: "system",
@@ -294,7 +297,7 @@ export async function deleteProspectAction(prospectId: string, prevState: Delete
 
   if (error) {
     console.error("deleteProspectAction error:", error.message);
-    return { error: `Silinemedi: ${error.message}` };
+    return { error: `Silinemedi: ${friendlyDbError(error)}` };
   }
 
   revalidateProspects();
@@ -342,7 +345,7 @@ export async function logProspectOutcomeAction(
   });
   if (noteError) {
     console.error("logProspectOutcomeAction note error:", noteError.message);
-    return { error: `Not kaydedilemedi: ${noteError.message}` };
+    return { error: `Not kaydedilemedi: ${friendlyDbError(noteError)}` };
   }
 
   // Not almak da bir temastir - "en son ne zaman gorusuldu" tazelenir.
@@ -355,7 +358,7 @@ export async function logProspectOutcomeAction(
     update.status = "followup";
     update.next_followup_at = followupDate.toISOString();
     update.next_followup_note = null;
-    const dayLabel = followupDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
+    const dayLabel = followupDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long", timeZone: TR_TZ });
     systemLine = `Takibe alındı: ${dayLabel} tarihinde tekrar aranacak.`;
   } else if (outcome === "won") {
     update.status = "won";
@@ -372,7 +375,7 @@ export async function logProspectOutcomeAction(
   const { error } = await supabase.from("agency_prospects").update(update).eq("id", prospectId);
   if (error) {
     console.error("logProspectOutcomeAction update error:", error.message);
-    return { error: `Güncellenemedi: ${error.message}` };
+    return { error: `Güncellenemedi: ${friendlyDbError(error)}` };
   }
 
   if (systemLine) {

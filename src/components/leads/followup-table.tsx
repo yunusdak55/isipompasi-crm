@@ -10,7 +10,7 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
     return (
       <div className="animate-fade-in flex flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] py-16 text-center">
         <p className="text-sm font-medium text-white">Takipte bekleyen lead yok</p>
-        <p className="text-sm text-white/50">Bir lead'e takip tarihi verdiğinizde burada listelenir.</p>
+        <p className="text-sm text-white/50">Bir lead&apos;e takip tarihi verdiğinizde burada listelenir.</p>
       </div>
     );
   }

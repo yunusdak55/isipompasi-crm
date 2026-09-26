@@ -5,6 +5,7 @@ import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { AppointmentForm } from "@/components/leads/appointment-form";
 import { CalendarGrid, type CalendarCell } from "@/components/leads/calendar-grid";
 import type { LeadListItem } from "@/lib/data/leads";
+import { daysInMonth, firstWeekdayOfMonth, parseYearMonth, partsTR } from "@/lib/time";
 
 const TR_MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -26,9 +27,8 @@ export default async function LeadsCalendarPage({
   searchParams: Promise<{ y?: string; m?: string }>;
 }) {
   const params = await searchParams;
-  const now = new Date();
-  const year = params.y ? Number(params.y) : now.getFullYear();
-  const month = params.m ? Number(params.m) : now.getMonth();
+  const today = partsTR(new Date());
+  const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
   const [leads, selectableLeads] = await Promise.all([
     getLeadsCalendar(year, month),
@@ -38,24 +38,24 @@ export default async function LeadsCalendarPage({
   const byDay = new Map<number, LeadListItem[]>();
   for (const lead of leads) {
     if (!lead.next_followup_at) continue;
-    const day = new Date(lead.next_followup_at).getDate();
+    const day = partsTR(new Date(lead.next_followup_at)).day;
     const list = byDay.get(day) ?? [];
     list.push(lead);
     byDay.set(day, list);
   }
 
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstWeekday = mondayIndex(new Date(year, month, 1).getDay());
-  const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+  const totalDays = daysInMonth(year, month);
+  const firstWeekday = mondayIndex(firstWeekdayOfMonth(year, month));
+  const totalCells = Math.ceil((firstWeekday + totalDays) / 7) * 7;
 
   const prevMonth = month === 0 ? { y: year - 1, m: 11 } : { y: year, m: month - 1 };
   const nextMonth = month === 11 ? { y: year + 1, m: 0 } : { y: year, m: month + 1 };
 
-  const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  const todayKey = `${today.year}-${today.month}-${today.day}`;
 
   const cells: CalendarCell[] = Array.from({ length: totalCells }).map((_, i) => {
     const dayNum = i - firstWeekday + 1;
-    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
+    const inMonth = dayNum >= 1 && dayNum <= totalDays;
     return {
       dayNum,
       inMonth,

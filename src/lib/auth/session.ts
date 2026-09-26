@@ -6,7 +6,7 @@ import type { Profile } from "@/lib/types/domain";
 /**
  * Oturum acmis kullanicinin auth bilgisini + profiles satirini birlikte
  * getirir. Server Component / Server Action / Route Handler icinde
- * kullanilir. Middleware zaten girissiz kullaniciyi /login'e yonlendirir;
+ * kullanilir. Proxy zaten girissiz kullaniciyi /login'e yonlendirir;
  * burasi ikinci (savunma katmani) kontroldur.
  *
  * DUZELTME (performans - "site kasiyor" siklikleri): bu fonksiyon HEM
@@ -24,10 +24,22 @@ import type { Profile } from "@/lib/types/domain";
 export type ProfileWithCompany = Profile & { company: { name: string } | null };
 
 /**
+ * Hesap kullanima kapali mi? (a) profil pasiflestirilmis ya da (b) firma
+ * askiya alinmis. Firma pasifken RLS firma satirini (companies_select) gizler,
+ * yani firma_id dolu ama `company` embed'i bos gelir. Veritabani zaten tum
+ * veri erisimini keser (migration 0026); bu, kullaniciya dogru davranisi
+ * (oturumu kapat + aciklayici mesaj) gostermek icin uygulama katmani kontroludur.
+ */
+export function isProfileBlocked(profile: ProfileWithCompany): boolean {
+  if (!profile.is_active) return true;
+  return profile.role !== "admin" && !!profile.company_id && !profile.company;
+}
+
+/**
  * PERF (jet hizi): eskiden bu fonksiyon (1) getUser() ile Supabase Auth'a ag
  * turu, (2) profiles sorgusu, ve layout'ta (3) ayri bir companies sorgusu
  * yapiyordu - ust uste 3 SIRALI ag turu. Simdi: (1) getClaims() JWT'yi YEREL
- * dogrular (ag turu yok, bkz. middleware.ts), (2) profil + firma adi TEK
+ * dogrular (ag turu yok, bkz. proxy.ts), (2) profil + firma adi TEK
  * sorguda (profiles -> companies iliskisi embed) gelir. Veri erisimi yine RLS
  * ile korunur (JWT her sorguda PostgREST'e gider).
  */
@@ -54,8 +66,12 @@ export const getCurrentProfile = cache(async (): Promise<ProfileWithCompany | nu
  */
 export async function requireProfile(): Promise<ProfileWithCompany> {
   const profile = await getCurrentProfile();
-  if (!profile) {
-    redirect("/login");
+  // Oturum yok, profil yok (yarim kalmis hesap), pasif kullanici ya da askidaki firma:
+  // /auth/inactive oturumu (gerekirse) kapatir ve /login'e mesajla yonlendirir.
+  // (Dogrudan /login'e gitmek proxy'de "girisli kullanici /login'den atilir"
+  // kuraliyla sonsuz yonlendirme dongusu olusturur.)
+  if (!profile || isProfileBlocked(profile)) {
+    redirect("/auth/inactive");
   }
   return profile;
 }

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { friendlyDbError } from "@/lib/errors";
 
 export type DiscoveryVisitActionState = { error: string | null };
 
@@ -44,7 +45,7 @@ export async function createDiscoveryVisitAction(
 
   if (error) {
     console.error("createDiscoveryVisitAction error:", error.message);
-    return { error: `Kaydedilemedi: ${error.message}` };
+    return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
   }
 
   // Lead detayindaki zaman cizelgesinde de gorunsun (spec: "burada olan her

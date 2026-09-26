@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllRows } from "@/lib/data/paginate";
+import { partsTR, shiftMonth } from "@/lib/time";
 
 /**
  * Satislar sayfasi icin gercek veriye dayali metrikler.
@@ -28,11 +30,16 @@ export async function getSalesStats(): Promise<SalesStats> {
   const supabase = await createClient();
 
   const [leadsRes, salesRes] = await Promise.all([
-    supabase.from("leads").select("status, offered_amount"),
-    supabase
-      .from("sales")
-      .select("sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
-      .order("sale_date", { ascending: true }),
+    // fetchAllRows: PostgREST 1000 satirda sessizce keser (bkz. data/paginate.ts).
+    fetchAllRows((from, to) => supabase.from("leads").select("id, status, offered_amount").order("id").range(from, to)),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("sales")
+        .select("id, sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
+        .order("sale_date", { ascending: true })
+        .order("id")
+        .range(from, to)
+    ),
   ]);
 
   if (leadsRes.error || !leadsRes.data) {
@@ -74,13 +81,13 @@ export async function getSalesStats(): Promise<SalesStats> {
   }
   const bySalesperson = [...bySalespersonMap.values()].sort((a, b) => b.revenue - a.revenue);
 
-  const now = new Date();
+  const cur = partsTR(new Date());
   const months: { key: string; label: string; count: number; revenue: number }[] = [];
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const d = shiftMonth(cur.year, cur.month, -i);
     months.push({
-      key: `${d.getFullYear()}-${d.getMonth()}`,
-      label: `${TR_MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`,
+      key: `${d.year}-${d.month}`,
+      label: `${TR_MONTHS[d.month]} '${String(d.year).slice(2)}`,
       count: 0,
       revenue: 0,
     });
@@ -88,8 +95,8 @@ export async function getSalesStats(): Promise<SalesStats> {
   const monthIndex = new Map(months.map((m, i) => [m.key, i]));
 
   for (const s of sales) {
-    const d = new Date(s.sale_date);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const p = partsTR(new Date(s.sale_date));
+    const key = `${p.year}-${p.month}`;
     const idx = monthIndex.get(key);
     if (idx === undefined) continue; // pencerenin (son 6 ay) disinda
     months[idx].count += 1;
@@ -135,14 +142,18 @@ export type SaleListItem = {
 export async function getSalesList(): Promise<SaleListItem[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("sales")
-    .select(
-      `id, sale_amount, sale_date,
+  const { data, error } = await fetchAllRows((from, to) =>
+    supabase
+      .from("sales")
+      .select(
+        `id, sale_amount, sale_date,
       lead:leads(id, first_name, last_name, phone, city, product_category:product_categories(label)),
       salesperson_profile:profiles!sales_salesperson_fkey(full_name)`
-    )
-    .order("sale_date", { ascending: false });
+      )
+      .order("sale_date", { ascending: false })
+      .order("id")
+      .range(from, to)
+  );
 
   if (error || !data) {
     if (error) console.error("getSalesList error:", error.message);

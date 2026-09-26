@@ -21,6 +21,7 @@ import {
   Radar,
   PhoneCall,
   MapPinned,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -81,6 +82,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   },
   { href: "/admin/users", label: "Kullanıcılar", icon: UserCog, enabled: true },
   { href: "/admin/integrations", label: "Entegrasyonlar", icon: Plug, enabled: true },
+  { href: "/admin/audit", label: "Denetim Kaydı", icon: ScrollText, enabled: true },
   { href: "/admin/settings", label: "Sistem Ayarları", icon: Cog, enabled: false },
 ];
 

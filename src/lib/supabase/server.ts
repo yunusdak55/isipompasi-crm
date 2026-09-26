@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { Database } from "@/lib/types/database.types";
 
 /**
@@ -12,6 +12,7 @@ import type { Database } from "@/lib/types/database.types";
  */
 export async function createClient() {
   const cookieStore = await cookies();
+  const isHttps = (await headers()).get("x-forwarded-proto") === "https";
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,12 +24,15 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
+            // GUVENLIK: oturum cookie'leri HttpOnly - tarayici JS'i (olasi bir XSS dahil)
+            // jetonlari OKUYAMAZ. Tarayicida Supabase istemcisi kullanilmiyor
+            // (tum veri sunucu tarafi), yani bu hicbir islevi bozmaz.
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, { ...options, httpOnly: true, secure: isHttps, sameSite: "lax" })
             );
           } catch {
             // Bir Server Component icinden cagrildiginda cookie set edilemez.
-            // Middleware zaten her istekte oturumu tazeledigi icin bu yoksayilabilir.
+            // Proxy zaten her istekte oturumu tazeledigi icin bu yoksayilabilir.
           }
         },
       },

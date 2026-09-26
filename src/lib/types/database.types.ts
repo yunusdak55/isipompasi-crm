@@ -428,6 +428,23 @@ export type Database = {
         Relationships: [];
       };
 
+      audit_log: {
+        Row: {
+          id: number;
+          at: string;
+          actor_id: string | null;
+          action: string;
+          table_name: string;
+          row_id: string | null;
+          company_id: string | null;
+          changes: Json | null;
+        };
+        // Yazma yetkisi HICBIR kullanici rolunde yok - yalnizca DB tetikleyicisi yazar (migration 0026).
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+
       integrations: {
         Row: {
           id: string;
@@ -533,14 +550,6 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
-      current_user_role: {
-        Args: Record<string, never>;
-        Returns: string;
-      };
-      current_user_company_id: {
-        Args: Record<string, never>;
-        Returns: string;
-      };
       dashboard_stats: {
         Args: Record<string, never>;
         Returns: Json;

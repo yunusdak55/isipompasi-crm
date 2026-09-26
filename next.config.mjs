@@ -25,6 +25,25 @@ const nextConfig = {
         source: "/:all*(png|jpg|jpeg|svg|webp|ico|gif)",
         headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }],
       },
+      // GUVENLIK: tum yanitlara sabit guvenlik basliklari. (Content-Security-Policy
+      // istek basina NONCE gerektirdigi icin src/proxy.ts'te uretilir.)
+      {
+        source: "/:path*",
+        headers: [
+          // MIME turu koklemeyi kapat (yuklenen icerigin script sanilmasi).
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Clickjacking: iframe icinde acilamaz (CSP frame-ancestors'in eski tarayici karsiligi).
+          { key: "X-Frame-Options", value: "DENY" },
+          // Baska sitelere giderken tam URL/yol sizmasin.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Kullanilmayan tarayici ozelliklerini kapat.
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), interest-cohort=()" },
+          // HTTPS'i 1 yil zorunlu kil (yalnizca https uzerinden gelen yanitlarda tarayici uygular).
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+        ],
+      },
     ];
   },
 
