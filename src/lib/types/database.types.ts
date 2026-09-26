@@ -485,7 +485,7 @@ export type Database = {
           contact_name: string | null;
           phone: string | null;
           notes: string | null;
-          status: "new" | "contacted" | "followup" | "won" | "lost";
+          status: "new" | "followup" | "won" | "lost";
           next_followup_at: string | null;
           next_followup_note: string | null;
           last_contact_at: string | null;
@@ -499,7 +499,7 @@ export type Database = {
           contact_name?: string | null;
           phone?: string | null;
           notes?: string | null;
-          status?: "new" | "contacted" | "followup" | "won" | "lost";
+          status?: "new" | "followup" | "won" | "lost";
           next_followup_at?: string | null;
           next_followup_note?: string | null;
           last_contact_at?: string | null;

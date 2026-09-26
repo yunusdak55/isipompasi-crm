@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth/session";
-import { getProspectsFollowup } from "@/lib/data/prospects";
+import { getLastNotesByProspect, getProspectsFollowup } from "@/lib/data/prospects";
 import { ProspectFollowupTable } from "@/components/admin/prospect-followup-table";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 
@@ -10,7 +10,7 @@ export default async function ProspectsFollowupsPage() {
     redirect("/dashboard");
   }
 
-  const prospects = await getProspectsFollowup();
+  const [prospects, lastNotes] = await Promise.all([getProspectsFollowup(), getLastNotesByProspect()]);
 
   return (
     <div className="animate-fade-in relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 to-brand-950 p-5 shadow-elevated-lg sm:p-6">
@@ -23,7 +23,7 @@ export default async function ProspectsFollowupsPage() {
           </p>
         </div>
 
-        <ProspectFollowupTable prospects={prospects} />
+        <ProspectFollowupTable prospects={prospects} lastNotes={lastNotes} />
       </div>
     </div>
   );

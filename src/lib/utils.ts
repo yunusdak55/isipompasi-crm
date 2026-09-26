@@ -136,9 +136,12 @@ export function isProspectOverdue(params: {
 }) {
   if (params.status === "won" || params.status === "lost") return false;
   if (params.nextFollowupAt) {
+    // Spec (admin paneli): "gecikenlere takip tarihi geçen müşterileri koy" -
+    // takip GUNU tamamen gectiyse gecikmis, gecmediyse degil (gun bazli, saat
+    // degil). Takip tarihi olan adayda eski 48-saat kurali artik uygulanmaz.
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    if (new Date(params.nextFollowupAt).getTime() >= todayStart.getTime()) return false;
+    return new Date(params.nextFollowupAt).getTime() < todayStart.getTime();
   }
   const reference = params.lastContactAt ?? params.createdAt;
   const hoursSince = (Date.now() - new Date(reference).getTime()) / (1000 * 60 * 60);

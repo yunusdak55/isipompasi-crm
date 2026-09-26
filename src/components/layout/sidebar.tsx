@@ -75,6 +75,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     enabled: true,
     children: [
       { href: "/admin/prospects/followups", label: "Takipte", icon: CalendarClock, enabled: true },
+      { href: "/admin/prospects/overdue", label: "Gecikenler", icon: AlertTriangle, enabled: true },
       { href: "/admin/prospects/calendar", label: "Görüşme Takvimi", icon: CalendarDays, enabled: true },
     ],
   },

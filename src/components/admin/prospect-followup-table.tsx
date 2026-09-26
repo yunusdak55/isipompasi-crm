@@ -1,29 +1,44 @@
 import Link from "next/link";
 import { OverdueBadge, TodayCallBadge } from "@/components/leads/lead-indicators";
 import { ProspectStatusBadge } from "@/components/ui/badge";
-import { formatRelativeDays, formatRelativeTimeAgo, isProspectOverdue } from "@/lib/utils";
+import { formatDateTime, formatRelativeDays, formatRelativeTimeAgo, isProspectOverdue } from "@/lib/utils";
+import type { ProspectLastNote } from "@/lib/data/prospects";
 import type { AgencyProspect } from "@/lib/types/domain";
 
-/** "Takipte" ekrani: takvime eklenen her aday buraya, tek listede toplanir. */
-export function ProspectFollowupTable({ prospects }: { prospects: AgencyProspect[] }) {
+/**
+ * "Takipte" ve "Gecikenler" ekranlari: takip tarihi olan adaylar tek listede.
+ * Her adayin EN SON notu + tarihi yaninda gorunur (spec: "şu tarihte şunu
+ * demiş" bir bakista okunabilsin).
+ */
+export function ProspectFollowupTable({
+  prospects,
+  lastNotes = {},
+  emptyTitle = "Takipte bekleyen aday yok",
+  emptyBody = "Bir adaya takip tarihi verdiğinizde burada listelenir.",
+}: {
+  prospects: AgencyProspect[];
+  lastNotes?: Record<string, ProspectLastNote>;
+  emptyTitle?: string;
+  emptyBody?: string;
+}) {
   if (prospects.length === 0) {
     return (
       <div className="animate-fade-in flex flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-white/15 bg-white/[0.03] py-16 text-center">
-        <p className="text-sm font-medium text-white">Takipte bekleyen aday yok</p>
-        <p className="text-sm text-white/50">Bir adaya takip tarihi verdiğinizde burada listelenir.</p>
+        <p className="text-sm font-medium text-white">{emptyTitle}</p>
+        <p className="text-sm text-white/50">{emptyBody}</p>
       </div>
     );
   }
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-sm">
-      <table className="w-full min-w-[680px] text-left text-sm">
+      <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="border-b border-white/10 bg-white/[0.03] text-xs font-medium uppercase tracking-wide text-white/45">
           <tr>
             <th className="px-4 py-3 font-medium">Firma</th>
             <th className="px-4 py-3 font-medium">Takip</th>
             <th className="px-4 py-3 font-medium">Durum</th>
-            <th className="px-4 py-3 font-medium">Son Görüşme</th>
+            <th className="px-4 py-3 font-medium">Son Not</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/[0.06]">
@@ -32,6 +47,7 @@ export function ProspectFollowupTable({ prospects }: { prospects: AgencyProspect
             const followupOverdue = Boolean(followupLabel?.includes("gecikti"));
             const followupToday = followupLabel === "Bugün";
             const lastContactLabel = formatRelativeTimeAgo(p.last_contact_at);
+            const lastNote = lastNotes[p.id];
             const showOverdue = isProspectOverdue({
               status: p.status,
               lastContactAt: p.last_contact_at,
@@ -63,7 +79,16 @@ export function ProspectFollowupTable({ prospects }: { prospects: AgencyProspect
                 <td className="px-4 py-3.5">
                   <ProspectStatusBadge status={p.status} />
                 </td>
-                <td className="px-4 py-3.5 text-white/70">{lastContactLabel ?? "Hiç görüşülmedi"}</td>
+                <td className="max-w-[300px] px-4 py-3.5 align-top">
+                  {lastNote ? (
+                    <>
+                      <p className="line-clamp-2 text-white/80">{lastNote.description}</p>
+                      <p className="mt-0.5 text-xs text-white/45">{formatDateTime(lastNote.created_at)}</p>
+                    </>
+                  ) : (
+                    <span className="text-white/50">{lastContactLabel ?? "Hiç görüşülmedi"}</span>
+                  )}
+                </td>
               </tr>
             );
           })}

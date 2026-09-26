@@ -35,7 +35,7 @@ export type IntegrationStatus = Integration["status"];
  * leads.ts'teki join'li select'lerde zaten kullanilan "as unknown as X[]"
  * yontemiyle ayni yaklasim - calisma zamaninda hicbir fark yaratmaz.
  */
-export type ProspectStatus = "new" | "contacted" | "followup" | "won" | "lost";
+export type ProspectStatus = "new" | "followup" | "won" | "lost";
 
 export type AgencyProspect = {
   id: string;

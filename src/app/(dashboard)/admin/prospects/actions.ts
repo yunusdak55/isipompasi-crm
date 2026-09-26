@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { PROSPECT_STATUS_LABELS } from "@/lib/constants/prospects";
 import type { ProspectStatus } from "@/lib/types/domain";
 import type { Database } from "@/lib/types/database.types";
 
@@ -21,6 +22,7 @@ function revalidateProspects(prospectId?: string) {
   revalidatePath("/admin/prospects");
   revalidatePath("/admin/prospects/calendar");
   revalidatePath("/admin/prospects/followups");
+  revalidatePath("/admin/prospects/overdue");
   if (prospectId) revalidatePath(`/admin/prospects/${prospectId}`);
 }
 
@@ -137,20 +139,12 @@ export async function updateProspectStatusAction(
   await logProspectActivity(supabase, {
     prospectId,
     type: "status_change",
-    description: `Durum "${PROSPECT_STATUS_TR[nextStatus]}" olarak güncellendi.`,
+    description: `Durum "${PROSPECT_STATUS_LABELS[nextStatus]}" olarak güncellendi.`,
   });
 
   revalidateProspects(prospectId);
   return { error: null };
 }
-
-const PROSPECT_STATUS_TR: Record<ProspectStatus, string> = {
-  new: "Aranacak",
-  contacted: "Görüşüldü",
-  followup: "Takipte",
-  won: "Müşteri Oldu",
-  lost: "Kayıp",
-};
 
 // ----------------------------------------------------------------------------
 // Firma bilgisi / notlar duzenleme (telefon, iletisim kisisi, not). Kayit
@@ -308,39 +302,82 @@ export async function deleteProspectAction(prospectId: string, prevState: Delete
 }
 
 // ----------------------------------------------------------------------------
-// Profil zaman çizelgesine serbest not ekleme (spec: "istediğim zaman NOT
-// alabileyim ve aldığım not burada tarihi ve zamanıyla birlikte kendisi
-// gözüksün"). Kaydedilir kaydedilmez created_at = şimdi damgalanır -
-// gösterim formatDateTime ile yapılır (bkz. prospects/[id]/page.tsx).
+// GORUSME SONUCU - tek adimda: ne konusuldu (not) + sonuc. Spec: "bir
+// musteriyi aradim; ismi, numarasi, gorusmede ne oldu? Ondan sonra 3 farkli
+// secenek: takibe alirim, kayip olarak isaretlerim ya da satis olarak
+// isaretlerim". Not, tarih-saatiyle zaman cizelgesine (agency_prospect_
+// activities) duser (created_at = simdi); bir sonraki giriste "su tarihte su
+// demis" diye okunabilir. 4. secenek "note": sadece not, durum degismez.
 // ----------------------------------------------------------------------------
 
-export type AddProspectNoteState = { error: string | null };
+export type ProspectOutcome = "followup" | "lost" | "won" | "note";
+export type LogProspectOutcomeState = { error: string | null };
 
-export async function addProspectNoteAction(
+export async function logProspectOutcomeAction(
   prospectId: string,
-  prevState: AddProspectNoteState,
+  prevState: LogProspectOutcomeState,
   formData: FormData
-): Promise<AddProspectNoteState> {
+): Promise<LogProspectOutcomeState> {
   await requireAdmin();
 
-  const body = String(formData.get("body") ?? "").trim();
-  if (!body) return { error: "Not boş olamaz." };
+  const note = String(formData.get("note") ?? "").trim();
+  const outcome = String(formData.get("outcome") ?? "") as ProspectOutcome;
+  const daysStr = String(formData.get("followup_days") ?? "").trim();
 
-  const supabase = await createClient();
-  const { error } = await supabase.from("agency_prospect_activities").insert({
-    prospect_id: prospectId,
-    type: "note",
-    description: body,
-  });
+  if (!["followup", "lost", "won", "note"].includes(outcome)) return { error: "Bir sonuç seçin." };
+  if (!note) return { error: "Görüşmede ne olduğunu yazın." };
 
-  if (error) {
-    console.error("addProspectNoteAction error:", error.message);
-    return { error: `Not kaydedilemedi: ${error.message}` };
+  let followupDate: Date | null = null;
+  if (outcome === "followup") {
+    followupDate = daysToFollowupDate(daysStr);
+    if (!followupDate) return { error: "Takibe almak için kaç gün sonra aranacağını yazın." };
   }
 
-  // Not almak da bir temas kaydidir - "Takipte" listesindeki "en son ne
-  // zaman görüşüldü" bilgisinin de tazelenmesi icin last_contact_at guncellenir.
-  await supabase.from("agency_prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", prospectId);
+  const supabase = await createClient();
+
+  const { error: noteError } = await supabase.from("agency_prospect_activities").insert({
+    prospect_id: prospectId,
+    type: "note",
+    description: note,
+  });
+  if (noteError) {
+    console.error("logProspectOutcomeAction note error:", noteError.message);
+    return { error: `Not kaydedilemedi: ${noteError.message}` };
+  }
+
+  // Not almak da bir temastir - "en son ne zaman gorusuldu" tazelenir.
+  const update: Database["public"]["Tables"]["agency_prospects"]["Update"] = {
+    last_contact_at: new Date().toISOString(),
+  };
+  let systemLine: string | null = null;
+
+  if (outcome === "followup" && followupDate) {
+    update.status = "followup";
+    update.next_followup_at = followupDate.toISOString();
+    update.next_followup_note = null;
+    const dayLabel = followupDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long" });
+    systemLine = `Takibe alındı: ${dayLabel} tarihinde tekrar aranacak.`;
+  } else if (outcome === "won") {
+    update.status = "won";
+    update.next_followup_at = null;
+    update.next_followup_note = null;
+    systemLine = "Müşteri oldu.";
+  } else if (outcome === "lost") {
+    update.status = "lost";
+    update.next_followup_at = null;
+    update.next_followup_note = null;
+    systemLine = "Kayıp olarak işaretlendi.";
+  }
+
+  const { error } = await supabase.from("agency_prospects").update(update).eq("id", prospectId);
+  if (error) {
+    console.error("logProspectOutcomeAction update error:", error.message);
+    return { error: `Güncellenemedi: ${error.message}` };
+  }
+
+  if (systemLine) {
+    await logProspectActivity(supabase, { prospectId, type: "status_change", description: systemLine });
+  }
 
   revalidateProspects(prospectId);
   return { error: null };

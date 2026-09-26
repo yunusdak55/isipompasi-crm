@@ -6,7 +6,7 @@ import { getProspectById, getProspectActivities } from "@/lib/data/prospects";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { ProspectStatusSelect } from "@/components/admin/prospect-status-select";
 import { ProspectFollowupForm } from "@/components/admin/prospect-followup-form";
-import { ProspectNoteForm } from "@/components/admin/prospect-note-form";
+import { ProspectOutcomeForm } from "@/components/admin/prospect-outcome-form";
 import { EditProspectForm } from "@/components/admin/edit-prospect-form";
 import { OverdueBadge } from "@/components/leads/lead-indicators";
 import { formatDateTime, isProspectOverdue } from "@/lib/utils";
@@ -76,16 +76,23 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5 lg:col-span-2">
+          <Card className="animate-slide-up">
+            <CardHeader>
+              <CardTitle>Görüşme Sonucu</CardTitle>
+            </CardHeader>
+            <CardBody>
+              <ProspectOutcomeForm prospectId={prospect.id} />
+            </CardBody>
+          </Card>
+
           <Card hoverable className="animate-slide-up">
             <CardHeader>
               <CardTitle>Zaman Çizelgesi</CardTitle>
             </CardHeader>
             <CardBody className="flex flex-col gap-5">
-              <ProspectNoteForm prospectId={prospect.id} />
-
-              <div className="border-t border-line pt-4">
+              <div>
                 {activities.length === 0 ? (
-                  <p className="text-sm text-ink-600">Henüz kayıt yok. İlk notunu yukarıdan ekleyebilirsin.</p>
+                  <p className="text-sm text-ink-600">Henüz kayıt yok. Görüşme sonucunu yukarıdan ekleyebilirsin.</p>
                 ) : (
                   <ol className="flex flex-col gap-4">
                     {activities.map((activity, index) => (
@@ -94,9 +101,15 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
                         className="animate-slide-up flex gap-3 text-sm"
                         style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
                       >
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" />
+                        <span
+                          className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${activity.type === "note" ? "bg-accent-500" : "bg-ink-400"}`}
+                        />
                         <div>
-                          <p className="whitespace-pre-wrap text-ink-900">{activity.description}</p>
+                          <p
+                            className={`whitespace-pre-wrap ${activity.type === "note" ? "text-ink-900" : "text-xs text-ink-600"}`}
+                          >
+                            {activity.description}
+                          </p>
                           <p className="text-xs text-ink-600">{formatDateTime(activity.created_at)}</p>
                         </div>
                       </li>

@@ -139,3 +139,61 @@ export async function getOpenProspectsForSelect(): Promise<ProspectSelectItem[]>
 
   return (data ?? []) as unknown as ProspectSelectItem[];
 }
+
+/**
+ * "Gecikenler" ekrani (spec: "gecikenlere takip tarihi geçen müşterileri
+ * koy"): takip GUNU tamamen gecmis (bugunun basindan once), henuz kapanmamis
+ * adaylar - en eski tarih once. isProspectOverdue (lib/utils.ts) ile AYNI
+ * gun-bazli kural, rozetle bu liste birbirini yalanlamaz.
+ */
+export async function getProspectsOverdue(): Promise<AgencyProspect[]> {
+  const supabase = await createClient();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("agency_prospects")
+    .select(PROSPECT_COLUMNS)
+    .not("next_followup_at", "is", null)
+    .lt("next_followup_at", todayStart.toISOString())
+    .not("status", "in", "(won,lost)")
+    .order("next_followup_at", { ascending: true });
+
+  if (error) {
+    console.error("getProspectsOverdue error:", error.message);
+    return [];
+  }
+
+  return (data ?? []) as unknown as AgencyProspect[];
+}
+
+export type ProspectLastNote = { description: string; created_at: string };
+
+/**
+ * Her adayin EN SON notu + tarihi (liste/Takipte/Gecikenler'de "en son ne
+ * demisti" bir bakista gorunsun diye). Tum notlar tarihe gore azalan cekilip
+ * aday basina ilki alinir - kucuk olcekli (yuzlerce aday) bir ajans listesi.
+ */
+export async function getLastNotesByProspect(): Promise<Record<string, ProspectLastNote>> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("agency_prospect_activities")
+    .select("prospect_id, description, created_at")
+    .eq("type", "note")
+    .order("created_at", { ascending: false })
+    .limit(2000);
+
+  if (error) {
+    console.error("getLastNotesByProspect error:", error.message);
+    return {};
+  }
+
+  const result: Record<string, ProspectLastNote> = {};
+  for (const row of data ?? []) {
+    if (!result[row.prospect_id]) {
+      result[row.prospect_id] = { description: row.description, created_at: row.created_at };
+    }
+  }
+  return result;
+}

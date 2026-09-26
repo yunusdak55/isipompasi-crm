@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { PhoneCall, CalendarClock, CalendarDays, Users } from "lucide-react";
+import { PhoneCall, CalendarClock, CalendarDays, AlertTriangle, Users } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
-import { getProspects } from "@/lib/data/prospects";
+import { getLastNotesByProspect, getProspects } from "@/lib/data/prospects";
 import { Card, CardHeader, CardTitle, CardBody, StatCard } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
@@ -11,7 +11,7 @@ import { ProspectStatusSelect } from "@/components/admin/prospect-status-select"
 import { ProspectFollowupForm } from "@/components/admin/prospect-followup-form";
 import { DeleteProspectButton } from "@/components/admin/delete-prospect-button";
 import { OverdueBadge } from "@/components/leads/lead-indicators";
-import { isProspectOverdue } from "@/lib/utils";
+import { formatDateTime, isProspectOverdue } from "@/lib/utils";
 
 /**
  * Ajansin KENDI musteri adayi (yeni musteri kazanmak icin aradigi isi
@@ -27,10 +27,10 @@ export default async function AdminProspectsPage() {
     redirect("/dashboard");
   }
 
-  const prospects = await getProspects();
+  const [prospects, lastNotes] = await Promise.all([getProspects(), getLastNotesByProspect()]);
 
-  const contactedCount = prospects.filter((p) => p.status === "contacted").length;
   const followupCount = prospects.filter((p) => p.status === "followup").length;
+  const wonCount = prospects.filter((p) => p.status === "won").length;
   const lostCount = prospects.filter((p) => p.status === "lost").length;
 
   return (
@@ -49,6 +49,10 @@ export default async function AdminProspectsPage() {
               <CalendarClock className="h-4 w-4" />
               Takipte
             </LinkButton>
+            <LinkButton href="/admin/prospects/overdue" variant="secondary" className="gap-1.5">
+              <AlertTriangle className="h-4 w-4" />
+              Gecikenler
+            </LinkButton>
             <LinkButton href="/admin/prospects/calendar" variant="secondary" className="gap-1.5">
               <CalendarDays className="h-4 w-4" />
               Takvim
@@ -59,8 +63,8 @@ export default async function AdminProspectsPage() {
 
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
         <StatCard label="Toplam Aday" value={prospects.length} tone="ink" />
-        <StatCard label="Görüşüldü" value={contactedCount} tone="accent" />
         <StatCard label="Takipte" value={followupCount} tone="warning" />
+        <StatCard label="Müşteri Oldu" value={wonCount} tone="success" />
         <StatCard label="Kayıp" value={lostCount} tone="danger" />
       </div>
 
@@ -116,6 +120,12 @@ export default async function AdminProspectsPage() {
                               notes={p.notes}
                             />
                           </div>
+                          {lastNotes[p.id] ? (
+                            <div className="mt-2 rounded-lg border border-line bg-white/[0.03] px-2.5 py-1.5">
+                              <p className="line-clamp-2 text-xs text-ink-900">{lastNotes[p.id].description}</p>
+                              <p className="mt-0.5 text-[10px] text-ink-600">{formatDateTime(lastNotes[p.id].created_at)}</p>
+                            </div>
+                          ) : null}
                         </td>
                         <td className="px-5 py-3.5 align-top">
                           <ProspectFollowupForm
