@@ -80,6 +80,19 @@ Bunlar proje **Auth yapılandırması** olduğu için otomatik araçla değişti
 - Yayın sonrası hızlı kontrol: `/login` açılıyor mu, giriş yapılıyor mu, Dashboard/Satışlar/Ayarlar açılıyor mu, admin →
   Denetim Kaydı açılıyor mu.
 
+## Bilinen sınırlama: Hostinger CDN, CSP başlığını sadeleştiriyor
+
+Canlıda doğrulandı (2026-09-27): `panel.iklimlen.com`, Hostinger'ın edge CDN'i (hcdn) üzerinden servis ediliyor. hcdn,
+uygulamanın gönderdiği nonce'lu `Content-Security-Policy` başlığını kendi sabit, sadeleştirilmiş sürümüyle
+(`upgrade-insecure-requests`) DEĞİŞTİRİYOR — panelde bunu kapatacak bir ayar yok, tek yol o site için CDN'i tamamen
+kapatmak (Web Sitesi → Performans → CDN → "Devre dışı bırak"). **Kasıtlı olarak yapılmadı**: diğer tüm güvenlik
+başlıkları (`X-Frame-Options`, `Strict-Transport-Security`, `Referrer-Policy`, `Permissions-Policy`, `nosniff`)
+sorunsuz geçiyor; kod incelemesinde `dangerouslySetInnerHTML` veya kullanıcı girdisini HTML'e basan bir nokta
+bulunmadı ve tarayıcı Supabase'e hiç bağlanmıyor (tüm veri sunucu tarafından geçer) — yani CSP'nin engellediği somut
+bir saldırı yüzeyi şu an yok. CDN'i kapatmak statik dosya (görsel/font/JS) hızını düşürür; hız kazancı, teorik bir
+ek katmandan daha değerli görüldü. İleride kod bir yerde kullanıcı içeriğini ham HTML olarak basmaya başlarsa
+(örn. zengin metin editörü) bu karar YENİDEN değerlendirilmeli.
+
 ## Bilinen / kabul edilen riskler
 
 - Oturumu sunucuda iptal edilen (çıkış) bir JWT ≤1 saat geçerli kalır (`getClaims` yerel doğrulama — performans için).
