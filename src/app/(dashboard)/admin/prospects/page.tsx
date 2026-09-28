@@ -1,17 +1,16 @@
 import { redirect } from "next/navigation";
-import { PhoneCall, CalendarClock, CalendarDays, AlertTriangle, Users } from "lucide-react";
+import Link from "next/link";
+import { PhoneCall, CalendarClock, CalendarDays, AlertTriangle, Users, ArrowRight, Headset } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { getLastNotesByProspect, getProspects } from "@/lib/data/prospects";
 import { Card, CardHeader, CardTitle, CardBody, StatCard } from "@/components/ui/card";
 import { LinkButton } from "@/components/ui/button";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { CreateProspectForm } from "@/components/admin/create-prospect-form";
-import { EditProspectForm } from "@/components/admin/edit-prospect-form";
-import { ProspectStatusSelect } from "@/components/admin/prospect-status-select";
-import { ProspectFollowupForm } from "@/components/admin/prospect-followup-form";
 import { DeleteProspectButton } from "@/components/admin/delete-prospect-button";
-import { OverdueBadge } from "@/components/leads/lead-indicators";
-import { formatDateTime, isProspectOverdue } from "@/lib/utils";
+import { OverdueBadge, TodayCallBadge } from "@/components/leads/lead-indicators";
+import { ProspectStatusBadge } from "@/components/ui/badge";
+import { cn, formatDateTime, formatRelativeDays, isProspectOverdue } from "@/lib/utils";
 
 /**
  * Ajansin KENDI musteri adayi (yeni musteri kazanmak icin aradigi isi
@@ -20,6 +19,22 @@ import { formatDateTime, isProspectOverdue } from "@/lib/utils";
  * olarak işaretleyebileceğim bir yer - not olsun, numara olsun".
  * Sadece "admin" (Ajans Admin) rolu erisir - leads tablosundaki tenant
  * musteri verisiyle karistirilmamalidir.
+ *
+ * DUZELTME (spec 2026-09-30, "birbirini tekrarlayan bilgilerin olduğu
+ * kısımlar var... bir yerden belirlerim farklı farklı yerlerden değil"):
+ * bu listede onceden HER SATIRDA ayrica duzenlenebilir bir "Durum" dropdown'u
+ * ve ayrica duzenlenebilir bir "Sonraki Takip" formu vardi - ikisi de aday
+ * profilindeki ("[id]") "Görüşme Sonucu" formunun yaptigi isi ikinci bir
+ * yerden yapiyordu. Kaldirildi: "Durum" artik burada SADECE okunabilir bir
+ * ozet (rozet + sonraki takip tarihi), satira tiklamak profile goturuyor -
+ * Takipte/Gecikenler/Takvim sayfalariyla AYNI tutarli desen.
+ *
+ * DUZELTME (spec 2026-10-01, "İncele'ye basmadan not düzenlemesi yapılıyor,
+ * kaldır - orada hiçbir düzenleme olmayacak, sadece müşteriyi tanımam/
+ * hatırlamam için bir yer, düzenlemelerin tamamı İncele kısmında"): bu
+ * satirdaki EditProspectForm (tikla-duzenle) kaldirildi, yerine SALT OKUNUR
+ * bir ozet var. Firma/kisi/telefon/not degistirmenin TEK yolu artik "İncele"
+ * (aday profili, [id]/page.tsx) - EditProspectForm SADECE orada kaliyor.
  */
 export default async function AdminProspectsPage() {
   const profile = await requireProfile();
@@ -44,7 +59,11 @@ export default async function AdminProspectsPage() {
               Yeni müşteri kazanmak için aradığınız firmaları kaydedin, takip edin, gerekirse kayıp olarak işaretleyin.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <LinkButton href="/admin/prospects/playbook" variant="primary" className="gap-1.5">
+              <Headset className="h-4 w-4" />
+              Satış Kokpiti
+            </LinkButton>
             <LinkButton href="/admin/prospects/followups" variant="secondary" className="gap-1.5">
               <CalendarClock className="h-4 w-4" />
               Takipte
@@ -90,7 +109,6 @@ export default async function AdminProspectsPage() {
                 <thead className="border-b border-line text-xs font-medium uppercase tracking-wide text-ink-600">
                   <tr>
                     <th className="px-5 py-3 font-medium">Firma / İletişim / Not</th>
-                    <th className="px-5 py-3 font-medium">Sonraki Takip</th>
                     <th className="px-5 py-3 font-medium">Durum</th>
                     <th className="px-5 py-3 font-medium" />
                   </tr>
@@ -112,13 +130,17 @@ export default async function AdminProspectsPage() {
                         <td className="max-w-[280px] px-5 py-3.5 align-top">
                           <div className="flex items-start gap-1.5">
                             {overdue ? <OverdueBadge className="mt-0.5 shrink-0" /> : null}
-                            <EditProspectForm
-                              prospectId={p.id}
-                              companyName={p.company_name}
-                              contactName={p.contact_name}
-                              phone={p.phone}
-                              notes={p.notes}
-                            />
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-ink-900">{p.company_name}</p>
+                              <p className="truncate text-xs text-ink-600">
+                                {[p.contact_name, p.phone].filter(Boolean).join(" · ") || "—"}
+                              </p>
+                              {p.notes ? (
+                                <p className="mt-0.5 truncate text-xs text-ink-400" title={p.notes}>
+                                  {p.notes}
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
                           {lastNotes[p.id] ? (
                             <div className="mt-2 rounded-lg border border-line bg-white/[0.03] px-2.5 py-1.5">
@@ -128,17 +150,35 @@ export default async function AdminProspectsPage() {
                           ) : null}
                         </td>
                         <td className="px-5 py-3.5 align-top">
-                          <ProspectFollowupForm
-                            prospectId={p.id}
-                            nextFollowupAt={p.next_followup_at}
-                            nextFollowupNote={p.next_followup_note}
-                          />
+                          <div className="flex flex-col gap-1">
+                            <ProspectStatusBadge status={p.status} />
+                            {p.next_followup_at ? (
+                              formatRelativeDays(p.next_followup_at) === "Bugün" ? (
+                                <TodayCallBadge />
+                              ) : (
+                                <span
+                                  className={cn(
+                                    "text-xs font-medium",
+                                    formatRelativeDays(p.next_followup_at)?.includes("gecikti") ? "text-danger-600" : "text-ink-600"
+                                  )}
+                                >
+                                  {formatRelativeDays(p.next_followup_at)}
+                                </span>
+                              )
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-5 py-3.5 align-top">
-                          <ProspectStatusSelect prospectId={p.id} status={p.status} />
-                        </td>
-                        <td className="px-5 py-3.5 align-top">
-                          <DeleteProspectButton prospectId={p.id} companyName={p.company_name} />
+                          <div className="flex items-center gap-1">
+                            <Link
+                              href={`/admin/prospects/${p.id}`}
+                              className="group inline-flex items-center gap-1 rounded-lg border border-accent-500/30 bg-accent-500/[0.08] px-2.5 py-1.5 text-xs font-medium text-accent-600 transition-colors duration-150 hover:border-accent-500/50 hover:bg-accent-500/[0.14]"
+                            >
+                              İncele
+                              <ArrowRight className="h-3 w-3 transition-transform duration-150 ease-snappy group-hover:translate-x-0.5" />
+                            </Link>
+                            <DeleteProspectButton prospectId={p.id} companyName={p.company_name} />
+                          </div>
                         </td>
                       </tr>
                     );

@@ -231,8 +231,17 @@ export async function getLeadsForBoard(): Promise<Record<LeadStatus, BoardLead[]
 }
 
 /**
- * "Takipte" ekrani (spec md.4): takip tarihi olan, henuz kapanmamis leadler,
- * en yakin tarih once. Kapanmis (satis/kayip) leadlerde takip anlamsizdir.
+ * "Takipte" ekrani (spec md.4): takip tarihi olan, henuz kapanmamis leadler.
+ * Kapanmis (satis/kayip) leadlerde takip anlamsizdir.
+ *
+ * SIRALAMA (spec 2026-09-30, "HER YER icin" - bkz. getLeadsOverdue): bu liste
+ * hem GECMIS (gecikmis) hem GELECEK (henuz gelmemis) takip tarihlerini birlikte
+ * icerir. "En yakin once" tek yonlu (sadece ascending) siralamayla dogru
+ * calismaz - gecikmis kisiler icin en YENI gecikme once gelmeli, gelecek
+ * kisiler icin en YAKIN tarih once gelmeli. Ikisini de dogru veren tek olcut:
+ * SU ANA olan MUTLAK zaman farki, kucukten buyuge (SQL'de degil, JS'te - Postgres
+ * bunu index'siz basit bir ORDER BY ile ifade edemiyor, liste boyutu kucuk
+ * oldugu icin JS'te siralamak performans sorunu yaratmaz).
  */
 export async function getLeadsFollowup(): Promise<LeadListItem[]> {
   const supabase = await createClient();
@@ -253,7 +262,10 @@ export async function getLeadsFollowup(): Promise<LeadListItem[]> {
     return [];
   }
 
-  return (data ?? []) as unknown as LeadListItem[];
+  const now = Date.now();
+  return ((data ?? []) as unknown as LeadListItem[]).sort(
+    (a, b) => Math.abs(new Date(a.next_followup_at as string).getTime() - now) - Math.abs(new Date(b.next_followup_at as string).getTime() - now)
+  );
 }
 
 export type DueFollowup = { leadId: string; name: string; date: string; overdue: boolean };
@@ -261,6 +273,8 @@ export type DueFollowup = { leadId: string; name: string; date: string; overdue:
 /**
  * Topbar'daki hatirlatma zili icin: tarihi gelmis (bugun dahil) veya gecmis
  * takipler. Hafif bir liste - sadece isim + tarih, tam lead detayi degil.
+ * SIRALAMA: hepsi <= bugun oldugu icin en YENI (en son gecikmis/bugunku)
+ * once - bkz. getLeadsOverdue'daki ayni prensip.
  */
 export async function getDueFollowups(): Promise<DueFollowup[]> {
   const supabase = await createClient();
@@ -272,7 +286,7 @@ export async function getDueFollowups(): Promise<DueFollowup[]> {
     .not("next_followup_at", "is", null)
     .not("status", "in", "(won,lost)")
     .lte("next_followup_at", todayEnd)
-    .order("next_followup_at", { ascending: true })
+    .order("next_followup_at", { ascending: false })
     .limit(20);
 
   if (error) {
@@ -359,9 +373,14 @@ export async function getLeadsOverdue(): Promise<LeadListItem[]> {
     })
   );
 
+  // SIRALAMA (spec 2026-09-30: "zaman dilimi en yakın olanlar en üstte
+  // gözükür, zaman dilimi uzaklaştıkça her şey aşağıda olur" - HER YER icin
+  // istendi). Once en ESKI (en uzun suredir dokunulmamis) once siralaniyordu -
+  // kullanici bunun tersini istiyor: "dün" gecikmis biri, "3 hafta önce"
+  // gecikmis birinden DAHA YUKARIDA gorunmeli (SU ANA en yakin once).
   return overdue.sort((a, b) => {
     const aRef = new Date(a.last_activity_at ?? a.last_contact_at ?? a.created_at).getTime();
     const bRef = new Date(b.last_activity_at ?? b.last_contact_at ?? b.created_at).getTime();
-    return aRef - bRef;
+    return bRef - aRef;
   });
 }

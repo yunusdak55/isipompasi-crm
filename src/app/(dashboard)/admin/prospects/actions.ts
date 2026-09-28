@@ -3,8 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { PROSPECT_STATUS_LABELS } from "@/lib/constants/prospects";
-import type { ProspectStatus } from "@/lib/types/domain";
 import type { Database } from "@/lib/types/database.types";
 import { friendlyDbError } from "@/lib/errors";
 import { TR_TZ, followupDateTR } from "@/lib/time";
@@ -113,43 +111,6 @@ export async function createProspectAction(prevState: CreateProspectState, formD
 }
 
 // ----------------------------------------------------------------------------
-// Durum degistirme (ör. "Kayıp" olarak isaretleme). Durum degisikligi bir
-// gorusmenin sonucunu yansittigi icin ayni anda last_contact_at = simdi
-// olarak guncellenir - spec: "aradığım firmaların yaptığım görüşmeleri
-// kayıt edebileceğim" (durumu degistirmek zaten bir temas kaydidir).
-// ----------------------------------------------------------------------------
-
-export type UpdateProspectStatusState = { error: string | null };
-
-export async function updateProspectStatusAction(
-  prospectId: string,
-  nextStatus: ProspectStatus,
-  prevState: UpdateProspectStatusState
-): Promise<UpdateProspectStatusState> {
-  await requireAdmin();
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("agency_prospects")
-    .update({ status: nextStatus, last_contact_at: new Date().toISOString() })
-    .eq("id", prospectId);
-
-  if (error) {
-    console.error("updateProspectStatusAction error:", error.message);
-    return { error: `Güncellenemedi: ${friendlyDbError(error)}` };
-  }
-
-  await logProspectActivity(supabase, {
-    prospectId,
-    type: "status_change",
-    description: `Durum "${PROSPECT_STATUS_LABELS[nextStatus]}" olarak güncellendi.`,
-  });
-
-  revalidateProspects(prospectId);
-  return { error: null };
-}
-
-// ----------------------------------------------------------------------------
 // Firma bilgisi / notlar duzenleme (telefon, iletisim kisisi, not). Kayit
 // guncellendiginde son temas tarihi de tazelenir.
 // ----------------------------------------------------------------------------
@@ -192,49 +153,12 @@ export async function updateProspectAction(
 }
 
 // ----------------------------------------------------------------------------
-// Bir sonraki takip tarihi/notu - takvimden veya liste satirindan.
+// Takvimden dogrudan YENI bir musteri adayi + ilk takip tarihi. Var olan bir
+// adayin takip tarihini degistirmek ARTIK BURADAN YAPILMIYOR (spec: "bir
+// yerden belirlerim") - bkz. logProspectOutcomeAction, tek yer orasi.
 // ----------------------------------------------------------------------------
 
 export type FollowupActionState = { error: string | null };
-
-export async function upsertProspectFollowupAction(
-  prospectId: string,
-  prevState: FollowupActionState,
-  formData: FormData
-): Promise<FollowupActionState> {
-  await requireAdmin();
-
-  const daysStr = String(formData.get("followup_days") ?? "");
-  const note = String(formData.get("followup_note") ?? "").trim() || null;
-
-  const followupDate = daysToFollowupDate(daysStr);
-  if (!followupDate) return { error: "Kaç gün sonra aranacağı zorunludur ve geçerli bir sayı olmalıdır." };
-
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("agency_prospects")
-    .update({
-      next_followup_at: followupDate.toISOString(),
-      next_followup_note: note,
-      status: "followup",
-    })
-    .eq("id", prospectId);
-
-  if (error) {
-    console.error("upsertProspectFollowupAction error:", error.message);
-    return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
-  }
-
-  const dayLabel = followupDate.toLocaleDateString("tr-TR", { day: "numeric", month: "long", timeZone: TR_TZ });
-  await logProspectActivity(supabase, {
-    prospectId,
-    type: "system",
-    description: `Takip eklendi: ${dayLabel} tarihinde tekrar aranacak.${note ? ` Not: ${note}` : ""}`,
-  });
-
-  revalidateProspects(prospectId);
-  return { error: null };
-}
 
 /** Takvimden dogrudan YENI bir musteri adayi + ilk takip tarihi birlikte olusturur. */
 export async function createProspectWithFollowupAction(

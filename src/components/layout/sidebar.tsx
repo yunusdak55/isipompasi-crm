@@ -9,7 +9,7 @@ import {
   CalendarDays,
   AlertTriangle,
   TrendingUp,
-  Sparkles,
+  Bot,
   BarChart3,
   Settings,
   Building2,
@@ -19,6 +19,7 @@ import {
   PhoneCall,
   MapPinned,
   ScrollText,
+  Headset,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -50,7 +51,7 @@ const SALES_NAV_ITEMS: NavItem[] = [
 const ANALYSIS_NAV_ITEMS: NavItem[] = [
   { href: "/sales", label: "Satışlar", icon: TrendingUp, enabled: true },
   { href: "/reports", label: "Raporlar", icon: BarChart3, enabled: true },
-  { href: "/agent", label: "Dijital Ajan", icon: Sparkles, enabled: true },
+  { href: "/agent", label: "Dijital Ajan", icon: Bot, enabled: true },
 ];
 
 const SETTINGS_NAV_ITEMS: NavItem[] = [{ href: "/settings", label: "Firma Ayarları", icon: Settings, enabled: true }];
@@ -63,6 +64,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
     icon: PhoneCall,
     enabled: true,
     children: [
+      { href: "/admin/prospects/playbook", label: "Satış Kokpiti", icon: Headset, enabled: true },
       { href: "/admin/prospects/followups", label: "Takipte", icon: CalendarClock, enabled: true },
       { href: "/admin/prospects/overdue", label: "Gecikenler", icon: AlertTriangle, enabled: true },
       { href: "/admin/prospects/calendar", label: "Görüşme Takvimi", icon: CalendarDays, enabled: true },

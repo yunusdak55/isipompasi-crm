@@ -102,8 +102,13 @@ export async function getProspectsCalendar(year: number, month: number): Promise
 
 /**
  * "Takipte" ekrani: takip tarihi verilmis, henuz kapanmamis (musteri
- * oldu/kayip degil) adaylar, en yakin tarih once - leads.ts/getLeadsFollowup
- * ile ayni yaklasim (spec: "takvime eklediğim kişiler oraya düşsün").
+ * oldu/kayip degil) adaylar - leads.ts/getLeadsFollowup ile ayni yaklasim
+ * (spec: "takvime eklediğim kişiler oraya düşsün").
+ *
+ * SIRALAMA (spec 2026-09-30, "HER YER icin" - bkz. leads.ts/getLeadsFollowup
+ * ayni prensip): gecmis VE gelecek takip tarihleri birlikte oldugu icin
+ * SU ANA olan mutlak zaman farkina gore siralaniyor - en yakin (ister
+ * gecikmis ister yaklasan) her zaman en ustte.
  */
 export async function getProspectsFollowup(): Promise<AgencyProspect[]> {
   const supabase = await createClient();
@@ -120,34 +125,22 @@ export async function getProspectsFollowup(): Promise<AgencyProspect[]> {
     return [];
   }
 
-  return (data ?? []) as unknown as AgencyProspect[];
-}
-
-export type ProspectSelectItem = { id: string; company_name: string; contact_name: string | null };
-
-/** Takvimden dogrudan takip eklerken aday secim dropdown'u icin acik adaylar. */
-export async function getOpenProspectsForSelect(): Promise<ProspectSelectItem[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("agency_prospects")
-    .select("id, company_name, contact_name")
-    .not("status", "in", "(won,lost)")
-    .order("company_name");
-
-  if (error) {
-    console.error("getOpenProspectsForSelect error:", error.message);
-    return [];
-  }
-
-  return (data ?? []) as unknown as ProspectSelectItem[];
+  const now = Date.now();
+  return ((data ?? []) as unknown as AgencyProspect[]).sort(
+    (a, b) => Math.abs(new Date(a.next_followup_at as string).getTime() - now) - Math.abs(new Date(b.next_followup_at as string).getTime() - now)
+  );
 }
 
 /**
  * "Gecikenler" ekrani (spec: "gecikenlere takip tarihi geçen müşterileri
  * koy"): takip GUNU tamamen gecmis (bugunun basindan once), henuz kapanmamis
- * adaylar - en eski tarih once. isProspectOverdue (lib/utils.ts) ile AYNI
- * gun-bazli kural, rozetle bu liste birbirini yalanlamaz.
+ * adaylar. isProspectOverdue (lib/utils.ts) ile AYNI gun-bazli kural,
+ * rozetle bu liste birbirini yalanlamaz.
+ *
+ * SIRALAMA (spec 2026-09-30: "zaman dilimi en yakın olanlar en üstte
+ * gözükür, uzaklaştıkça aşağıda olur" - HER YER icin istendi, bkz.
+ * leads.ts/getLeadsOverdue AYNI degisiklik): en YENI gecikme (ör. "dün")
+ * en üstte, en ESKI gecikme (ör. "3 hafta önce") en altta.
  */
 export async function getProspectsOverdue(): Promise<AgencyProspect[]> {
   const supabase = await createClient();
@@ -159,7 +152,7 @@ export async function getProspectsOverdue(): Promise<AgencyProspect[]> {
     .not("next_followup_at", "is", null)
     .lt("next_followup_at", todayStart.toISOString())
     .not("status", "in", "(won,lost)")
-    .order("next_followup_at", { ascending: true });
+    .order("next_followup_at", { ascending: false });
 
   if (error) {
     console.error("getProspectsOverdue error:", error.message);

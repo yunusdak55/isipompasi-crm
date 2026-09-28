@@ -5,14 +5,18 @@ export function Card({
   children,
   className,
   hoverable = false,
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
   /** Liste/kanban gibi tiklanabilir kart baglaminda hafif hover elevation acar. */
   hoverable?: boolean;
+  /** Sayfa ici çapa navigasyonu (ör. hizli-gecis menusu) icin opsiyonel. */
+  id?: string;
 }) {
   return (
     <div
+      id={id}
       className={cn(
         // Duz tek renk yerine ustte cok hafif bir isik gradienti - "surface
         // layering" hissi (spec: "kartlar tek tip duz kutular olmaktan cikar").

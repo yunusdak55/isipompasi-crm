@@ -299,6 +299,22 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* DUZELTME (spec 2026-09-30: "kaydırma ikonu var onu kaldır" - takip
+   gunu/metrekare gibi number input'larda tarayicinin varsayilan yukari/asagi
+   ok ikonlari yaninda bir ozel ikon/buton koydugumuzda ust uste biniyordu).
+   Uygulama genelinde TUM number input'lar icin - ozel bir yerde ikinci kez
+   cozulmesin diye tek, merkezi bir kural. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* Kanban kaydirma alanlari (yatay kolon satiri + kolon ici dikey liste) icin
    markaya uygun, koyu/yari-transparan scrollbar - varsayilan parlak beyaz
    OS scrollbar'i yerine. Hover'da thumb hafifce belirginlesir. */

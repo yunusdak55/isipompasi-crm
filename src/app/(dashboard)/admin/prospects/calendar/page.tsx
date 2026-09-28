@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
-import { getProspectsCalendar, getOpenProspectsForSelect } from "@/lib/data/prospects";
+import { getProspectsCalendar } from "@/lib/data/prospects";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { ProspectAppointmentForm } from "@/components/admin/prospect-appointment-form";
 import { ProspectCalendarGrid, type ProspectCalendarCell } from "@/components/admin/prospect-calendar-grid";
@@ -44,10 +44,7 @@ export default async function ProspectsCalendarPage({
   const today = partsTR(new Date());
   const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
-  const [prospects, selectable] = await Promise.all([
-    getProspectsCalendar(year, month),
-    getOpenProspectsForSelect(),
-  ]);
+  const prospects = await getProspectsCalendar(year, month);
 
   const byDay = new Map<number, AgencyProspect[]>();
   for (const p of prospects) {
@@ -118,7 +115,7 @@ export default async function ProspectsCalendarPage({
             </div>
           </div>
 
-          <ProspectAppointmentForm prospects={selectable} />
+          <ProspectAppointmentForm />
 
           <ProspectCalendarGrid cells={cells} monthLabel={`${TR_MONTHS[month]} ${year}`} />
 

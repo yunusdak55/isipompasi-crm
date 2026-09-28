@@ -1,5 +1,5 @@
 import { AlertTriangle, PhoneCall } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, NO_CONTACT_OVERDUE_HOURS } from "@/lib/utils";
 
 /**
  * "Yeni Lead" gostergesi: dolu yesil pill, beyaz metin - kucuk yesil nokta/outline
@@ -25,7 +25,7 @@ export function NewLeadBadge({ className }: { className?: string }) {
 export function OverdueBadge({ className }: { className?: string }) {
   return (
     <span
-      title="48 saatten uzun süredir görüşme yapılmadı"
+      title={`${NO_CONTACT_OVERDUE_HOURS} saatten uzun süredir görüşme yapılmadı (ya da takip tarihi geçti)`}
       className={cn(
         "animate-scale-in inline-flex items-center gap-1 rounded-full bg-danger-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow-sm shadow-danger-900/10",
         className
