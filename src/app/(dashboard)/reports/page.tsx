@@ -1,43 +1,10 @@
 import { Filter, MapPin, Home, CalendarClock, Tag, CalendarRange } from "lucide-react";
 import { getReportsData, getReportPeriodOptions } from "@/lib/data/reports";
 import { Card, CardHeader, CardTitle, CardBody, StatCard } from "@/components/ui/card";
+import { DistributionList, EmptyState } from "@/components/ui/distribution-list";
 import { MonthlyComparisonPanel } from "@/components/reports/monthly-comparison-panel";
 import { PeriodSelect } from "@/components/reports/period-select";
 import { formatCurrency } from "@/lib/utils";
-
-function EmptyState({ body }: { body: string }) {
-  return (
-    <div className="animate-fade-in flex items-center justify-center rounded-xl border border-dashed border-line px-4 py-8 text-center">
-      <p className="text-sm text-ink-600">{body}</p>
-    </div>
-  );
-}
-
-function DistributionList({ items, unit }: { items: { label: string; count: number }[]; unit: string }) {
-  if (items.length === 0) return <EmptyState body="Henüz veri yok." />;
-  const max = Math.max(...items.map((i) => i.count));
-
-  return (
-    <div className="flex flex-col gap-2.5">
-      {items.map((item, index) => (
-        <div key={item.label} className="animate-slide-up flex flex-col gap-1" style={{ animationDelay: `${index * 40}ms` }}>
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-ink-900">{item.label}</span>
-            <span className="tabular-nums text-ink-600">
-              {item.count} {unit}
-            </span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-ink-100">
-            <div
-              className="h-full rounded-full bg-accent-500 transition-all duration-500 ease-settle"
-              style={{ width: `${(item.count / max) * 100}%`, transitionDelay: `${index * 40}ms` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const { period } = await searchParams;

@@ -16,9 +16,6 @@ import {
   UserCog,
   Plug,
   Cog,
-  MessageCircle,
-  Compass,
-  Radar,
   PhoneCall,
   MapPinned,
   ScrollText,
@@ -48,21 +45,12 @@ const SALES_NAV_ITEMS: NavItem[] = [
   { href: "/leads/overdue", label: "Gecikenler", icon: AlertTriangle, enabled: true },
 ];
 
-// Dijital Ajan SADECE bu uc alt modulden olusuyor - baska agent sayfasi eklenmez.
+// Dijital Ajan artik TEK bir sayfa (spec 2026-09-28: "tek'e indir, rakip
+// analizi sektor analizi falan kalksin") - alt modul/children yok.
 const ANALYSIS_NAV_ITEMS: NavItem[] = [
   { href: "/sales", label: "Satışlar", icon: TrendingUp, enabled: true },
   { href: "/reports", label: "Raporlar", icon: BarChart3, enabled: true },
-  {
-    href: "/agent",
-    label: "Dijital Ajan",
-    icon: Sparkles,
-    enabled: true,
-    children: [
-      { href: "/agent/chat", label: "Ajan ile Sohbet", icon: MessageCircle, enabled: true },
-      { href: "/agent/competitors", label: "Rakip Analizi", icon: Compass, enabled: true },
-      { href: "/agent/industry", label: "Sektör Durumu", icon: Radar, enabled: true },
-    ],
-  },
+  { href: "/agent", label: "Dijital Ajan", icon: Sparkles, enabled: true },
 ];
 
 const SETTINGS_NAV_ITEMS: NavItem[] = [{ href: "/settings", label: "Firma Ayarları", icon: Settings, enabled: true }];
