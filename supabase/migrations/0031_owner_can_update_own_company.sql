@@ -18,17 +18,23 @@
 -- aktif etme) SADECE admin degistirebilir - owner'a genis bir UPDATE izni
 -- vermek, dolayli yoldan kendi askiya alinmis hesabini kendi kendine tekrar
 -- aktif etmesine izin vermemeli. name/city/contact_* alanlari owner'a acik.
+-- DUZELTME (2026-09-29, ilk uygulama denemesi hata verdi: "function
+-- public.current_user_role() does not exist"): bu yardimci fonksiyonlar
+-- migration 0027'de guvenlik amacli `private` semasina tasinmis ve eski
+-- `public.` kopyalari SILINMIS (bkz. 0027_private_helpers_and_fixes.sql,
+-- "Eski public kopyalari kaldir"). Asagida `private.current_user_role()` /
+-- `private.current_user_company_id()` kullaniliyor - dogru/guncel isimler.
 -- ============================================================================
 
 drop policy if exists "companies_update_admin" on public.companies;
 create policy "companies_update_admin_or_owner" on public.companies
 for update using (
-  public.current_user_role() = 'admin'
-  or (public.current_user_role() = 'owner' and id = public.current_user_company_id())
+  private.current_user_role() = 'admin'
+  or (private.current_user_role() = 'owner' and id = private.current_user_company_id())
 )
 with check (
-  public.current_user_role() = 'admin'
-  or (public.current_user_role() = 'owner' and id = public.current_user_company_id())
+  private.current_user_role() = 'admin'
+  or (private.current_user_role() = 'owner' and id = private.current_user_company_id())
 );
 
 -- Ayricalikli kolon korumasi: profiles icin migration 0024'teki
@@ -40,7 +46,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if auth.uid() is not null and coalesce(public.current_user_role(), '') <> 'admin' then
+  if auth.uid() is not null and coalesce(private.current_user_role(), '') <> 'admin' then
     if new.is_active is distinct from old.is_active then
       raise exception 'Firmayı aktif/pasif yapmayı sadece ajans admini değiştirebilir.' using errcode = '42501';
     end if;
