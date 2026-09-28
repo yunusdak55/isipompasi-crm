@@ -29,6 +29,26 @@ async function verifyProfileProvisioned(adminClient: ReturnType<typeof createAdm
   return "hesabın profili oluşturulamadı (hesap geri alındı).";
 }
 
+// DUZELTME DEGERLENDIRILDI, UYGULANMADI (denetim bulgusu, Agent A raporu
+// 2026-10-01: "Kullanıcı oluşturma işlemleri Denetim Kaydı'nda 'Yapan: Sistem'
+// görünüyor, gerçek admin değil"). Sebep: yeni kullanici adminClient
+// (service_role) ile auth.admin.createUser() uzerinden olusuyor - JWT
+// baglaminin DISINDA calistigi icin profiles satirini yaratan
+// handle_new_user() sirasinda auth.uid() NULL'dir, audit_row_change() de bu
+// NULL'u actor_id olarak yazar. ILK denemem audit_log satirini SONRADAN
+// UPDATE ile duzeltmekti - TypeScript BUNU HAKLI OLARAK REDDETTI: audit_log'un
+// Update tipi kasitli olarak `never` (bkz. database.types.ts: "Yazma yetkisi
+// HICBIR kullanici rolunde yok - yalnizca DB tetikleyicisi yazar"; sayfanin
+// kendi metni de "DEGISTIRILEMEZ dokum" diyor). Denetim kaydini uygulama
+// kodundan sonradan degistirebilir hale getirmek, "kimse (admin dahil)
+// denetim kaydini degistiremez" guvencesini kirar - bu, "Sistem" etiketinin
+// kozmetik rahatsizligindan daha degerli bir guvenlik ozelligi. Dogru cozum
+// (trigger'in KENDISI, INSERT anında, service-role cagrilarda app_metadata
+// icindeki gercek actor'u okuyacak sekilde guncellenmesi) supabase/migrations/
+// 0030_audit_actor_from_app_metadata.sql'de hazirlandi - canli veritabanina
+// UYGULANMADI, kullanicinin kendi onayiyla calistirmasi gerekiyor (bu
+// oturumda DB migration'lari hep boyle - ben dosyayi yazarim, o uygular).
+
 // ----------------------------------------------------------------------------
 // Firmalar: yeni musteri firma ekleme + giris hesabi TEK ADIMDA (spec: "ben
 // bir kişi ile anlaştığımda kendi panelime girip firma ismi oluşturayım,
@@ -44,7 +64,7 @@ export async function createCompanyWithOwnerAction(
   prevState: CreateCompanyState,
   formData: FormData
 ): Promise<CreateCompanyState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -105,7 +125,7 @@ export async function createCompanyWithOwnerAction(
     email,
     password,
     email_confirm: true,
-    app_metadata: { role: "owner", company_id: company.id },
+    app_metadata: { role: "owner", company_id: company.id, created_by: admin.id },
     user_metadata: { full_name: fullName || name },
   });
 
@@ -125,6 +145,7 @@ export async function createCompanyWithOwnerAction(
 
   revalidatePath("/admin/companies");
   revalidatePath("/admin/users");
+  revalidatePath("/admin/audit");
   return { error: null };
 }
 
@@ -173,6 +194,16 @@ export type DeleteCompanyState = { error: string | null };
  * temizliyoruz - satirlarin KENDISI birkac satir sonra companies
  * cascade'iyle zaten silinecek, sadece hesap silme sirasinda araya giren
  * kilitleri aciyoruz.
+ *
+ * DUZELTME 2 (canli-kullanici testi 2026-10-01, Agent B raporu: "Firma
+ * kullanıcıları silinirken hata oluştu: Database error deleting user"):
+ * yukaridaki listeye migration 0021'de (bu yukarilardaki not YAZILDIKTAN
+ * SONRA) eklenen `discovery_visits.created_by` hic girmemisti - AYNI "iz
+ * birakan referans" sorunu, sadece unutulmus bir tablo. "Keşifler" sayfasina
+ * bir ziyaret kaydeden bir kullaniciyi silmeye calismak hep basarisiz
+ * oluyordu. Cikarilan ders: bu liste `profiles(id)`'e ON DELETE CASCADE/SET
+ * NULL OLMADAN referans veren HER tabloyu icermeli - yeni boyle bir tablo
+ * eklenirse buraya da eklenmesi gerekiyor.
  */
 export async function deleteCompanyAction(companyId: string, prevState: DeleteCompanyState): Promise<DeleteCompanyState> {
   await requireAdmin();
@@ -188,8 +219,12 @@ export async function deleteCompanyAction(companyId: string, prevState: DeleteCo
   const clearFollowups = await supabase.from("followups").update({ created_by: null }).eq("company_id", companyId);
   const clearSales = await supabase.from("sales").update({ salesperson: null, created_by: null }).eq("company_id", companyId);
   const clearAiReports = await supabase.from("ai_reports").update({ created_by: null }).eq("company_id", companyId);
+  const clearDiscoveryVisits = await supabase
+    .from("discovery_visits")
+    .update({ created_by: null })
+    .eq("company_id", companyId);
 
-  for (const step of [clearLeads, clearActivities, clearFollowups, clearSales, clearAiReports]) {
+  for (const step of [clearLeads, clearActivities, clearFollowups, clearSales, clearAiReports, clearDiscoveryVisits]) {
     if (step.error) {
       console.error("deleteCompanyAction clear reference error:", step.error.message);
       return { error: `Firma silinemedi: ${step.error.message}` };
@@ -202,7 +237,11 @@ export async function deleteCompanyAction(companyId: string, prevState: DeleteCo
   for (const p of profiles ?? []) {
     const { error: delUserError } = await adminClient.auth.admin.deleteUser(p.id);
     if (delUserError) {
-      console.error("deleteCompanyAction deleteUser error:", delUserError.message);
+      // DUZELTME (canli-kullanici testi 2026-10-01): sadece .message loglaniyordu
+      // - GoTrue'nun "Database error deleting user" gibi cok genel hatalarinda
+      // gercek sebebi (hangi kisit/tablo) anlamak imkansizdi. Tam hata nesnesi
+      // (name/status dahil) loglaniyor; kullaniciya donen mesaj ayni/genel kaliyor.
+      console.error("deleteCompanyAction deleteUser error:", p.id, JSON.stringify(delUserError));
       return { error: `Firma kullanıcıları silinirken hata oluştu: ${delUserError.message}` };
     }
   }
@@ -262,7 +301,7 @@ export async function updateCompanyNameAction(
 export type CreateUserState = { error: string | null };
 
 export async function createCompanyUserAction(prevState: CreateUserState, formData: FormData): Promise<CreateUserState> {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -289,7 +328,7 @@ export async function createCompanyUserAction(prevState: CreateUserState, formDa
     email,
     password,
     email_confirm: true,
-    app_metadata: { role, company_id: companyId },
+    app_metadata: { role, company_id: companyId, created_by: admin.id },
     user_metadata: { full_name: fullName },
   });
 
@@ -302,6 +341,7 @@ export async function createCompanyUserAction(prevState: CreateUserState, formDa
   if (verifyError) return { error: `Kullanıcı oluşturulamadı: ${verifyError}` };
 
   revalidatePath("/admin/users");
+  revalidatePath("/admin/audit");
   return { error: null };
 }
 

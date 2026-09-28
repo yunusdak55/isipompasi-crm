@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { Filter, MapPin, Home, CalendarClock, Tag, CalendarRange } from "lucide-react";
+import { requireProfile } from "@/lib/auth/session";
 import { getReportsData, getReportPeriodOptions } from "@/lib/data/reports";
 import { Card, CardHeader, CardTitle, CardBody, StatCard } from "@/components/ui/card";
 import { DistributionList, EmptyState } from "@/components/ui/distribution-list";
@@ -7,6 +9,12 @@ import { PeriodSelect } from "@/components/reports/period-select";
 import { formatCurrency } from "@/lib/utils";
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
+  const profile = await requireProfile();
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
+
   const { period } = await searchParams;
   const data = await getReportsData(period ?? "all");
   const periodOptions = getReportPeriodOptions();

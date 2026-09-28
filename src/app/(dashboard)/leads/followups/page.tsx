@@ -1,8 +1,16 @@
+import { redirect } from "next/navigation";
+import { requireProfile } from "@/lib/auth/session";
 import { getLeadsFollowup } from "@/lib/data/leads";
 import { FollowupTable } from "@/components/leads/followup-table";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 
 export default async function FollowupsPage() {
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
+  const profile = await requireProfile();
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
+
   const leads = await getLeadsFollowup();
 
   return (

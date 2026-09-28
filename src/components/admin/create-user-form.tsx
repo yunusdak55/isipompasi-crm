@@ -13,7 +13,14 @@ const fieldClass =
 
 const initialState: CreateUserState = { error: null };
 
-/** Ajans admin'in bir musteri firma icin giris hesabi (kullanici adi + sifre) olusturmasi. */
+/**
+ * Ajans admin'in bir musteri firma icin giris hesabi (kullanici adi + sifre) olusturmasi.
+ *
+ * DUZELTME (spec 2026-10-01, bkz. create-company-form.tsx ayni acikama):
+ * e-posta/sifre input'larina `autoComplete="off"`/`"new-password"` eklendi -
+ * tarayicinin bunu "giris formu" sanip admin'in kendi kayitli bilgisini
+ * oto-doldurmasini/"secili" gostermesini onler.
+ */
 export function CreateUserForm({ companies }: { companies: CompanySelectItem[] }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(createCompanyUserAction, initialState);
@@ -61,15 +68,30 @@ export function CreateUserForm({ companies }: { companies: CompanySelectItem[] }
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-white/55">Ad Soyad *</span>
-          <input type="text" name="full_name" required className={fieldClass} />
+          <input type="text" name="full_name" required autoComplete="off" className={fieldClass} />
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-white/55">E-posta *</span>
-          <input type="email" name="email" required placeholder="ornek@firma.com" className={fieldClass} />
+          <input
+            type="email"
+            name="email"
+            required
+            autoComplete="off"
+            placeholder="ornek@firma.com"
+            className={fieldClass}
+          />
         </label>
         <label className="flex flex-col gap-1.5 sm:col-span-2">
           <span className="text-xs font-medium text-white/55">Şifre * (en az 10 karakter, büyük/küçük harf + rakam)</span>
-          <input type="text" name="password" required minLength={10} placeholder="Müşteriye ileteceğiniz şifre" className={fieldClass} />
+          <input
+            type="text"
+            name="password"
+            required
+            minLength={10}
+            autoComplete="new-password"
+            placeholder="Müşteriye ileteceğiniz şifre"
+            className={fieldClass}
+          />
         </label>
       </div>
 

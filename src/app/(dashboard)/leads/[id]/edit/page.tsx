@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { requireProfile } from "@/lib/auth/session";
 import { getLeadById } from "@/lib/data/leads";
 import { LeadForm } from "@/components/leads/lead-form";
 import { getProductCategories } from "@/lib/data/product-categories";
@@ -8,6 +9,12 @@ import { leadDisplayName } from "@/lib/utils";
 import { updateLeadAction } from "../../actions";
 
 export default async function EditLeadPage({ params }: { params: Promise<{ id: string }> }) {
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
+  const profile = await requireProfile();
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
+
   const { id } = await params;
   const lead = await getLeadById(id);
 

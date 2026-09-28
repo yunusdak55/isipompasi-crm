@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { requireProfile } from "@/lib/auth/session";
 import { getLeadsCalendar, getOpenLeadsForSelect } from "@/lib/data/leads";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { AppointmentForm } from "@/components/leads/appointment-form";
@@ -26,6 +28,12 @@ export default async function LeadsCalendarPage({
 }: {
   searchParams: Promise<{ y?: string; m?: string }>;
 }) {
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
+  const profile = await requireProfile();
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
+
   const params = await searchParams;
   const today = partsTR(new Date());
   const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });

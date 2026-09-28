@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { LayoutGrid } from "lucide-react";
+import { requireProfile } from "@/lib/auth/session";
 import { getLeads } from "@/lib/data/leads";
 import { LeadFilters } from "@/components/leads/lead-filters";
 import { LeadTable } from "@/components/leads/lead-table";
@@ -23,6 +25,13 @@ export default async function LeadsPage({
 }: {
   searchParams: Promise<LeadsSearchParams>;
 }) {
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama): admin
+  // bu tenant-only sayfaya dogrudan URL ile giremesin diye yonlendirme eklendi.
+  const profile = await requireProfile();
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
+
   const params = await searchParams;
   const page = Number(params.page) > 0 ? Number(params.page) : 1;
   const status = (params.status as LeadStatus | undefined) || undefined;

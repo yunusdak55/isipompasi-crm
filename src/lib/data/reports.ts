@@ -76,6 +76,81 @@ function inRange(dateStr: string, range: { start: Date; end: Date } | null) {
   return d >= range.start && d < range.end;
 }
 
+export type RawLeadRow = {
+  id: string;
+  status: LeadStatus;
+  city: string | null;
+  district: string | null;
+  property_type: string | null;
+  offered_amount: number | null;
+  created_at: string;
+  last_contact_at: string | null;
+  product_category: { label: string } | null;
+};
+export type RawSaleRow = {
+  id: string;
+  sale_amount: number;
+  sale_date: string;
+  salesperson_profile: { full_name: string | null } | null;
+};
+export type RawFollowupRow = { id: string; is_completed: boolean; followup_date: string; completed_at: string | null };
+
+export type ReportsRawData = {
+  allLeads: RawLeadRow[] | null;
+  allSales: RawSaleRow[];
+  allFollowups: RawFollowupRow[];
+};
+
+/**
+ * PERF (jet hizi): Raporlar/Satislar/Dijital Ajan sayfalarinin HEPSI ayni
+ * `leads`/`sales` (ve raporlar icin ayrica `followups`) tablolarinin
+ * degisik kesitlerini/turevlerini gosteriyor. Eskiden `getReportsData` ve
+ * `getSalesStats` HER BIRI kendi `leads`+`sales` sorgusunu ayri ayri
+ * atiyordu - Dijital Ajan sayfasi (agent-digest.ts) ikisini de BIRLIKTE
+ * cagirdigi icin AYNI iki tabloyu (leads, sales) fuzul yere IKI KEZ
+ * cekiyordu (paralel calisiyor olsalar da her biri kendi ag turunu/
+ * connection pool slotunu tuketiyor - olculen ~370-410ms TTFB'nin sebebi
+ * budur, diger sayfalar ~100-260ms). Bu fonksiyon TEK, PAYLASILAN bir ham
+ * veri ceker; `getReportsData`/`getSalesStats` opsiyonel bir `raw` parametresi
+ * alip verilmisse KENDI sorgusunu atlar - agent-digest.ts artik ucunu de
+ * (leads+sales+followups) TEK SEFER ceker, ikisine de aynen paylasir.
+ */
+export async function fetchReportsRawData(): Promise<ReportsRawData> {
+  const supabase = await createClient();
+
+  const [leadsRes, salesRes, followupsRes] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabase
+        .from("leads")
+        .select(
+          "id, status, city, district, property_type, offered_amount, created_at, last_contact_at, product_category:product_categories(label)"
+        )
+        .order("id")
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) =>
+      supabase
+        .from("sales")
+        .select("id, sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
+        .order("id")
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) =>
+      supabase.from("followups").select("id, is_completed, followup_date, completed_at").order("id").range(from, to)
+    ),
+  ]);
+
+  if (leadsRes.error) console.error("fetchReportsRawData leads error:", leadsRes.error.message);
+  if (salesRes.error) console.error("fetchReportsRawData sales error:", salesRes.error.message);
+  if (followupsRes.error) console.error("fetchReportsRawData followups error:", followupsRes.error.message);
+
+  return {
+    allLeads: (leadsRes.data as unknown as RawLeadRow[] | null) ?? (leadsRes.error ? null : []),
+    allSales: (salesRes.data as unknown as RawSaleRow[] | null) ?? [],
+    allFollowups: (followupsRes.data as unknown as RawFollowupRow[] | null) ?? [],
+  };
+}
+
 export type ReportsData = {
   period: string;
   periodLabel: string;
@@ -115,8 +190,7 @@ export type MonthlyFunnelPoint = {
   lostCount: number;
 };
 
-export async function getReportsData(period: string = "all"): Promise<ReportsData> {
-  const supabase = await createClient();
+export async function getReportsData(period: string = "all", raw?: ReportsRawData): Promise<ReportsData> {
   const range = periodToRange(period);
   const periodLabel = getReportPeriodOptions().find((o) => o.value === period)?.label ?? "Tüm Zamanlar";
 
@@ -139,33 +213,13 @@ export async function getReportsData(period: string = "all"): Promise<ReportsDat
 
   // TEK sorguyla TUM veri cekilir (donem filtresi yok) - "Tüm Zamanlar" ve
   // tek bir ayin gorunumu ayni ham kumeden turer, JS tarafinda filtrelenir.
-  const [leadsRes, salesRes, followupsRes] = await Promise.all([
-    // fetchAllRows: PostgREST 1000 satirda sessizce keser (bkz. data/paginate.ts).
-    fetchAllRows((from, to) =>
-      supabase
-        .from("leads")
-        .select(
-          "id, status, city, district, property_type, offered_amount, created_at, last_contact_at, product_category:product_categories(label)"
-        )
-        .order("id")
-        .range(from, to)
-    ),
-    fetchAllRows((from, to) => supabase.from("sales").select("id, sale_amount, sale_date").order("id").range(from, to)),
-    fetchAllRows((from, to) =>
-      supabase.from("followups").select("id, is_completed, followup_date, completed_at").order("id").range(from, to)
-    ),
-  ]);
+  // `raw` verilmisse (bkz. agent-digest.ts) hic sorgu atilmaz, cagiranin
+  // zaten cektigi veri kullanilir.
+  const { allLeads, allSales, allFollowups } = raw ?? (await fetchReportsRawData());
 
-  if (leadsRes.error || !leadsRes.data) {
-    if (leadsRes.error) console.error("getReportsData leads error:", leadsRes.error.message);
+  if (!allLeads) {
     return emptyResult;
   }
-  if (salesRes.error) console.error("getReportsData sales error:", salesRes.error.message);
-  if (followupsRes.error) console.error("getReportsData followups error:", followupsRes.error.message);
-
-  const allLeads = leadsRes.data;
-  const allSales = salesRes.data ?? [];
-  const allFollowups = followupsRes.data ?? [];
 
   // Donem secimine gore filtrelenmis kumeler - asagidaki TUM istatistikler
   // (Geciken Takip ve Aylık Karşılaştırma haric) bunlardan turer.

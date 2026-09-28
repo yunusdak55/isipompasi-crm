@@ -1,4 +1,4 @@
-import { getReportsData } from "@/lib/data/reports";
+import { getReportsData, fetchReportsRawData } from "@/lib/data/reports";
 import { getLeadsOverdue } from "@/lib/data/leads";
 import { getSalesStats } from "@/lib/data/sales";
 import { formatCurrency, formatRelativeDays, formatRelativeTimeAgo } from "@/lib/utils";
@@ -53,7 +53,16 @@ export type AgentInsight = {
 };
 
 export async function getAgentDigest(): Promise<AgentDigest> {
-  const [report, overdueLeads, salesStats] = await Promise.all([getReportsData("all"), getLeadsOverdue(), getSalesStats()]);
+  // PERF (jet hizi): eskiden getReportsData ve getSalesStats HER BIRI kendi
+  // leads/sales sorgusunu ayri ayri atiyordu - bu sayfa ikisini birlikte
+  // istedigi icin AYNI iki tablo fuzul yere iki kez cekiliyordu (olculen
+  // ~370-410ms TTFB, digerlerinden ~2x - bkz. reports.ts fetchReportsRawData
+  // aciklamasi). Simdi TEK raw fetch (leads+sales+followups) + geciken
+  // takip sorgusu PARALEL atilir (5 sorgudan 3'e dustu); raw elde edilince
+  // getReportsData/getSalesStats artik hic sorgu atmadan (sadece hesaplama)
+  // onu paylasir.
+  const [raw, overdueLeads] = await Promise.all([fetchReportsRawData(), getLeadsOverdue()]);
+  const [report, salesStats] = await Promise.all([getReportsData("all", raw), getSalesStats(raw)]);
 
   const overdueForDisplay = overdueLeads.slice(0, 8).map((lead) => {
     const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || lead.phone;

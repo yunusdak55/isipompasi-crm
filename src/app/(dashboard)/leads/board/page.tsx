@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { List } from "lucide-react";
 import { getLeadsForBoard } from "@/lib/data/leads";
 import { KanbanBoard } from "@/components/leads/kanban-board";
@@ -7,6 +8,10 @@ import { requireProfile } from "@/lib/auth/session";
 
 export default async function LeadsBoardPage() {
   const [leadsByStatus, profile] = await Promise.all([getLeadsForBoard(), requireProfile()]);
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
   // "sales" rolu ciro/tutar giremiyor (RLS: ciro hassas veri) - bu yuzden
   // "Satış"a tasirken tutar modali sadece owner/admin'e gosterilir, sales
   // icin eskisi gibi duz durum degisikligi yapilir (bkz. KanbanBoard).

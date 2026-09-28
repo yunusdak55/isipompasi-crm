@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { AgentChat } from "@/components/agent/agent-chat";
 import { getAgentDigest, buildAgentInsights } from "@/lib/data/agent-digest";
 import { requireProfile } from "@/lib/auth/session";
@@ -11,6 +12,10 @@ import { requireProfile } from "@/lib/auth/session";
  */
 export default async function AgentOverviewPage() {
   const [profile, digest] = await Promise.all([requireProfile(), getAgentDigest()]);
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
   const insights = buildAgentInsights(digest);
 
   return (

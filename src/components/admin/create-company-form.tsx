@@ -20,6 +20,15 @@ const initialState: CreateCompanyState = { error: null };
  * içeriden kendi satış personeli kısmından oluştursun"). Eskiden bu iki ayri
  * adimda (once firma, sonra ayri "Kullanıcılar" sayfasindan dropdown'dan
  * firma secip kullanici) yapiliyordu.
+ *
+ * DUZELTME (spec 2026-10-01, "manuel olarak yazayım [istiyorum ama] seçili
+ * diyor, hata var"): e-posta/sifre input'larinda `autoComplete` hic
+ * tanimlanmamisti - tarayici bu formu (email+password gorunce) "giris
+ * formu" sanip ADMIN'in KENDI kayitli sifresini/e-postasini oto-doldurma/
+ * oneri olarak "secili" gosteriyordu, oysa burada MUSTERI icin YENI, ayri
+ * bir kimlik bilgisi girilir. `autoComplete="off"` (e-posta) ve
+ * `"new-password"` (sifre - tarayicilarin "bu YENI bir sifre, kayitli
+ * olani onerme" icin standart degeri) eklendi.
  */
 export function CreateCompanyForm() {
   const [open, setOpen] = useState(false);
@@ -79,15 +88,30 @@ export function CreateCompanyForm() {
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 sm:col-span-2">
             <span className="text-xs font-medium text-white/55">Ad Soyad</span>
-            <input type="text" name="full_name" placeholder="Boş bırakılırsa firma adı kullanılır" className={fieldClass} />
+            <input type="text" name="full_name" autoComplete="off" placeholder="Boş bırakılırsa firma adı kullanılır" className={fieldClass} />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-white/55">Giriş E-postası *</span>
-            <input type="email" name="email" required placeholder="ornek@firma.com" className={fieldClass} />
+            <input
+              type="email"
+              name="email"
+              required
+              autoComplete="off"
+              placeholder="ornek@firma.com"
+              className={fieldClass}
+            />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-white/55">Şifre * (en az 10 karakter, büyük/küçük harf + rakam)</span>
-            <input type="text" name="password" required minLength={10} placeholder="Firmaya ileteceğiniz şifre" className={fieldClass} />
+            <input
+              type="text"
+              name="password"
+              required
+              minLength={10}
+              autoComplete="new-password"
+              placeholder="Firmaya ileteceğiniz şifre"
+              className={fieldClass}
+            />
           </label>
         </div>
       </div>

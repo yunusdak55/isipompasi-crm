@@ -28,7 +28,16 @@ export async function updateCompanyAction(
 
   const supabase = await createClient();
 
-  const { error } = await supabase
+  // DUZELTME (denetim bulgusu, canli-kullanici testi 2026-10-01): RLS bir
+  // UPDATE'i 0 satirda sessizce reddedince (yetki yok/satir gorunmuyor)
+  // Supabase `error` DONDURMEZ - eskiden bu yuzden owner kendi firma
+  // bilgisini degistiremedigi (bkz. migration 0031 - eskiden RLS'de owner
+  // icin UPDATE izni yoktu) halde ekranda "Kaydedildi" goruyordu. Artik
+  // `.select("id")` ile GERCEKTEN kac satir etkilendigi kontrol ediliyor -
+  // 0 ise (RLS engeli, silinmis firma vb.) durust bir hata donuyor. Bu,
+  // migration 0031'in kendisinden BAGIMSIZ bir savunma katmani - RLS ileride
+  // yine daralirsa uygulama sessizce yalan soylemez.
+  const { data, error } = await supabase
     .from("companies")
     .update({
       name,
@@ -37,11 +46,16 @@ export async function updateCompanyAction(
       contact_email: str("contact_email"),
       contact_phone: str("contact_phone"),
     })
-    .eq("id", companyId);
+    .eq("id", companyId)
+    .select("id");
 
   if (error) {
     console.error("updateCompanyAction error:", error.message);
     return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
+  }
+  if (!data || data.length === 0) {
+    console.error("updateCompanyAction: 0 satır güncellendi (RLS engeli olabilir), companyId:", companyId);
+    return { error: "Kaydedilemedi: bu firmayı güncelleme yetkiniz yok gibi görünüyor." };
   }
 
   revalidatePath("/settings");

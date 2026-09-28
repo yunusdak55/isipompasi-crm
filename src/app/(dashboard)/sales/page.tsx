@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { Wallet, Percent, Users, Layers, TrendingUp, ReceiptText } from "lucide-react";
+import { requireProfile } from "@/lib/auth/session";
 import { getSalesStats, getSalesList } from "@/lib/data/sales";
 import { Card, CardHeader, CardTitle, CardBody, StatCard, HeroStatCard } from "@/components/ui/card";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
@@ -17,6 +19,12 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 }
 
 export default async function SalesPage() {
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
+  const profile = await requireProfile();
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
+
   const [stats, salesList] = await Promise.all([getSalesStats(), getSalesList()]);
 
   return (

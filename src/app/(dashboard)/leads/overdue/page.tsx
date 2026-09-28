@@ -1,8 +1,16 @@
+import { redirect } from "next/navigation";
+import { requireProfile } from "@/lib/auth/session";
 import { getLeadsOverdue } from "@/lib/data/leads";
 import { OverdueTable } from "@/components/leads/overdue-table";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 
 export default async function OverduePage() {
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
+  const profile = await requireProfile();
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
+
   const leads = await getLeadsOverdue();
 
   return (

@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { Users, Wallet } from "lucide-react";
+import { requireProfile } from "@/lib/auth/session";
 import { getDashboardStats } from "@/lib/data/dashboard";
 import { StatCard, HeroStatCard } from "@/components/ui/card";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
@@ -6,6 +8,20 @@ import { LEAD_STATUS_LABELS, LEAD_STATUS_COLOR } from "@/lib/constants/lead";
 import { formatCurrency } from "@/lib/utils";
 
 export default async function DashboardPage() {
+  // DUZELTME (denetim bulgusu, 2026-10-01: "çelişki bul"): admin'in KENDI
+  // firmasi yok (company_id = null) - bu ve asagidaki diger tum tenant-only
+  // sayfalar (leads/*, sales, reports, agent) eskiden SADECE settings/page.tsx'te
+  // vardi ("admin -> /admin/companies") ama BURADA hic yoktu. Sidebar admin'e bu
+  // linkleri hic GOSTERMEZ ama dogrudan URL ile giren bir admin, RLS'nin admin'e
+  // tanidigi TUM-firmalar erisimi yuzunden "Firmanızın güncel satış hattı durumu"
+  // basligi altinda TUM MUSTERILERIN karisik toplam rakamini goruyordu - kafa
+  // karistirici ve tutarsizdi. Artik settings ile AYNI davranis: admin buraya
+  // hic giremez, /admin/companies'e yonlendirilir.
+  const profile = await requireProfile();
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
+
   const stats = await getDashboardStats();
 
   return (

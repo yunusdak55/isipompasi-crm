@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/data/paginate";
 import { partsTR, shiftMonth } from "@/lib/time";
+import type { RawLeadRow, RawSaleRow } from "@/lib/data/reports";
 
 /**
  * Satislar sayfasi icin gercek veriye dayali metrikler.
@@ -26,44 +27,60 @@ export type SalesStats = {
   hasAnySale: boolean;
 };
 
-export async function getSalesStats(): Promise<SalesStats> {
-  const supabase = await createClient();
-
-  const [leadsRes, salesRes] = await Promise.all([
-    // fetchAllRows: PostgREST 1000 satirda sessizce keser (bkz. data/paginate.ts).
-    fetchAllRows((from, to) => supabase.from("leads").select("id, status, offered_amount").order("id").range(from, to)),
-    fetchAllRows((from, to) =>
-      supabase
-        .from("sales")
-        .select("id, sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
-        .order("sale_date", { ascending: true })
-        .order("id")
-        .range(from, to)
-    ),
-  ]);
-
-  if (leadsRes.error || !leadsRes.data) {
-    if (leadsRes.error) console.error("getSalesStats leads error:", leadsRes.error.message);
-    return {
-      totalLeads: 0,
-      totalSales: 0,
-      totalRevenue: 0,
-      avgSaleValue: 0,
-      conversionRate: 0,
-      pipelineValue: 0,
-      monthlyTrend: [],
-      bySalesperson: [],
-      hasAnySale: false,
-    };
-  }
-  if (salesRes.error) {
-    console.error("getSalesStats sales error:", salesRes.error.message);
-  }
-
+/**
+ * PERF (jet hizi): `raw` verilirse (bkz. lib/data/agent-digest.ts) hicbir
+ * sorgu atilmaz - Dijital Ajan sayfasi zaten `getReportsData` icin cektigi
+ * AYNI leads/sales verisini burada TEKRAR CEKMEDEN paylasir (eskiden bu iki
+ * fonksiyon ayni tabloyu ayri ayri iki kez sorguluyordu - bkz. reports.ts
+ * fetchReportsRawData aciklamasi). /sales sayfasi eskisi gibi parametresiz
+ * cagirir, kendi (daha dar kolonlu) sorgusunu atar - davranis degismedi.
+ */
+export async function getSalesStats(raw?: { allLeads: RawLeadRow[] | null; allSales: RawSaleRow[] }): Promise<SalesStats> {
   type SaleRow = { sale_amount: number; sale_date: string; salesperson_profile: { full_name: string | null } | null };
+  type LeadRow = { status: string; offered_amount: number | null };
 
-  const leads = leadsRes.data;
-  const sales = (salesRes.data ?? []) as unknown as SaleRow[];
+  let leads: LeadRow[];
+  let sales: SaleRow[];
+
+  if (raw) {
+    leads = raw.allLeads ?? [];
+    sales = raw.allSales;
+  } else {
+    const supabase = await createClient();
+    const [leadsRes, salesRes] = await Promise.all([
+      // fetchAllRows: PostgREST 1000 satirda sessizce keser (bkz. data/paginate.ts).
+      fetchAllRows((from, to) => supabase.from("leads").select("id, status, offered_amount").order("id").range(from, to)),
+      fetchAllRows((from, to) =>
+        supabase
+          .from("sales")
+          .select("id, sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
+          .order("sale_date", { ascending: true })
+          .order("id")
+          .range(from, to)
+      ),
+    ]);
+
+    if (leadsRes.error || !leadsRes.data) {
+      if (leadsRes.error) console.error("getSalesStats leads error:", leadsRes.error.message);
+      return {
+        totalLeads: 0,
+        totalSales: 0,
+        totalRevenue: 0,
+        avgSaleValue: 0,
+        conversionRate: 0,
+        pipelineValue: 0,
+        monthlyTrend: [],
+        bySalesperson: [],
+        hasAnySale: false,
+      };
+    }
+    if (salesRes.error) {
+      console.error("getSalesStats sales error:", salesRes.error.message);
+    }
+
+    leads = leadsRes.data;
+    sales = (salesRes.data ?? []) as unknown as SaleRow[];
+  }
 
   const totalRevenue = sales.reduce((sum, s) => sum + Number(s.sale_amount), 0);
   const totalSales = sales.length;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Phone, Mail, MapPin, Clock, Tag, FileText, Home, CircleDollarSign } from "lucide-react";
 import { getLeadById, getLeadActivities, getAssignableProfiles, getSaleForLead } from "@/lib/data/leads";
 import { getSalespeople } from "@/lib/data/salespeople";
@@ -52,7 +52,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     notFound();
   }
 
-  const canAssign = profile?.role === "owner" || profile?.role === "admin";
+  // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama): admin
+  // dogrudan URL ile ([id] tahmin ederek dahil) bu tenant-only sayfaya
+  // girebiliyordu.
+  if (profile?.role === "admin") {
+    redirect("/admin/companies");
+  }
+
+  // Admin buraya hic ulasamiyor artik (yukarida yonlendiriliyor), kalan tek "atayabilen" rol owner.
+  const canAssign = profile?.role === "owner";
   // Ayni sekilde: bu ucu birbirine BAGIMLI degil, sirayla (await...await...await)
   // degil PARALEL cekilir - sales tablosu RLS geregi sadece owner/admin
   // gorebilir ("ciro hassas veri"), sales rolundeyken sorgu bile atilmaz.

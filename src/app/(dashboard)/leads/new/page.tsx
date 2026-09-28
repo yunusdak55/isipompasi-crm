@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { LeadForm } from "@/components/leads/lead-form";
@@ -8,12 +9,12 @@ import { createLeadAction } from "../actions";
 export default async function NewLeadPage() {
   const profile = await requireProfile();
 
+  // DUZELTME (denetim bulgusu, 2026-10-01, bkz. dashboard/page.tsx ayni
+  // aciklama): burada admin icin AYRI/farkli bir "firma yok" mesaji vardi -
+  // diger tum tenant-only sayfalarla TUTARSIZDI (onlar redirect ediyor, bu
+  // sadece inline mesaj gosteriyordu). Artik hepsi AYNI davranista.
   if (!profile.company_id) {
-    return (
-      <div className="rounded-2xl border border-line bg-surface p-6 text-sm text-ink-600">
-        Hesabınıza bağlı bir firma bulunmuyor, lead oluşturulamıyor.
-      </div>
-    );
+    redirect("/admin/companies");
   }
 
   const categories = await getProductCategories(profile.company_id);
