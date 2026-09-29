@@ -93,7 +93,19 @@ export async function proxy(request: NextRequest) {
   // gecerli sayilir - simetrik anahtarli projelerde kutuphane otomatik
   // getUser()'a geri duser. Pasif kullanici/firma ise ayrica veritabani
   // katmaninda (RLS yardimcilari) ANINDA kesilir, bkz. migration 0026.
+  // GOZLEMLENEBILIRLIK (performans denetimi 2026-09-29: "ölç, tahmin etme"):
+  // sadece YAVAS olan (1sn+) cagrilar loglanir - normal/hizli istekler
+  // (buyuk cogunluk) sessiz kalir, log gurultuye donusmez. Hicbir JWT/token/
+  // kisisel veri loglanmaz - sadece sure + yol. Bir sonraki "donma"
+  // bildiriminde Hostinger > Calisma Zamani Gunlukleri'nde GERCEK sunucu
+  // suresini gorebilmek icin (bkz. lib/supabase/fetch-with-timeout.ts'teki
+  // ayni geregekce).
+  const authStart = Date.now();
   const { data: claimsData } = await supabase.auth.getClaims();
+  const authMs = Date.now() - authStart;
+  if (authMs > 1000) {
+    console.warn(`[perf] middleware getClaims() ${authMs}ms - ${request.nextUrl.pathname}`);
+  }
   const user = claimsData?.claims ?? null;
 
   const { pathname } = request.nextUrl;
