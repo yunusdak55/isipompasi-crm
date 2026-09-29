@@ -1,4 +1,29 @@
 // @ts-check
+import { execSync } from "node:child_process";
+
+/**
+ * Next.js'in resmi "version skew" korumasi (bkz. node_modules/next/dist/docs/
+ * .../deploymentId.md, self-hosting.md#version-skew) - bu build'in git commit'i
+ * HTML'e/asset URL'lerine gomulur; istemci sayfa GECISI yaparken sunucunun
+ * ANLIK deploymentId'siyle uyusmazlik gorurse (ör. arka planda yeni bir deploy
+ * oldu) Next.js OTOMATIK OLARAK tam sayfa yenilemesi yapar - client-side
+ * routing denemez. Bu SADECE kullanicinin ZATEN gitmek istedigi bir gecis
+ * sirasinda tetiklenir (kullanici bir yere tiklamadan spontane olarak
+ * calismaz), yani doldurulmakta olan bir formu KESMEZ. Statik dosya
+ * (ChunkLoadError) sorunu asil olarak scripts/sync-static-assets.mjs ile
+ * (eski chunk'lari public_html'de kalici tutarak) cozuluyor - bu, ONUN
+ * yakalayamadigi tek senaryo icin ek guvenlik agi: Server Action/RSC
+ * referanslari build'e ozgudur, eski bir sekme hala YUKLU JS'iyle CALISIYOR
+ * olsa bile yeni sunucu o referanslari taniyamayabilir - deploymentId bunu
+ * bir CRUD formu gonderilmeden ONCE (navigasyon aninda) yakalar.
+ */
+function getDeploymentId() {
+  try {
+    return execSync("git rev-parse HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return String(Date.now());
+  }
+}
 
 /**
  * DUZELTME (Hostinger deployment hazirligi): eskiden next.config.TS'ti -
@@ -14,6 +39,7 @@
  */
 const nextConfig = {
   poweredByHeader: false,
+  deploymentId: getDeploymentId(),
 
   // PERF (jet hizi): public/ altindaki gorseller (logo vb.) Next.js varsayilaniyla
   // `max-age=0` geliyordu - tarayici HER sayfa gecisinde yeniden dogruluyordu.
