@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
 import type { Database } from "@/lib/types/database.types";
-import { fetchWithTimeout } from "@/lib/supabase/fetch-with-timeout";
+import { buildInstrumentedFetch } from "@/lib/supabase/fetch-with-timeout";
 
 /**
  * Server Component / Server Action / Route Handler icinde kullanilacak
@@ -13,7 +13,13 @@ import { fetchWithTimeout } from "@/lib/supabase/fetch-with-timeout";
  */
 export async function createClient() {
   const cookieStore = await cookies();
-  const isHttps = (await headers()).get("x-forwarded-proto") === "https";
+  const requestHeaders = await headers();
+  const isHttps = requestHeaders.get("x-forwarded-proto") === "https";
+  // GOZLEMLENEBILIRLIK: proxy.ts'te uretilip x-request-id basligiyla tasinan
+  // kimlik - bu sayfa yuklemesindeki Supabase cagrilarini Hostinger
+  // loglarinda middleware/proxy zinciriyle ayni [PERF][xxxxxxxx] etiketi
+  // altinda birlestirir (bkz. lib/perf-log.ts).
+  const requestId = requestHeaders.get("x-request-id") ?? undefined;
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,7 +27,7 @@ export async function createClient() {
     {
       // PERF (donma duzeltmesi, bkz. fetch-with-timeout.ts): ag istegi askida
       // kalirsa 10sn'de basarisiz olsun, sonsuza kadar beklemesin.
-      global: { fetch: fetchWithTimeout },
+      global: { fetch: buildInstrumentedFetch(requestId) },
       cookies: {
         getAll() {
           return cookieStore.getAll();

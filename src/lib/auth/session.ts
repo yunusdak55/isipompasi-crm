@@ -43,31 +43,25 @@ export function isProfileBlocked(profile: ProfileWithCompany): boolean {
  * sorguda (profiles -> companies iliskisi embed) gelir. Veri erisimi yine RLS
  * ile korunur (JWT her sorguda PostgREST'e gider).
  */
-// GOZLEMLENEBILIRLIK (performans denetimi 2026-09-29): sadece 1sn+ suren
-// adimlar loglanir (bkz. proxy.ts'teki ayni gerekce - gurultu yaratmadan
-// bir sonraki "donma"da GERCEK sunucu suresini Hostinger loglarinda gormek).
-function logIfSlow(label: string, startedAt: number) {
-  const ms = Date.now() - startedAt;
-  if (ms > 1000) console.warn(`[perf] getCurrentProfile: ${label} ${ms}ms`);
-}
-
+// GOZLEMLENEBILIRLIK: bu fonksiyondaki her Supabase cagrisi (getClaims'in
+// JWKS agirlik cekebilecek ilk cagrisi, profiles sorgusu) zaten
+// createClient()'in instrumented fetch'i uzerinden otomatik + requestId'li
+// olarak loglanir (bkz. lib/supabase/server.ts, lib/supabase/fetch-with-timeout.ts) -
+// burada ayrica manuel suresi olcup loglamaya gerek yok (yinelenen/asenkron
+// requestId'siz log gurultusu olurdu).
 export const getCurrentProfile = cache(async (): Promise<ProfileWithCompany | null> => {
   const supabase = await createClient();
 
-  const claimsStart = Date.now();
   const { data: claimsData } = await supabase.auth.getClaims();
-  logIfSlow("getClaims()", claimsStart);
   const userId = claimsData?.claims?.sub;
 
   if (!userId) return null;
 
-  const profileStart = Date.now();
   const { data: profile } = await supabase
     .from("profiles")
     .select("*, company:companies(name)")
     .eq("id", userId)
     .single();
-  logIfSlow("profiles sorgusu", profileStart);
 
   return (profile as unknown as ProfileWithCompany | null) ?? null;
 });

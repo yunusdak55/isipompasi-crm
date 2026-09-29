@@ -21,7 +21,10 @@ async function requireAdmin() {
  * silinir - aksi halde giris yapabilen ama hicbir yetkisi/profili olmayan hayalet
  * hesap birikir.
  */
-async function verifyProfileProvisioned(adminClient: ReturnType<typeof createAdminClient>, userId: string): Promise<string | null> {
+async function verifyProfileProvisioned(
+  adminClient: Awaited<ReturnType<typeof createAdminClient>>,
+  userId: string
+): Promise<string | null> {
   const { data: profile } = await adminClient.from("profiles").select("id").eq("id", userId).maybeSingle();
   if (profile) return null;
   await adminClient.auth.admin.deleteUser(userId);
@@ -117,7 +120,7 @@ export async function createCompanyWithOwnerAction(
     console.error("createCompanyWithOwnerAction categories error:", categoriesError.message);
   }
 
-  const adminClient = createAdminClient();
+  const adminClient = await createAdminClient();
   // GUVENLIK: rol/firma `app_metadata`'da gonderilir (yalnizca service_role yazabilir,
   // kullanici DEGISTIREMEZ). `user_metadata` kullanicinin kendi duzenleyebildigi
   // alandir; profil tetikleyicisi (migration 0026) rol/firmayi ASLA oradan okumaz.
@@ -233,7 +236,7 @@ export async function deleteCompanyAction(companyId: string, prevState: DeleteCo
 
   const { data: profiles } = await supabase.from("profiles").select("id").eq("company_id", companyId);
 
-  const adminClient = createAdminClient();
+  const adminClient = await createAdminClient();
   for (const p of profiles ?? []) {
     const { error: delUserError } = await adminClient.auth.admin.deleteUser(p.id);
     if (delUserError) {
@@ -321,7 +324,7 @@ export async function createCompanyUserAction(prevState: CreateUserState, formDa
   const { data: company } = await supabase.from("companies").select("id").eq("id", companyId).maybeSingle();
   if (!company) return { error: "Seçilen firma bulunamadı." };
 
-  const adminClient = createAdminClient();
+  const adminClient = await createAdminClient();
 
   // GUVENLIK: rol/firma app_metadata'da (bkz. createCompanyWithOwnerAction).
   const { data: created, error } = await adminClient.auth.admin.createUser({
@@ -366,7 +369,7 @@ export async function toggleUserActiveAction(
   // Ek katman: pasif hesap Auth tarafinda da "banli" olur (yeniden giris ve
   // jeton yenileme reddedilir). Veri erisimi zaten profiles.is_active ile
   // veritabaninda ANINDA kesilir; ban basarisiz olsa da guvenlik bozulmaz.
-  const { error: banError } = await createAdminClient().auth.admin.updateUserById(userId, {
+  const { error: banError } = await (await createAdminClient()).auth.admin.updateUserById(userId, {
     ban_duration: nextActive ? "none" : "876000h",
   });
   if (banError) console.error("toggleUserActiveAction ban error:", banError.message);

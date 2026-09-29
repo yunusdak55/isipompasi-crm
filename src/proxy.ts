@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { fetchWithTimeout } from "@/lib/supabase/fetch-with-timeout";
+import { buildInstrumentedFetch } from "@/lib/supabase/fetch-with-timeout";
+import { logPerf, newRequestId } from "@/lib/perf-log";
 
 /**
  * Her istekte calisir (Next.js 16: eski adiyla middleware):
@@ -44,6 +45,13 @@ function buildCsp(nonce: string, isHttps: boolean) {
 }
 
 export async function proxy(request: NextRequest) {
+  const middlewareStart = Date.now();
+  // GOZLEMLENEBILIRLIK (3. tur, bkz. lib/perf-log.ts): bu istek icin TEK bir
+  // kisa kimlik uretilip `x-request-id` header'iyla sayfa render'ina
+  // tasinir - Server Component'lerdeki (server.ts) Supabase cagrilari
+  // AYNI id'yi kullanarak Hostinger loglarinda tek bir zincir olusturur:
+  // [PERF][abc12345] layer=middleware ... , [PERF][abc12345] layer=supabase table=profiles ...
+  const requestId = newRequestId();
   const nonce = btoa(crypto.randomUUID());
   const isHttps = request.headers.get("x-forwarded-proto") === "https" || request.nextUrl.protocol === "https:";
   const csp = buildCsp(nonce, isHttps);
@@ -55,6 +63,10 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set(cspHeaderName, csp);
+  requestHeaders.set("x-request-id", requestId);
+  // GOZLEMLENEBILIRLIK: sayfa-seviyesi toplam sure loglarinda ("layer=page")
+  // hangi rotanin yavas oldugunu gorebilmek icin (bkz. (dashboard)/layout.tsx).
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
 
@@ -65,7 +77,10 @@ export async function proxy(request: NextRequest) {
       // PERF (donma duzeltmesi, bkz. lib/supabase/fetch-with-timeout.ts): bu
       // istemci HER istekte calisir (middleware) - zaman asimi olmadan burada
       // askida kalan bir istek TUM SITEYI donma noktasi haline getirirdi.
-      global: { fetch: fetchWithTimeout },
+      // GOZLEMLENEBILIRLIK: bu requestId ile uretilen instrumented fetch,
+      // buradan gecen HER Supabase cagrisini (auth_jwks_fetch, auth_token_refresh...)
+      // otomatik loglar (bkz. fetch-with-timeout.ts).
+      global: { fetch: buildInstrumentedFetch(requestId) },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -93,19 +108,9 @@ export async function proxy(request: NextRequest) {
   // gecerli sayilir - simetrik anahtarli projelerde kutuphane otomatik
   // getUser()'a geri duser. Pasif kullanici/firma ise ayrica veritabani
   // katmaninda (RLS yardimcilari) ANINDA kesilir, bkz. migration 0026.
-  // GOZLEMLENEBILIRLIK (performans denetimi 2026-09-29: "ölç, tahmin etme"):
-  // sadece YAVAS olan (1sn+) cagrilar loglanir - normal/hizli istekler
-  // (buyuk cogunluk) sessiz kalir, log gurultuye donusmez. Hicbir JWT/token/
-  // kisisel veri loglanmaz - sadece sure + yol. Bir sonraki "donma"
-  // bildiriminde Hostinger > Calisma Zamani Gunlukleri'nde GERCEK sunucu
-  // suresini gorebilmek icin (bkz. lib/supabase/fetch-with-timeout.ts'teki
-  // ayni geregekce).
-  const authStart = Date.now();
+  const claimsStart = Date.now();
   const { data: claimsData } = await supabase.auth.getClaims();
-  const authMs = Date.now() - authStart;
-  if (authMs > 1000) {
-    console.warn(`[perf] middleware getClaims() ${authMs}ms - ${request.nextUrl.pathname}`);
-  }
+  logPerf({ requestId, layer: "middleware", op: "getClaims", durationMs: Date.now() - claimsStart, result: "success" });
   const user = claimsData?.claims ?? null;
 
   const { pathname } = request.nextUrl;
@@ -115,11 +120,18 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.startsWith("/auth/") || pathname === "/robots.txt";
   const isProtectedRoute = !isAuthRoute && !isOpenRoute && pathname !== "/";
 
+  // GOZLEMLENEBILIRLIK: middleware'in TOPLAM suresi - hangi cikis yolundan
+  // donerse donsun tek bir yerden loglanir (bkz. lib/perf-log.ts).
+  const finish = (response: NextResponse) => {
+    logPerf({ requestId, layer: "middleware", op: "total", durationMs: Date.now() - middlewareStart, result: "success" });
+    return response;
+  };
+
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
-    return NextResponse.redirect(url);
+    return finish(NextResponse.redirect(url));
   }
 
   if (user && isAuthRoute) {
@@ -127,11 +139,11 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
-    return NextResponse.redirect(url);
+    return finish(NextResponse.redirect(url));
   }
 
   supabaseResponse.headers.set(cspHeaderName, csp);
-  return supabaseResponse;
+  return finish(supabaseResponse);
 }
 
 export const config = {
