@@ -79,6 +79,21 @@ const nextConfig = {
       static: 30,
     },
   },
+
+  // KOK SEBEP (2026-09-30 canli tekrar-uretim - bkz. lib/chunk-load-recovery.ts):
+  // webpack'in varsayilan chunk yukleme zaman asimi 120 SANIYE. Bir deploy
+  // sonrasi, eski build'i hala acik tutan bir sekme yeni bir sayfaya gecmeye
+  // calisirsa artik sunucuda olmayan bir JS parcasini indirmeye calisir - bu
+  // "donma" olarak hissedilen bekleme suresinin ASIL kaynagi (canli testte tam
+  // 121 saniye olcduk). recoverFromChunkLoadError zaten hatayi otomatik sayfa
+  // yenilemesiyle toparliyor - bu sure kisaltilinca o toparlanma cok daha
+  // hizli devreye girer.
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.output.chunkLoadTimeout = 10_000;
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

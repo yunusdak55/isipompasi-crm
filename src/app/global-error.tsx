@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { recoverFromChunkLoadError } from "@/lib/chunk-load-recovery";
 
 /**
  * Kok (root layout) seviyesinde olusan bir hatayi yakalayan son care - normal
@@ -15,6 +16,7 @@ import { useEffect } from "react";
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error("Root layout error:", error);
+    recoverFromChunkLoadError(error);
   }, [error]);
 
   return (

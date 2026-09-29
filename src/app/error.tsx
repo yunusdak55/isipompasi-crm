@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { AlertTriangle, RotateCw } from "lucide-react";
+import { recoverFromChunkLoadError } from "@/lib/chunk-load-recovery";
 
 /**
  * (dashboard) route grubunun DISINDA kalan sayfalar icin genel hata siniri
@@ -13,6 +14,7 @@ import { AlertTriangle, RotateCw } from "lucide-react";
 export default function RootError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error("Root route error:", error);
+    recoverFromChunkLoadError(error);
   }, [error]);
 
   return (

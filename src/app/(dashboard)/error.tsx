@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { recoverFromChunkLoadError } from "@/lib/chunk-load-recovery";
 
 /**
  * DUZELTME (performans/guvenirlik denetimi: "bazen hata veriyor"): bu
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 export default function DashboardError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error("Dashboard route error:", error);
+    recoverFromChunkLoadError(error);
   }, [error]);
 
   return (
