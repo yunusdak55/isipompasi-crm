@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { fetchWithTimeout } from "@/lib/supabase/fetch-with-timeout";
 
 /**
  * Her istekte calisir (Next.js 16: eski adiyla middleware):
@@ -61,6 +62,10 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      // PERF (donma duzeltmesi, bkz. lib/supabase/fetch-with-timeout.ts): bu
+      // istemci HER istekte calisir (middleware) - zaman asimi olmadan burada
+      // askida kalan bir istek TUM SITEYI donma noktasi haline getirirdi.
+      global: { fetch: fetchWithTimeout },
       cookies: {
         getAll() {
           return request.cookies.getAll();

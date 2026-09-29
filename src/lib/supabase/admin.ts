@@ -1,5 +1,6 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database.types";
+import { fetchWithTimeout } from "@/lib/supabase/fetch-with-timeout";
 
 /**
  * SADECE admin-only server action'larda kullanilir (yeni firma/kullanici
@@ -10,5 +11,7 @@ import type { Database } from "@/lib/types/database.types";
 export function createAdminClient() {
   return createSupabaseClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
+    // PERF (donma duzeltmesi, bkz. fetch-with-timeout.ts).
+    global: { fetch: fetchWithTimeout },
   });
 }

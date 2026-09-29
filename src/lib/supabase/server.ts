@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
 import type { Database } from "@/lib/types/database.types";
+import { fetchWithTimeout } from "@/lib/supabase/fetch-with-timeout";
 
 /**
  * Server Component / Server Action / Route Handler icinde kullanilacak
@@ -18,6 +19,9 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      // PERF (donma duzeltmesi, bkz. fetch-with-timeout.ts): ag istegi askida
+      // kalirsa 10sn'de basarisiz olsun, sonsuza kadar beklemesin.
+      global: { fetch: fetchWithTimeout },
       cookies: {
         getAll() {
           return cookieStore.getAll();
