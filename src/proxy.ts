@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { buildInstrumentedFetch } from "@/lib/supabase/fetch-with-timeout";
+import { withTimeout, SessionCheckTimeoutError } from "@/lib/supabase/with-timeout";
 import { logPerf, newRequestId } from "@/lib/perf-log";
 
 /**
@@ -108,10 +109,26 @@ export async function proxy(request: NextRequest) {
   // gecerli sayilir - simetrik anahtarli projelerde kutuphane otomatik
   // getUser()'a geri duser. Pasif kullanici/firma ise ayrica veritabani
   // katmaninda (RLS yardimcilari) ANINDA kesilir, bkz. migration 0026.
+  // DUZELTME (canli kanit 2026-09-30, bkz. with-timeout.ts): buradaki ham
+  // fetch zaten 10sn'de kesiliyor (fetch-with-timeout.ts) ama GoTrueClient
+  // bunu KENDI ICINDE gorunmez sekilde ~30sn'ye kadar tekrar deniyor - bu
+  // sarmalayici olmadan Hostinger<->Supabase arasi gecici bir tikaniklikta
+  // TUM SITE (her istek burdan gecer) dakikalarca "donmus" gorunebiliyordu.
   const claimsStart = Date.now();
-  const { data: claimsData } = await supabase.auth.getClaims();
-  logPerf({ requestId, layer: "middleware", op: "getClaims", durationMs: Date.now() - claimsStart, result: "success" });
-  const user = claimsData?.claims ?? null;
+  let user: { sub?: string } | null = null;
+  try {
+    const { data: claimsData } = await withTimeout(supabase.auth.getClaims(), "middleware:getClaims");
+    logPerf({ requestId, layer: "middleware", op: "getClaims", durationMs: Date.now() - claimsStart, result: "success" });
+    user = claimsData?.claims ?? null;
+  } catch (e) {
+    const isTimeout = e instanceof SessionCheckTimeoutError;
+    logPerf({ requestId, layer: "middleware", op: "getClaims", durationMs: Date.now() - claimsStart, result: isTimeout ? "timeout" : "error" });
+    // GUVENLI TARAF: oturum dogrulanamadiysa "girisli degil" sayilir - en
+    // kotu ihtimalle gecerli bir kullanici nadir bir ag tikanikliginda
+    // login'e yonlendirilir (can sikici ama guvenli), "oturum var say" ASLA
+    // yapilmaz (guvenlik acigi olurdu).
+    user = null;
+  }
 
   const { pathname } = request.nextUrl;
   const isAuthRoute = pathname.startsWith("/login");

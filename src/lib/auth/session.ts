@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { withTimeout, SessionCheckTimeoutError } from "@/lib/supabase/with-timeout";
 import type { Profile } from "@/lib/types/domain";
 
 /**
@@ -49,7 +50,7 @@ export function isProfileBlocked(profile: ProfileWithCompany): boolean {
 // olarak loglanir (bkz. lib/supabase/server.ts, lib/supabase/fetch-with-timeout.ts) -
 // burada ayrica manuel suresi olcup loglamaya gerek yok (yinelenen/asenkron
 // requestId'siz log gurultusu olurdu).
-export const getCurrentProfile = cache(async (): Promise<ProfileWithCompany | null> => {
+async function getCurrentProfileInner(): Promise<ProfileWithCompany | null> {
   const supabase = await createClient();
 
   const { data: claimsData } = await supabase.auth.getClaims();
@@ -64,6 +65,19 @@ export const getCurrentProfile = cache(async (): Promise<ProfileWithCompany | nu
     .single();
 
   return (profile as unknown as ProfileWithCompany | null) ?? null;
+}
+
+// DUZELTME (canli kanit 2026-09-30, bkz. lib/supabase/with-timeout.ts): tek
+// bir sayfa navigasyonunda ttfb=392sn olculdu - GoTrueClient'in gorunmez ic
+// tekrar mantigi, buradaki getClaims()+profil sorgusunu (TUM korumali
+// sayfalarin gectigi TEK nokta) dakikalarca askida birakabiliyordu. Sert bir
+// UST SINIR ile sarmalaniyor - asilirsa getCurrentProfile REJECT eder
+// (SessionCheckTimeoutError), requireProfile bunu net bir "bağlantı sorunu"
+// sayfasina yonlendirir (asagida) - /auth/inactive'e DEGIL, cunku o rota
+// KENDI ayri getClaims()+profil sorgusunu yapar ve AYNI tikanikliga
+// yakalanabilir.
+export const getCurrentProfile = cache(async (): Promise<ProfileWithCompany | null> => {
+  return withTimeout(getCurrentProfileInner(), "getCurrentProfile");
 });
 
 /**
@@ -71,7 +85,15 @@ export const getCurrentProfile = cache(async (): Promise<ProfileWithCompany | nu
  * (dashboard) layout'u ve korumali sayfalar bunu kullanir.
  */
 export async function requireProfile(): Promise<ProfileWithCompany> {
-  const profile = await getCurrentProfile();
+  let profile: ProfileWithCompany | null;
+  try {
+    profile = await getCurrentProfile();
+  } catch (error) {
+    if (error instanceof SessionCheckTimeoutError) {
+      redirect("/auth/connection-error");
+    }
+    throw error;
+  }
   // Oturum yok, profil yok (yarim kalmis hesap), pasif kullanici ya da askidaki firma:
   // /auth/inactive oturumu (gerekirse) kapatir ve /login'e mesajla yonlendirir.
   // (Dogrudan /login'e gitmek proxy'de "girisli kullanici /login'den atilir"
