@@ -207,22 +207,42 @@ export type DeleteCompanyState = { error: string | null };
  * oluyordu. Cikarilan ders: bu liste `profiles(id)`'e ON DELETE CASCADE/SET
  * NULL OLMADAN referans veren HER tabloyu icermeli - yeni boyle bir tablo
  * eklenirse buraya da eklenmesi gerekiyor.
+ *
+ * DUZELTME 3 (canli-kullanici testi 2026-09-30, gercek firma silme denemesi:
+ * ayni "Database error deleting user" TEKRAR alindi - discovery_visits
+ * listeye eklenmisti ama hata devam etti). Supabase Postgres Logs'taki GERCEK
+ * hata: `activities_created_by_fkey` ihlali. Sebep, yukaridaki DUZELTME 1/2'nin
+ * varsaydigindan FARKLI: liste eksik degildi, asagidaki UPDATE'ler RLS'YE
+ * SAYGILI `supabase` client'iyla calisiyordu ve `activities` ile `ai_reports`
+ * tablolarinin HICBIR update RLS policy'si yok - admin dahil (bkz.
+ * supabase/migrations/0002_rls_policies.sql:249-251 "Aktiviteler append-only
+ * kabul edilir: update/delete politikasi yok"; ai_reports_write_admin de
+ * SADECE insert icin tanimli). Postgres RLS varsayilan-red modelinde policy
+ * yoksa UPDATE .error=null ile SESSIZCE 0 satir etkiler - uygulama basarili
+ * saniyor, satirlar hic temizlenmiyor. Ayni sessiz-RLS-filtreleme hatasi bu
+ * oturumda baska bir ozellikte (firma sahibi ayarlarini kaydedemiyordu) daha
+ * once bulunup duzeltilmisti. Cozum: bu asagidaki ALTI temizleme UPDATE'i
+ * `adminClient` (service_role, RLS'yi bypass eder) ile yapiliyor - zaten bu
+ * fonksiyonun birkac satir altinda auth.admin.deleteUser() icin olusturuluyordu,
+ * sadece yukari tasindi. Bu fonksiyon zaten requireAdmin() ile admin-only
+ * gated oldugu icin RLS bypass'i burada guvenli.
  */
 export async function deleteCompanyAction(companyId: string, prevState: DeleteCompanyState): Promise<DeleteCompanyState> {
   await requireAdmin();
 
   const supabase = await createClient();
+  const adminClient = await createAdminClient();
 
   // Not: eski "offers" tablosu (ozellik kaldirildi, bkz. spec: "teklif
   // ozelligini kaldir") database.types.ts'e hic eklenmemisti - yeni kod hic
   // yazmiyor, sadece cok eski/legacy bir satir varsa (dusuk ihtimal) o TEK
   // durumda silme yine de "hala referans ediliyor" hatasi verebilir.
-  const clearLeads = await supabase.from("leads").update({ created_by: null, updated_by: null }).eq("company_id", companyId);
-  const clearActivities = await supabase.from("activities").update({ created_by: null }).eq("company_id", companyId);
-  const clearFollowups = await supabase.from("followups").update({ created_by: null }).eq("company_id", companyId);
-  const clearSales = await supabase.from("sales").update({ salesperson: null, created_by: null }).eq("company_id", companyId);
-  const clearAiReports = await supabase.from("ai_reports").update({ created_by: null }).eq("company_id", companyId);
-  const clearDiscoveryVisits = await supabase
+  const clearLeads = await adminClient.from("leads").update({ created_by: null, updated_by: null }).eq("company_id", companyId);
+  const clearActivities = await adminClient.from("activities").update({ created_by: null }).eq("company_id", companyId);
+  const clearFollowups = await adminClient.from("followups").update({ created_by: null }).eq("company_id", companyId);
+  const clearSales = await adminClient.from("sales").update({ salesperson: null, created_by: null }).eq("company_id", companyId);
+  const clearAiReports = await adminClient.from("ai_reports").update({ created_by: null }).eq("company_id", companyId);
+  const clearDiscoveryVisits = await adminClient
     .from("discovery_visits")
     .update({ created_by: null })
     .eq("company_id", companyId);
@@ -236,7 +256,6 @@ export async function deleteCompanyAction(companyId: string, prevState: DeleteCo
 
   const { data: profiles } = await supabase.from("profiles").select("id").eq("company_id", companyId);
 
-  const adminClient = await createAdminClient();
   for (const p of profiles ?? []) {
     const { error: delUserError } = await adminClient.auth.admin.deleteUser(p.id);
     if (delUserError) {
