@@ -40,29 +40,41 @@
  * bulunamazsa betik SESSIZCE (build'i KIRMADAN) hicbir sey yapmadan biter.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
-const DOMAIN = "panel.iklimlen.com";
 const RETENTION_DAYS = 14;
+const MAX_WALK_UP = 8;
 
 const projectStaticDir = path.join(process.cwd(), ".next", "static");
-const publicHtmlDir = path.join(os.homedir(), "domains", DOMAIN, "public_html");
-const targetStaticDir = path.join(publicHtmlDir, "_next", "static");
 
 function log(msg) {
   console.log(`[sync-static-assets] ${msg}`);
 }
 
-if (!fs.existsSync(publicHtmlDir)) {
-  log(`"${publicHtmlDir}" bulunamadi - Hostinger disinda calisiliyor olmali, atlaniyor.`);
-  process.exit(0);
+/** src/instrumentation.ts'teki ayni fonksiyonla aynı gerekce/mantik. */
+function findPublicHtmlDir(startDir) {
+  let dir = startDir;
+  for (let i = 0; i < MAX_WALK_UP; i++) {
+    const candidate = path.join(dir, "public_html");
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
 }
 
 if (!fs.existsSync(projectStaticDir)) {
   log(`"${projectStaticDir}" yok - once "next build" calismali, atlaniyor.`);
   process.exit(0);
 }
+
+const publicHtmlDir = findPublicHtmlDir(process.cwd());
+if (!publicHtmlDir) {
+  log(`process.cwd()="${process.cwd()}" yukarisinda "public_html" bulunamadi - atlaniyor.`);
+  process.exit(0);
+}
+const targetStaticDir = path.join(publicHtmlDir, "_next", "static");
 
 function pruneOldFiles(dir, cutoffMs) {
   let pruned = 0;

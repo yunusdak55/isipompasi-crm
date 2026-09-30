@@ -16,14 +16,37 @@
  * olarak KALDI - asil garanti burada.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
-const DOMAIN = "panel.iklimlen.com";
 const RETENTION_DAYS = 14;
+const MAX_WALK_UP = 8;
 
 function log(msg: string) {
   console.log(`[instrumentation:sync-static-assets] ${msg}`);
+}
+
+/**
+ * DUZELTME (canli dogrulama, 2026-09-30): ilk versiyon `os.homedir()` +
+ * bilinen mutlak yol (`/home/<kullanici>/domains/<domain>/public_html`)
+ * varsayiyordu - ama Passenger'in calistirdigi GERCEK surecte bu hicbir zaman
+ * eslesmedi (runtime loglarinda "atlaniyor" gorundu, `os.homedir()` bu surecte
+ * beklenen degeri vermiyor olmali). Bunun yerine `process.cwd()`'den YUKARI
+ * DOGRU yuruyup `public_html` adinda bir KARDES klasor arar - bu, tam mutlak
+ * yolun HOME/kullanici adina veya sembolik link derinligine (hbuilds/current
+ * vs hbuilds/versions/<uuid>) baglı olmadan calisir; tek varsayim: bir yerde
+ * yukarida `public_html` adinda bir klasorun VAR OLMASI (cPanel/Hostinger'in
+ * standart dizin adlandirmasi).
+ */
+function findPublicHtmlDir(startDir: string): string | null {
+  let dir = startDir;
+  for (let i = 0; i < MAX_WALK_UP; i++) {
+    const candidate = path.join(dir, "public_html");
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
 }
 
 function pruneOldFiles(dir: string, cutoffMs: number): number {
@@ -59,13 +82,17 @@ function copyNewFiles(srcDir: string, destDir: string): number {
 
 function syncStaticAssets() {
   const projectStaticDir = path.join(process.cwd(), ".next", "static");
-  const publicHtmlDir = path.join(os.homedir(), "domains", DOMAIN, "public_html");
-  const targetStaticDir = path.join(publicHtmlDir, "_next", "static");
-
-  if (!fs.existsSync(publicHtmlDir) || !fs.existsSync(projectStaticDir)) {
-    log("Hostinger disinda calisiliyor olmali (public_html veya .next/static yok) - atlaniyor.");
+  if (!fs.existsSync(projectStaticDir)) {
+    log(`"${projectStaticDir}" yok - atlaniyor.`);
     return;
   }
+
+  const publicHtmlDir = findPublicHtmlDir(process.cwd());
+  if (!publicHtmlDir) {
+    log(`process.cwd()="${process.cwd()}" yukarisinda "public_html" bulunamadi (Hostinger disinda calisiliyor olmali) - atlaniyor.`);
+    return;
+  }
+  const targetStaticDir = path.join(publicHtmlDir, "_next", "static");
 
   if (fs.existsSync(targetStaticDir)) {
     const cutoffMs = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
