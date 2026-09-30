@@ -51,12 +51,18 @@ function log(msg) {
   console.log(`[sync-static-assets] ${msg}`);
 }
 
-/** src/instrumentation.ts'teki ayni fonksiyonla aynı gerekce/mantik. */
+/** src/instrumentation.ts'teki ayni fonksiyonla aynı gerekce/mantik (bkz. oradaki "decoy" notu). */
 function findPublicHtmlDir(startDir) {
   let dir = startDir;
   for (let i = 0; i < MAX_WALK_UP; i++) {
-    const candidate = path.join(dir, "public_html");
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
+    if (path.basename(dir) === "hbuilds") {
+      const candidate = path.join(path.dirname(dir), "public_html");
+      const htaccessPath = path.join(candidate, ".htaccess");
+      if (fs.existsSync(candidate) && fs.existsSync(htaccessPath) && fs.readFileSync(htaccessPath, "utf8").includes("PassengerAppRoot")) {
+        return candidate;
+      }
+      return null;
+    }
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;

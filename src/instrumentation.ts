@@ -26,22 +26,33 @@ function log(msg: string) {
 }
 
 /**
- * DUZELTME (canli dogrulama, 2026-09-30): ilk versiyon `os.homedir()` +
- * bilinen mutlak yol (`/home/<kullanici>/domains/<domain>/public_html`)
- * varsayiyordu - ama Passenger'in calistirdigi GERCEK surecte bu hicbir zaman
- * eslesmedi (runtime loglarinda "atlaniyor" gorundu, `os.homedir()` bu surecte
- * beklenen degeri vermiyor olmali). Bunun yerine `process.cwd()`'den YUKARI
- * DOGRU yuruyup `public_html` adinda bir KARDES klasor arar - bu, tam mutlak
- * yolun HOME/kullanici adina veya sembolik link derinligine (hbuilds/current
- * vs hbuilds/versions/<uuid>) baglı olmadan calisir; tek varsayim: bir yerde
- * yukarida `public_html` adinda bir klasorun VAR OLMASI (cPanel/Hostinger'in
- * standart dizin adlandirmasi).
+ * DUZELTME 2 (canli dogrulama, 2026-09-30): "process.cwd()'den yukari yuru,
+ * ilk public_html'i kullan" yaklasimi YANLIS bir klasoru buldu - Hostinger,
+ * HER `hbuilds/versions/<uuid>/` icine de (muhtemelen kendi ic
+ * kullanimi/staging amacli) `nodejs/` ile AYNI SEVIYEDE bir `public_html/`
+ * (Passenger'in GERCEK docroot'uyla AYNI boyutta bir .htaccess dahil) koyuyor -
+ * bu bir "decoy" (yaniltici ikiz): isim ayni ama versiyon klasorunun icinde
+ * oldugu icin bir sonraki deploy'da o da silinir, tam onlemeye calistigimiz
+ * sorunu tekrar üretir.
+ *
+ * GERCEK public_html ise `hbuilds/`nin KARDESI (bir üst seviyede, domain
+ * kokunde) - bu yuzden rastgele "ilk eslesen"i degil, ozellikle `hbuilds`
+ * dizin adini isaret olarak arayip onun kardesindeki public_html'i hedefleriz.
+ * Ek dogrulama: bulunan klasorde gercekten Passenger'in okudugu bir
+ * .htaccess var mi (icinde "PassengerAppRoot" geciyor mu) kontrol edilir -
+ * yoksa (beklenmedik bir yapi degisikligi varsa) sessizce atlanir.
  */
 function findPublicHtmlDir(startDir: string): string | null {
   let dir = startDir;
   for (let i = 0; i < MAX_WALK_UP; i++) {
-    const candidate = path.join(dir, "public_html");
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) return candidate;
+    if (path.basename(dir) === "hbuilds") {
+      const candidate = path.join(path.dirname(dir), "public_html");
+      const htaccessPath = path.join(candidate, ".htaccess");
+      if (fs.existsSync(candidate) && fs.existsSync(htaccessPath) && fs.readFileSync(htaccessPath, "utf8").includes("PassengerAppRoot")) {
+        return candidate;
+      }
+      return null;
+    }
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
