@@ -13,10 +13,24 @@
  * sunumunda 404/timeout olur) - onceki gozlemlenebilirlik turunda sunucu
  * loglarinin neden hep temiz cikitigini de aciklar.
  *
- * COZUM: tespit edilince tam sayfa yenileme (GUNCEL build'i indirir).
+ * KOK SEBEP 2 (2026-09-30, canli - kullanicinin kendi giris denemesinde
+ * yakalandi): "UnrecognizedActionError: Server Action was not found on the
+ * server." Server Action'lar (login formu dahil) build'e ozgu sifreli bir ID
+ * ile cagrilir. Eski bir sekme hala acikken (JS/chunk'lar erisilebilir olsa
+ * bile) yeni bir deploy olursa, o ID artik GUNCEL sunucuda taninmaz - form
+ * gonderilince bu hata firlar. Static asset onlemi bunu COZMEZ (dosya degil,
+ * sunucunun action-ID haritasi degisti). Tek guvenli cozum: reload (form
+ * ZATEN basarisiz oldu - hicbir mutation olmadi, tekrar deneme guvenli).
+ *
+ * COZUM (her ikisi icin de): tespit edilince tam sayfa yenileme (GUNCEL
+ * build'i indirir, GUNCEL action-ID haritasiyla).
  */
 export function isChunkLoadError(error: Error): boolean {
-  return error.name === "ChunkLoadError" || /Loading chunk [\w.-]+ failed|Failed to fetch dynamically imported module/i.test(error.message);
+  return (
+    error.name === "ChunkLoadError" ||
+    error.name === "UnrecognizedActionError" ||
+    /Loading chunk [\w.-]+ failed|Failed to fetch dynamically imported module|was not found on the server/i.test(error.message)
+  );
 }
 
 const RELOAD_GUARD_KEY = "chunk-load-reload-attempted";
