@@ -21,7 +21,7 @@
  * bu sureden fazla beklemez. "Oturum dogrulanamadi" = guvenli taraf
  * (login'e yonlendirme) - "oturum var say" DEGIL.
  */
-export const SESSION_CHECK_TIMEOUT_MS = 12_000;
+export const SESSION_CHECK_TIMEOUT_MS = 6_000;
 
 export class SessionCheckTimeoutError extends Error {
   constructor(label: string) {

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
 import type { Database } from "@/lib/types/database.types";
@@ -10,8 +11,23 @@ import { buildInstrumentedFetch } from "@/lib/supabase/fetch-with-timeout";
  * NOT: Bu client de anon/publishable anahtari kullanir; yani RLS aktiftir.
  * Secret key (service role) burada KULLANILMAZ - o sadece admin islemleri
  * icin ayri, acikca isaretlenmis sunucu kodunda kullanilmalidir.
+ *
+ * DUZELTME (kok neden, canli kanit 2026-09-30, bkz. lib/supabase/with-timeout.ts):
+ * 392sn'lik donmanin ASIL nedeni sadece "ag bazen yavas" degildi - her
+ * createClient() cagrisi YENI bir GoTrueClient ORNEGI yaratiyordu (aynı sayfa
+ * yuklemesinde middleware + profil + firma verisi + sayfa sorgulari, 5-8 ayrı
+ * ornek). Supabase SDK'sinin kendi kaynagi: getSession()/getClaims() token
+ * suresi dolmaya <90sn kaldiysa (EXPIRY_MARGIN_MS) OTOMATIK yenileme dener
+ * (autoRefreshToken ayarindan BAGIMSIZ - bkz. GoTrueClient.js __loadSession).
+ * SDK'nin kendi "tek-ucus" (single-flight) korumasi VAR ama sadece AYNI
+ * istemci orneginde calisir (bkz. GoTrueClient.js: "refresh single-flight").
+ * Farkli ornekler bunu PAYLASMAZ - ag gecici tikandiginda HER biri KENDI
+ * ~30sn'lik yeniden deneme dongüsunu bagimsiz baslatip ust uste biniyordu.
+ * React'in cache()'i ile bu fonksiyon istek basina TEK ORNEGE indirgenir -
+ * SDK'nin zaten var olan tek-ucus korumasi artik TUM istek boyunca gecerli
+ * olur, N bagimsiz deneme yerine sadece 1 tane olusur.
  */
-export async function createClient() {
+export const createClient = cache(async () => {
   const cookieStore = await cookies();
   const requestHeaders = await headers();
   const isHttps = requestHeaders.get("x-forwarded-proto") === "https";
@@ -48,4 +64,4 @@ export async function createClient() {
       },
     }
   );
-}
+});
