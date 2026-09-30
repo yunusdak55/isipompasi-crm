@@ -19,9 +19,18 @@
  * Bu betik HER `npm run build`'den SONRA (package.json: "postbuild") otomatik
  * calisir: o build'in ürettigi .next/static/* dosyalarini public_html/_next/static/
  * altina KOPYALAR (VAR OLANI ASLA SILMEZ/UZERINE YAZMAZ - dosya adlari icerik-hash'li
- * oldugu icin ayni ad = ayni icerik, cakisma yok). Sonuc: N. deploy'un
- * dosyalari (N-1). deploy'dan SONRA bile hala erisilebilir kaliyor - eski
- * sekme SESSIZCE calismaya devam ediyor, ChunkLoadError hic olusmuyor.
+ * oldugu icin ayni ad = ayni icerik, cakisma yok).
+ *
+ * ONEMLI (canli dogrulama, 2026-09-30): bu betik BUILD SIRASINDA (Hostinger'in
+ * "postbuild" adiminda) calisiyor - build log'u basari raporluyor AMA canli
+ * dosya sisteminde (hPanel Dosya Yoneticisi ile dogrulandi) SONUC GORULMEDI.
+ * Hostinger'in build ortami (sandbox) ile gercek trafik sunulan Passenger
+ * sureci FARKLI dosya sistemleri kullaniyor gibi. Bu yuzden ASIL GARANTILI
+ * mekanizma src/instrumentation.ts (Next.js'in `register()` kancasi - GERCEK
+ * sunucu surecinde, ilk istek gelmeden once bir kere calisir). Bu betik zararsiz
+ * bir "en iyi ihtimalle" ek katman olarak birakildi - build ortami bir gun
+ * kalici depoyu paylasirsa (veya farkli bir platformda) ekstra fayda saglar,
+ * paylasmiyorsa (mevcut durum) sessizce hicbir sey yapmamis gibi kalir.
  *
  * Disk sismesin diye RETENTION_DAYS'ten eski dosyalar her calistiginda budanir
  * (bu kadar uzun sure acik kalmis BIR sekme icin reload-fallback zaten var,
