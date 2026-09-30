@@ -31,6 +31,7 @@ type Pending = {
   rscRequestStart?: number;
   rscTtfb?: number;
   rscDownloadEnd?: number;
+  wasHidden: boolean;
 };
 
 export function NavigationTiming() {
@@ -38,6 +39,19 @@ export function NavigationTiming() {
   const pending = useRef<Pending | null>(null);
   const longTaskMs = useRef(0);
   const longTaskCount = useRef(0);
+
+  // GUVENLIK (olcum bütünlügü): sekme gorunmezken (ör. baska bir sekmeye
+  // gecildiginde) tarayici requestAnimationFrame'i ERTELER/durdurur - bu,
+  // "paint_settle" faziyla GERCEK bir yavaslik degil, olcum artefaktidir.
+  // Boyle bir durumda payload'a wasHidden:true isaretlenir, o olcum
+  // GUVENILMEZ sayilmalidir.
+  useEffect(() => {
+    function onVisibility() {
+      if (document.hidden && pending.current) pending.current.wasHidden = true;
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   // Ic navigasyon linklerine tiklamayi yakala - T0 (his edilen gecikmenin
   // baslangici tam olarak burasi).
@@ -53,7 +67,7 @@ export function NavigationTiming() {
         return;
       }
       if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return;
-      pending.current = { path: url.pathname, clickAt: performance.now() };
+      pending.current = { path: url.pathname, clickAt: performance.now(), wasHidden: false };
       longTaskMs.current = 0;
       longTaskCount.current = 0;
     }
@@ -126,6 +140,7 @@ export function NavigationTiming() {
           totalMs: Math.round(interactiveAt - p.clickAt),
           longTaskCount: longTaskCount.current,
           longTaskMs: Math.round(longTaskMs.current),
+          wasHidden: p.wasHidden || document.hidden,
         };
         pending.current = null;
         const body = JSON.stringify(payload);

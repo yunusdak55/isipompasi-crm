@@ -24,6 +24,7 @@ export async function POST(request: Request) {
       totalMs?: number | null;
       longTaskCount?: number;
       longTaskMs?: number;
+      wasHidden?: boolean;
     };
 
     const parts = [
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       `paint_settle=${body.paintSettleMs ?? "?"}ms`,
       `total=${body.totalMs ?? "?"}ms`,
       `longtasks=${body.longTaskCount ?? 0}(${body.longTaskMs ?? 0}ms)`,
+      `was_hidden=${body.wasHidden ? "true(OLCUM_GUVENILMEZ)" : "false"}`,
     ];
     const line = parts.join(" ");
     if ((body.totalMs ?? 0) >= 1000) {
