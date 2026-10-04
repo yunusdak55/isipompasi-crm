@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { getDiscoveryVisitsForMonth } from "@/lib/data/discovery-visits";
-import { getOpenLeadsForSelect } from "@/lib/data/leads";
 import { DiscoveryVisitForm } from "@/components/leads/discovery-visit-form";
 import { DiscoveryVisitTable } from "@/components/leads/discovery-visit-table";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
@@ -38,10 +37,7 @@ export default async function DiscoveriesPage({
   const today = partsTR(new Date());
   const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
-  const [visits, selectableLeads] = await Promise.all([
-    getDiscoveryVisitsForMonth(year, month),
-    getOpenLeadsForSelect(),
-  ]);
+  const visits = await getDiscoveryVisitsForMonth(year, month);
 
   const prevMonth = month === 0 ? { y: year - 1, m: 11 } : { y: year, m: month - 1 };
   const nextMonth = month === 11 ? { y: year + 1, m: 0 } : { y: year, m: month + 1 };
@@ -76,7 +72,7 @@ export default async function DiscoveriesPage({
           </div>
         </div>
 
-        <DiscoveryVisitForm leads={selectableLeads} />
+        <DiscoveryVisitForm />
 
         <DiscoveryVisitTable visits={visits} />
       </div>

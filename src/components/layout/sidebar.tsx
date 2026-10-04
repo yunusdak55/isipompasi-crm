@@ -97,7 +97,7 @@ function isActiveHref(pathname: string, href: string) {
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-1 mt-5 px-3 text-[11px] font-semibold uppercase tracking-wide text-white/35 first:mt-0">
+    <p className="mb-1.5 mt-6 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/30 first:mt-0">
       {children}
     </p>
   );
@@ -131,14 +131,14 @@ function NavLink({ item, active, nested = false }: { item: NavItem; active: bool
       // staleTimes.dynamic = 0 sayesinde SADECE iskelet onbelleklenir, gercek
       // veri her tiklamada sunucudan taze gelir.
       className={cn(
-        // Aktif gostergesi sadece bg degil - sol kenarda hep-var-olan (2px,
-        // rezerve edilmis) turuncu bir seritle + cok kontrollu bir glow: koyu
-        // lacivert zeminde "marka vurgusu" turuncu burada tasiyici rol oynuyor.
-        "flex items-center gap-2.5 rounded-lg border-l-2 py-2 pl-[10px] pr-3 font-medium transition-all duration-150 ease-premium",
+        // Aktif gostergesi (tasarim yukseltmesi): sol kenarda parlayan gradyanli "hap"
+        // (pseudo-element) + soldan saga solan turuncu zemin. Border degil, gercek bir
+        // isaret - hover'da gecis sadece renk/opaklik (boyama hafif).
+        "relative flex items-center gap-2.5 rounded-lg py-2 pl-3 pr-3 font-medium transition-colors duration-150 ease-premium",
         nested ? "text-[13px]" : "text-sm",
         active
-          ? "border-accent-500 bg-accent-500/[0.12] text-white shadow-[inset_0_0_0_1px_rgba(244,124,32,0.15)]"
-          : "border-transparent text-white/65 hover:border-white/15 hover:bg-white/[0.06] hover:text-white"
+          ? "bg-gradient-to-r from-accent-500/[0.20] via-accent-500/[0.07] to-transparent text-white before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-flame-hot before:to-accent-600 before:shadow-[0_0_12px_rgba(244,124,32,0.75)] before:content-['']"
+          : "text-white/65 hover:bg-white/[0.06] hover:text-white"
       )}
     >
       <Icon className={cn(nested ? "h-3.5 w-3.5" : "h-4 w-4", active && "text-accent-400")} />
@@ -151,13 +151,19 @@ export function Sidebar({ role }: { role: UserRole }) {
   const pathname = usePathname();
 
   return (
-    <aside className="relative flex h-screen w-64 shrink-0 flex-col overflow-hidden bg-brand-900">
+    <aside className="relative flex h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-white/[0.06] bg-brand-900">
       {/* Cok dusuk kontrastli teknik atmosfer - sidebar'in tamamini degil,
           sadece zemini hafifce "canlandirir". */}
-      <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden>
-        <div className="absolute -left-20 top-0 h-64 w-64 rounded-full bg-brand-500/25 blur-[90px]" />
-        <div className="absolute -right-16 bottom-24 h-56 w-56 rounded-full bg-accent-500/[0.08] blur-[100px]" />
-      </div>
+      {/* Zemin atmosferi: ESKISINDE iki buyuk katman blur-[90px]/[100px] filtreliydi; ayni
+          gorunum filtresiz radyal gradyanla uretiliyor (GPU maliyeti dusuk). */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden
+        style={{
+          background:
+            "radial-gradient(420px 380px at -12% -4%, rgba(44,74,117,0.42), transparent 70%), radial-gradient(380px 340px at 112% 84%, rgba(244,124,32,0.08), transparent 70%)",
+        }}
+      />
 
       <div className="relative flex h-16 shrink-0 items-center border-b border-white/10 px-5">
         <Logo className="h-6" />

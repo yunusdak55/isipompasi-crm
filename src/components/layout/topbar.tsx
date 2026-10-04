@@ -20,7 +20,7 @@ export function Topbar({
   const displayName = profile.full_name ?? profile.email ?? "Kullanıcı";
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-brand-950/40 bg-brand-900 px-4 sm:px-6">
+    <header className="relative flex h-16 shrink-0 items-center justify-between border-b border-white/[0.07] bg-brand-900 px-4 sm:px-6">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -43,7 +43,7 @@ export function Topbar({
           <p className="text-xs leading-tight text-white/50">{USER_ROLE_LABELS[profile.role]}</p>
         </div>
 
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-500/15 text-sm font-semibold text-accent-300 ring-1 ring-inset ring-accent-500/25 transition-transform duration-150 ease-snappy hover:scale-105">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-accent-500/30 to-accent-500/10 text-sm font-semibold text-accent-200 ring-1 ring-inset ring-accent-500/30 shadow-[0_0_18px_-4px_rgba(244,124,32,0.5)] transition-transform duration-150 ease-snappy hover:scale-105">
           {getInitials(displayName)}
         </div>
 

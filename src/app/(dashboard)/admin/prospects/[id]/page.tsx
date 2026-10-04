@@ -1,14 +1,22 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Phone, Building2, CalendarClock } from "lucide-react";
+import { ArrowLeft, Phone, Building2 } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { getProspectById, getProspectActivities } from "@/lib/data/prospects";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { ProspectStatusBadge } from "@/components/ui/badge";
-import { ProspectOutcomeForm } from "@/components/admin/prospect-outcome-form";
+import { OutcomeForm } from "@/components/shared/outcome-form";
+import { FollowupStatusCard } from "@/components/shared/followup-status-card";
+import { ActivityTimeline } from "@/components/ui/activity-timeline";
+import {
+  clearProspectFollowupAction,
+  logProspectOutcomeAction,
+  snoozeProspectFollowupAction,
+} from "@/app/(dashboard)/admin/prospects/actions";
+import { describeFollowup } from "@/lib/followup";
 import { EditProspectForm } from "@/components/admin/edit-prospect-form";
-import { OverdueBadge, TodayCallBadge } from "@/components/leads/lead-indicators";
-import { formatDateTime, formatRelativeDays, isProspectOverdue } from "@/lib/utils";
+import { OverdueBadge } from "@/components/leads/lead-indicators";
+import { isProspectOverdue } from "@/lib/utils";
 
 /**
  * Musteri adayi profili - liste sayfasindaki hizli satir yerine, tek bir
@@ -43,6 +51,8 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
     createdAt: prospect.created_at,
     nextFollowupAt: prospect.next_followup_at,
   });
+
+  const followupSummary = describeFollowup(prospect.next_followup_at, overdue);
 
   return (
     <div className="flex flex-col gap-5">
@@ -79,29 +89,11 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
           ) : null}
         </div>
 
-        {/* DUZELTME (spec: "durum kısmı da... takipte satış veya kayıp
-            olarak beklesin", "bir yerden belirlerim") - durum ve sonraki
-            takip artik burada SADECE okunabilir ozet, degistirme TEK
-            yerden (asagidaki "Görüşme Sonucu" formu). */}
+        {/* Durum burada SADECE okunabilir ozet; degistirmenin TEK yolu asagidaki
+            "Görüşme Sonucu" formu. Sonraki takip ozeti de ayni kartta (tekrar yok). */}
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3.5">
           <span className="text-xs font-medium text-ink-500">Durum</span>
           <ProspectStatusBadge status={prospect.status} />
-          {prospect.next_followup_at ? (
-            <>
-              <span className="text-ink-300">·</span>
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-700">
-                <CalendarClock className="h-3.5 w-3.5 text-ink-400" />
-                {formatRelativeDays(prospect.next_followup_at) === "Bugün" ? (
-                  <TodayCallBadge />
-                ) : (
-                  <span className={overdue ? "text-danger-600" : ""}>
-                    Sonraki takip: {formatRelativeDays(prospect.next_followup_at)}
-                  </span>
-                )}
-                {prospect.next_followup_note ? <span className="text-ink-500">— {prospect.next_followup_note}</span> : null}
-              </span>
-            </>
-          ) : null}
         </div>
       </div>
 
@@ -111,8 +103,13 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
             <CardHeader>
               <CardTitle>Görüşme Sonucu</CardTitle>
             </CardHeader>
-            <CardBody>
-              <ProspectOutcomeForm prospectId={prospect.id} />
+            <CardBody className="flex flex-col gap-4">
+              <FollowupStatusCard
+                summary={followupSummary}
+                snoozeAction={snoozeProspectFollowupAction.bind(null, prospect.id)}
+                clearAction={clearProspectFollowupAction.bind(null, prospect.id)}
+              />
+              <OutcomeForm action={logProspectOutcomeAction.bind(null, prospect.id)} />
             </CardBody>
           </Card>
 
@@ -120,34 +117,11 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
             <CardHeader>
               <CardTitle>Zaman Çizelgesi</CardTitle>
             </CardHeader>
-            <CardBody className="flex flex-col gap-5">
-              <div>
-                {activities.length === 0 ? (
-                  <p className="text-sm text-ink-600">Henüz kayıt yok. Görüşme sonucunu yukarıdan ekleyebilirsin.</p>
-                ) : (
-                  <ol className="flex flex-col gap-4">
-                    {activities.map((activity, index) => (
-                      <li
-                        key={activity.id}
-                        className="animate-slide-up flex gap-3 text-sm"
-                        style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
-                      >
-                        <span
-                          className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${activity.type === "note" ? "bg-accent-500" : "bg-ink-400"}`}
-                        />
-                        <div>
-                          <p
-                            className={`whitespace-pre-wrap ${activity.type === "note" ? "text-ink-900" : "text-xs text-ink-600"}`}
-                          >
-                            {activity.description}
-                          </p>
-                          <p className="text-xs text-ink-600">{formatDateTime(activity.created_at)}</p>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
+            <CardBody>
+              <ActivityTimeline
+                items={activities}
+                emptyText="Henüz kayıt yok. Görüşme sonucunu yukarıdan ekleyebilirsin."
+              />
             </CardBody>
           </Card>
         </div>

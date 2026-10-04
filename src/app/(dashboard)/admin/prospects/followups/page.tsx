@@ -19,7 +19,7 @@ export default async function ProspectsFollowupsPage() {
         <div>
           <h1 className="text-xl font-semibold text-white">Takipte</h1>
           <p className="text-sm text-white/55">
-            Takip tarihi verdiğiniz {prospects.length} aday, en yakın tarihten başlayarak sıralı.
+            Takip tarihi verdiğiniz {prospects.length} aday — önce bugün aranacaklar, sonra gecikenler (en az geciken önce), sonra gelecek takipler.
           </p>
         </div>
 

@@ -7,7 +7,7 @@ import { CompanyRowActions } from "@/components/admin/company-row-actions";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { CreateCompanyForm } from "@/components/admin/create-company-form";
 import { EditCompanyNameForm } from "@/components/admin/edit-company-name-form";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatRate } from "@/lib/utils";
 
 /**
  * Ajans admin paneli: hizmet verilen tum firmalarin lead/pipeline/satis
@@ -94,7 +94,7 @@ export default async function AdminCompaniesPage() {
                       <td className="px-5 py-3.5 tabular-nums text-ink-900">{c.leadCount}</td>
                       <td className="px-5 py-3.5 tabular-nums text-ink-900">{formatCurrency(c.pipelineValue)}</td>
                       <td className="px-5 py-3.5 tabular-nums text-ink-900">{formatCurrency(c.totalSales)}</td>
-                      <td className="px-5 py-3.5 tabular-nums text-ink-900">%{c.conversionRate.toFixed(1)}</td>
+                      <td className="px-5 py-3.5 tabular-nums text-ink-900">{formatRate(c.conversionRate)}</td>
                       <td className="px-5 py-3.5">
                         <CompanyRowActions companyId={c.id} name={c.name} isActive={c.isActive} />
                       </td>

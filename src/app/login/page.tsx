@@ -74,7 +74,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-brand-900 to-brand-950 px-4">
-      <HvacBackdrop intensity="hero" interactive />
+      <HvacBackdrop intensity="hero" interactive animated />
 
       <div className="relative w-full max-w-sm">
         <div className="animate-slide-up mb-8 flex flex-col items-center gap-3 text-center">

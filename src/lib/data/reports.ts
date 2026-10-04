@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { LEAD_STATUS_ORDER, LEAD_STATUS_LABELS, PROPERTY_TYPE_LABELS } from "@/lib/constants/lead";
 import { fetchAllRows } from "@/lib/data/paginate";
-import { monthStartTR, partsTR, shiftMonth, startOfDayTR } from "@/lib/time";
+import { getOverdueLeadCount } from "@/lib/data/dashboard";
+import { monthStartTR, partsTR, shiftMonth } from "@/lib/time";
+import { FOLLOWUP_OVERDUE_HOURS } from "@/lib/utils";
 import type { LeadStatus, PropertyType } from "@/lib/types/domain";
 
 /**
@@ -89,6 +91,7 @@ export type RawLeadRow = {
 };
 export type RawSaleRow = {
   id: string;
+  lead_id: string;
   sale_amount: number;
   sale_date: string;
   salesperson_profile: { full_name: string | null } | null;
@@ -99,6 +102,11 @@ export type ReportsRawData = {
   allLeads: RawLeadRow[] | null;
   allSales: RawSaleRow[];
   allFollowups: RawFollowupRow[];
+  /**
+   * Su an GECIKMIS lead sayisi - Dashboard/Gecikenler ile AYNI tek kaynak
+   * (getOverdueLeadCount). null = okunamadi; o zaman eski `followups` tablosundan hesaplanir.
+   */
+  overdueLeadCount: number | null;
 };
 
 /**
@@ -118,7 +126,7 @@ export type ReportsRawData = {
 export async function fetchReportsRawData(): Promise<ReportsRawData> {
   const supabase = await createClient();
 
-  const [leadsRes, salesRes, followupsRes] = await Promise.all([
+  const [leadsRes, salesRes, followupsRes, overdueLeadCount] = await Promise.all([
     fetchAllRows((from, to) =>
       supabase
         .from("leads")
@@ -131,13 +139,14 @@ export async function fetchReportsRawData(): Promise<ReportsRawData> {
     fetchAllRows((from, to) =>
       supabase
         .from("sales")
-        .select("id, sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
+        .select("id, lead_id, sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
         .order("id")
         .range(from, to)
     ),
     fetchAllRows((from, to) =>
       supabase.from("followups").select("id, is_completed, followup_date, completed_at").order("id").range(from, to)
     ),
+    getOverdueLeadCount(),
   ]);
 
   if (leadsRes.error) console.error("fetchReportsRawData leads error:", leadsRes.error.message);
@@ -148,6 +157,7 @@ export async function fetchReportsRawData(): Promise<ReportsRawData> {
     allLeads: (leadsRes.data as unknown as RawLeadRow[] | null) ?? (leadsRes.error ? null : []),
     allSales: (salesRes.data as unknown as RawSaleRow[] | null) ?? [],
     allFollowups: (followupsRes.data as unknown as RawFollowupRow[] | null) ?? [],
+    overdueLeadCount,
   };
 }
 
@@ -190,6 +200,21 @@ export type MonthlyFunnelPoint = {
   lostCount: number;
 };
 
+/**
+ * Dagilim listesi: en kalabalik `limit` kayit + kalanlarin toplami "Diger (N sehir)"
+ * olarak SONDA - boylece gorunen satirlarin toplami her zaman toplam lead'e esittir
+ * (eskiden ilk 8 sehir gosterilip kalan kayitlar sessizce kayboluyordu: 3.387 / 5.000).
+ */
+function topWithOther(counts: Map<string, number>, limit: number, noun: string): { city: string; count: number }[] {
+  const sorted = [...counts.entries()].map(([city, count]) => ({ city, count })).sort((a, b) => b.count - a.count);
+  const top = sorted.slice(0, limit);
+  const rest = sorted.slice(limit);
+  if (rest.length > 0) {
+    top.push({ city: `Diğer (${rest.length} ${noun})`, count: rest.reduce((sum, r) => sum + r.count, 0) });
+  }
+  return top;
+}
+
 export async function getReportsData(period: string = "all", raw?: ReportsRawData): Promise<ReportsData> {
   const range = periodToRange(period);
   const periodLabel = getReportPeriodOptions().find((o) => o.value === period)?.label ?? "Tüm Zamanlar";
@@ -215,7 +240,7 @@ export async function getReportsData(period: string = "all", raw?: ReportsRawDat
   // tek bir ayin gorunumu ayni ham kumeden turer, JS tarafinda filtrelenir.
   // `raw` verilmisse (bkz. agent-digest.ts) hic sorgu atilmaz, cagiranin
   // zaten cektigi veri kullanilir.
-  const { allLeads, allSales, allFollowups } = raw ?? (await fetchReportsRawData());
+  const { allLeads, allSales, allFollowups, overdueLeadCount } = raw ?? (await fetchReportsRawData());
 
   if (!allLeads) {
     return emptyResult;
@@ -237,7 +262,7 @@ export async function getReportsData(period: string = "all", raw?: ReportsRawDat
   const conversionRate = leads.length > 0 ? (sales.length / leads.length) * 100 : 0;
 
   // Takip performansi.
-  const todayStart = startOfDayTR();
+  const overdueCutoff = Date.now() - FOLLOWUP_OVERDUE_HOURS * 60 * 60 * 1000;
   let completed = 0;
   let pending = 0;
   let overdue = 0;
@@ -247,7 +272,7 @@ export async function getReportsData(period: string = "all", raw?: ReportsRawDat
       // (completed_at) - takip Haziran'da planlanip Temmuz'da yapilmis
       // olabilir, performans olarak Temmuz'a yazilmasi dogru olan budur.
       if (inRange(f.completed_at ?? f.followup_date, range)) completed += 1;
-    } else if (new Date(f.followup_date) < todayStart) {
+    } else if (new Date(f.followup_date).getTime() < overdueCutoff) {
       // GECIKEN: kullanici karari geregi donemden BAGIMSIZ, HER ZAMAN
       // su anki gercek gecikme durumunu yansitir (bkz. dosya basi aciklama).
       overdue += 1;
@@ -256,16 +281,18 @@ export async function getReportsData(period: string = "all", raw?: ReportsRawDat
     }
   }
 
+  // GECIKEN: Dashboard ve Gecikenler ile AYNI sayi (leadlerin takip tarihi + 24 saat kurali + aktivite
+  // istisnasi, tek kaynak). Eskiden eski `followups` tablosundan sayiliyordu ve ekranlar birbirini
+  // tutmuyordu (ör. Raporlar 248, Gecikenler 217). Okunamazsa eski hesaba dusulur.
+  const overdueFinal = overdueLeadCount ?? overdue;
+
   // Sehir dagilimi (en fazla 8).
   const cityCounts = new Map<string, number>();
   for (const lead of leads) {
     const city = lead.city?.trim() || "Belirtilmemiş";
     cityCounts.set(city, (cityCounts.get(city) ?? 0) + 1);
   }
-  const cityDistribution = [...cityCounts.entries()]
-    .map(([city, count]) => ({ city, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+  const cityDistribution = topWithOther(cityCounts, 8, "şehir");
 
   // Ilce dagilimi (spec: "hangi şehirler hangi ilçelerden... talep olmuş").
   const districtCounts = new Map<string, number>();
@@ -273,10 +300,7 @@ export async function getReportsData(period: string = "all", raw?: ReportsRawDat
     const district = lead.district?.trim() || "Belirtilmemiş";
     districtCounts.set(district, (districtCounts.get(district) ?? 0) + 1);
   }
-  const districtDistribution = [...districtCounts.entries()]
-    .map(([city, count]) => ({ city, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+  const districtDistribution = topWithOther(districtCounts, 8, "ilçe");
 
   // Konut tipi dagilimi.
   const propertyCounts = new Map<string, number>();
@@ -330,7 +354,7 @@ export async function getReportsData(period: string = "all", raw?: ReportsRawDat
     totalLeads: leads.length,
     funnel,
     conversionRate,
-    followupStats: { total: completed + pending + overdue, completed, pending, overdue },
+    followupStats: { total: completed + pending + overdueFinal, completed, pending, overdue: overdueFinal },
     cityDistribution,
     districtDistribution,
     propertyTypeDistribution,

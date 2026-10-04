@@ -6,7 +6,6 @@ import { createAppointmentAction, type FollowupActionState } from "@/app/(dashbo
 import { Button } from "@/components/ui/button";
 import { LeadSearchSelect } from "@/components/leads/lead-search-select";
 import { cn } from "@/lib/utils";
-import type { LeadSelectItem } from "@/lib/data/leads";
 
 const fieldClass =
   "w-full rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-white/35 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.07] focus-visible:outline-none [&>option]:bg-surface [&>option]:text-[#111827]";
@@ -15,8 +14,8 @@ const initialState: FollowupActionState = { error: null };
 
 type LeadMode = "existing" | "new";
 
-/** Takvimden dogrudan (lead detayina gitmeden) randevu/takip olusturma formu. */
-export function AppointmentForm({ leads }: { leads: LeadSelectItem[] }) {
+/** Takvimden dogrudan (lead detayina gitmeden) TAKIP planlama formu (saat secilmez: o gunun 10:00'u). */
+export function AppointmentForm() {
   const [open, setOpen] = useState(false);
   const [leadMode, setLeadMode] = useState<LeadMode>("existing");
   const [state, formAction, isPending] = useActionState(createAppointmentAction, initialState);
@@ -34,7 +33,7 @@ export function AppointmentForm({ leads }: { leads: LeadSelectItem[] }) {
     return (
       <Button type="button" variant="secondary" onClick={() => setOpen(true)} className="gap-1.5">
         <CalendarPlus className="h-4 w-4" />
-        Randevu Ekle
+        Takip Planla
       </Button>
     );
   }
@@ -74,7 +73,7 @@ export function AppointmentForm({ leads }: { leads: LeadSelectItem[] }) {
         {leadMode === "existing" ? (
           <label className="flex min-w-[200px] flex-1 flex-col gap-1.5">
             <span className="text-xs font-medium text-white/55">Lead</span>
-            <LeadSearchSelect leads={leads} />
+            <LeadSearchSelect />
           </label>
         ) : (
           <>
@@ -96,7 +95,7 @@ export function AppointmentForm({ leads }: { leads: LeadSelectItem[] }) {
 
         <label className="flex min-w-[180px] flex-1 flex-col gap-1.5">
           <span className="text-xs font-medium text-white/55">Not (opsiyonel)</span>
-          <input type="text" name="followup_note" placeholder="ör. keşif randevusu" className={fieldClass} />
+          <input type="text" name="followup_note" placeholder="ör. keşif için dönülecek" className={fieldClass} />
         </label>
 
         <div className="flex gap-2">

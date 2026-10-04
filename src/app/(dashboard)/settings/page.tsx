@@ -13,7 +13,7 @@ import { RemoveSalespersonButton } from "@/components/settings/remove-salesperso
 import { CreateCategoryForm } from "@/components/settings/create-category-form";
 import { RemoveCategoryButton } from "@/components/settings/remove-category-button";
 import { USER_ROLE_LABELS } from "@/lib/constants/lead";
-import { getInitials, NO_CONTACT_OVERDUE_HOURS } from "@/lib/utils";
+import { getInitials, FOLLOWUP_OVERDUE_HOURS } from "@/lib/utils";
 import type { Company } from "@/lib/types/domain";
 
 function SettingsField({ label, value, className }: { label: string; value: string; className?: string }) {
@@ -208,7 +208,7 @@ export default async function SettingsPage() {
               ) : null}
             </div>
 
-            <SettingsField label="Gecikme uyarı süresi" value={`${NO_CONTACT_OVERDUE_HOURS} saat`} />
+            <SettingsField label="Gecikme süresi (takip tarihinden sonra)" value={`${FOLLOWUP_OVERDUE_HOURS} saat`} />
           </CardBody>
         </Card>
 
@@ -227,7 +227,7 @@ export default async function SettingsPage() {
             />
             <NotificationRow
               label="Geciken lead uyarıları"
-              description={`${NO_CONTACT_OVERDUE_HOURS} saattir görüşülmeyen leadler "Gecikenler" sayfasında listelenir.`}
+              description={`Takip tarihi ${FOLLOWUP_OVERDUE_HOURS} saatten fazla geçen leadler "Gecikenler" sayfasında listelenir.`}
               active
             />
           </CardBody>

@@ -35,6 +35,16 @@
   --color-flame-hot: #ffb454;
   --color-flame-ember: #d6440f;
 
+  /* "BUZ" vurgusu (Isi & Soguk kimligi - tasarim yukseltmesi 2026-10-05):
+     turuncu = isi/enerji/AKTIF, buz mavisi = soguk/gecmis/NOTR veri. Grafiklerde
+     ikinci seri, bilgi rozetleri ve sakin vurgular icin; turuncuyla yarismaz,
+     koyu laciverte bakan, doygunlugu kontrollu bir cyan-mavi. */
+  --color-ice-200: #c4e8ff;
+  --color-ice-300: #8fd3ff;
+  --color-ice-400: #5bbcf8;
+  --color-ice-500: #2f9ee6;
+  --color-ice-600: #1f7fc0;
+
   --color-success-50: #edf7f1;
   --color-success-100: #d3eedd;
   --color-success-500: #2f8558;
@@ -74,6 +84,10 @@
   --shadow-elevated-lg: 0 8px 20px rgba(11, 31, 58, 0.10), 0 20px 44px rgba(11, 31, 58, 0.16);
   /* Keskin/net degil, yayilmis-yumusak bir ambient glow (spec: "cok net
      olmasin, hafif blur ile seyrelt"). */
+  /* Kart derinligi: ustte ince ic isik cizgisi (hairline) + asagida yayilmis,
+     koyu golge. Animasyonlanmaz (sadece hover'da deger degisir) - boyama maliyeti dusuk. */
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 14px 32px -20px rgba(0, 0, 0, 0.7);
+  --shadow-card-hover: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 20px 40px -18px rgba(0, 0, 0, 0.78);
   --shadow-glow-accent: 0 2px 8px rgba(244, 124, 32, 0.16), 0 10px 32px rgba(244, 124, 32, 0.22);
   --shadow-glow-accent-lg: 0 4px 14px rgba(244, 124, 32, 0.18), 0 16px 48px rgba(244, 124, 32, 0.28);
 
@@ -156,61 +170,6 @@
   }
 }
 
-/* Satislar sayfasi "Aylik Satis Trendi" barlari - CSS transition kullanan eski
-   yontem hic calismiyordu: sayfa server component oldugu icin height degeri
-   ilk render'da SABIT yaziliyordu, sonradan client'ta hicbir sey degistirmedigi
-   icin "transition-all" tetiklenecek bir degisiklik hic olmuyordu (bildirilen
-   bug - animasyon hic oynamiyordu). @keyframes ile mount aninda TEK SEFERLIK
-   (infinite degil) oynayan bir animasyona cevrildi - JS/client component
-   gerekmez, --bar-h custom property her barin kendi hedef yuksekligini tasir. */
-/* "daha şık güzel hale getir" - duz height 0->hedef buyumesi calisiyordu ama
-   sonucu duz/mekanikti. Su an: (1) "back-out" bezier'i sadece 2 keyframe'le
-   (0%/100%) bile hafif bir asma-geri-donme ("spring") hissi verir - egri
-   1'in UZERINE ciktigi icin bar hedefini kisa bir an asip yerine oturur,
-   (2) buyume sirasinda tepesinde kisa sureli bir parlama (box-shadow glow)
-   belirip sonrasinda daha yumusak, kalici bir ambiyans parlamasina donusur,
-   (3) sure biraz uzatildi (900ms) ki bu detaylar gorulebilsin. */
-@keyframes sales-bar-grow {
-  from {
-    height: 0%;
-    box-shadow: 0 0 0 0 rgba(125, 211, 252, 0);
-    filter: brightness(1);
-  }
-  55% {
-    box-shadow: 0 -6px 18px 0 rgba(125, 211, 252, 0.45);
-    filter: brightness(1.12);
-  }
-  to {
-    height: var(--bar-h);
-    box-shadow: 0 -2px 10px 0 rgba(125, 211, 252, 0.22);
-    filter: brightness(1);
-  }
-}
-.sales-bar-grow {
-  height: var(--bar-h);
-  animation: sales-bar-grow 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-/* Satış Personeli Performansı - yatay bar buyume animasyonu, dikey versiyonla
-   (sales-bar-grow) AYNI "spring" hissi, genislik uzerinden. */
-@keyframes salesperson-bar-grow {
-  from {
-    width: 0%;
-    box-shadow: 0 0 0 0 rgba(244, 124, 32, 0);
-  }
-  55% {
-    box-shadow: 4px 0 14px 0 rgba(244, 124, 32, 0.35);
-  }
-  to {
-    width: var(--bar-w);
-    box-shadow: 2px 0 8px 0 rgba(244, 124, 32, 0.16);
-  }
-}
-.salesperson-bar-grow {
-  width: var(--bar-w);
-  animation: salesperson-bar-grow 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
 /* ============================================================================
    PREMIUM MIKRO-EFEKTLER (spec: "en premium ve güzel efektleri kullan")
    ============================================================================ */
@@ -226,6 +185,18 @@
 }
 .pulse-ring { animation: pulse-ring 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
 
+/* Dashboard "Bugun" grafikleri - hepsi TEK SEFERLIK (infinite degil) acilis
+   animasyonu; hareket azaltma tercihi global kuralla (asagida) kapatiyor.
+   donut-draw: halka dilimi --len uzunluguna cizilir. week-bar-grow: haftalik
+   takip cubugu tabandan buyur, tepede kisa sureli turuncu bir parlama birakir. */
+@keyframes donut-draw {
+  from { stroke-dasharray: 0 var(--circ); }
+  to { stroke-dasharray: var(--len) var(--rest); }
+}
+.donut-seg {
+  stroke-dasharray: var(--len) var(--rest);
+  animation: donut-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 /* Ajan rozeti icin yavas, yumusak nefes alan halka - ayni "nabiz" teknigi,
    daha genis ve yavas (surekli acik kalan bir panelde daha rahatsiz etmeyen
    ritim). */
@@ -272,6 +243,59 @@ body {
   color: var(--color-ink-900);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ZEMIN ATMOSFERI (tasarim yukseltmesi): duz bir renk yerine, sabit duran TEK bir
+   katman uzerinde uc yumusak radyal gradyan - sag ustte ince "isi" (turuncu),
+   sol altta ince "soguk" (buz mavisi), altta lacivert vinyet. position:fixed +
+   pointer-events:none: kaydirmada yeniden boyanmaz (kendi kompozit katmani),
+   filtre/blur YOK - ucuz. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 520px at 88% -8%, rgba(244, 124, 32, 0.09), transparent 62%),
+    radial-gradient(820px 620px at -8% 106%, rgba(47, 158, 230, 0.09), transparent 64%),
+    radial-gradient(1300px 760px at 50% 125%, rgba(11, 31, 58, 0.6), transparent 70%);
+}
+
+::selection {
+  background: rgba(244, 124, 32, 0.38);
+  color: #fff;
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* Tum form alanlarinda tutarli, yumusak bir odak halesi (kenar rengi bilesende,
+   hale burada) - klavyeyle gezinirken neyin secili oldugu bir bakista anlasilir. */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  box-shadow: 0 0 0 3px rgba(244, 124, 32, 0.16);
+}
+
+/* Ana icerik kaydirma cubugu: ince, koyu, hover'da belirginlesen. */
+main {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+main::-webkit-scrollbar {
+  width: 10px;
+}
+main::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+main::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.28);
 }
 
 /* Klavye ile gezinen kullanicilar icin gorunur odak halkasi (erisilebilirlik tabani). */
@@ -459,12 +483,89 @@ input[type="number"]::-webkit-outer-spin-button {
   transform-box: fill-box;
 }
 
-/* Loading skeleton (spec md.8): shimmer efektli notr blok. */
+/* Loading skeleton (spec md.8): notr blok + soldan saga ince isik taramasi.
+   Tarama bir ::after katmaninin TRANSFORM'u ile yapilir (GPU'da, boyama yok) -
+   eskiden background-position animasyonuydu (her karede yeniden boyama). */
 .skeleton {
   position: relative;
   overflow: hidden;
   background-color: var(--color-ink-100);
-  background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
-  background-size: 200% 100%;
-  animation: var(--animate-shimmer);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+  animation: skeleton-sweep 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+
+/* ============================================================================
+   GRAFIK / GIRIS ANIMASYONU ARACLARI (hepsi TEK SEFERLIK ve yalnizca
+   transform/opacity - kompozitor katmaninda calisir, ana is parcacigini
+   mesgul etmez; prefers-reduced-motion kurali yukarida hepsini kapatir).
+   ============================================================================ */
+@keyframes grow-y {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.grow-y {
+  transform-origin: bottom center;
+  animation: grow-y 760ms var(--ease-settle) both;
+}
+.grow-x {
+  transform-origin: left center;
+  animation: grow-x 760ms var(--ease-settle) both;
+}
+
+/* Sayfa girisi: bir kapsayicinin dogrudan cocuklari sirayla yukari kayarak belirir. */
+.stagger > * {
+  animation: slide-up 420ms var(--ease-premium) both;
+}
+.stagger > *:nth-child(2) { animation-delay: 60ms; }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 340ms; }
+
+/* Sparkline: cizgi bir kez cizilir, alan ve son nokta ardindan belirir. */
+@keyframes spark-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes spark-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.spark-line {
+  stroke-dasharray: 1;
+  animation: spark-draw 1000ms var(--ease-settle) 120ms both;
+}
+.spark-area {
+  animation: spark-fade 700ms ease-out 500ms both;
+}
+.spark-dot {
+  animation: spark-fade 400ms ease-out 900ms both;
+}
+
+/* Isi gradyanli metin (basliktaki vurgulu kelime vb.). */
+.text-gradient-heat {
+  background-image: linear-gradient(100deg, #ffd9a8 0%, #ffb454 38%, #f47c20 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.text-gradient-ice {
+  background-image: linear-gradient(100deg, #e4f4ff 0%, #8fd3ff 50%, #5bbcf8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

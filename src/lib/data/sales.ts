@@ -25,6 +25,12 @@ export type SalesStats = {
   monthlyTrend: { key: string; label: string; count: number; revenue: number }[];
   bySalesperson: { name: string; count: number; revenue: number }[];
   hasAnySale: boolean;
+  /**
+   * "Satış" asamasinda (status=won) ama KAYITLI satis tutari olmayan lead sayisi. 0 olmali:
+   * uygulamada satis tutari girilmeden "Satış"a gecilemez; >0 ise veri tutarsizdir (elle/aktarimla
+   * eklenmis kayitlar) ve ciro/donusum bu leadleri SAYMAZ.
+   */
+  wonWithoutSale: number;
 };
 
 /**
@@ -36,8 +42,8 @@ export type SalesStats = {
  * cagirir, kendi (daha dar kolonlu) sorgusunu atar - davranis degismedi.
  */
 export async function getSalesStats(raw?: { allLeads: RawLeadRow[] | null; allSales: RawSaleRow[] }): Promise<SalesStats> {
-  type SaleRow = { sale_amount: number; sale_date: string; salesperson_profile: { full_name: string | null } | null };
-  type LeadRow = { status: string; offered_amount: number | null };
+  type SaleRow = { lead_id: string; sale_amount: number; sale_date: string; salesperson_profile: { full_name: string | null } | null };
+  type LeadRow = { id: string; status: string; offered_amount: number | null };
 
   let leads: LeadRow[];
   let sales: SaleRow[];
@@ -53,7 +59,7 @@ export async function getSalesStats(raw?: { allLeads: RawLeadRow[] | null; allSa
       fetchAllRows((from, to) =>
         supabase
           .from("sales")
-          .select("id, sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
+          .select("id, lead_id, sale_amount, sale_date, salesperson_profile:profiles!sales_salesperson_fkey(full_name)")
           .order("sale_date", { ascending: true })
           .order("id")
           .range(from, to)
@@ -72,6 +78,7 @@ export async function getSalesStats(raw?: { allLeads: RawLeadRow[] | null; allSa
         monthlyTrend: [],
         bySalesperson: [],
         hasAnySale: false,
+        wonWithoutSale: 0,
       };
     }
     if (salesRes.error) {
@@ -130,6 +137,10 @@ export async function getSalesStats(raw?: { allLeads: RawLeadRow[] | null; allSa
     monthlyTrend: months,
     bySalesperson,
     hasAnySale: totalSales > 0,
+    wonWithoutSale: (() => {
+      const soldLeadIds = new Set(sales.map((s) => s.lead_id));
+      return leads.filter((l) => l.status === "won" && !soldLeadIds.has(l.id)).length;
+    })(),
   };
 }
 

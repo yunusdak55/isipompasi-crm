@@ -554,6 +554,20 @@ export type Database = {
         Args: Record<string, never>;
         Returns: Json;
       };
+      dashboard_today: {
+        Args: {
+          p_now: string;
+          p_day_start: string;
+          p_day_end: string;
+          p_month_start: string;
+          p_month_end: string;
+          p_overdue_hours?: number;
+          p_new_hours?: number;
+          p_due_limit?: number;
+          p_other_limit?: number;
+        };
+        Returns: Json;
+      };
       agency_company_stats: {
         Args: Record<string, never>;
         Returns: {

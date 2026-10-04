@@ -5,7 +5,6 @@ import { MapPinPlus, X } from "lucide-react";
 import { createDiscoveryVisitAction, type DiscoveryVisitActionState } from "@/app/(dashboard)/leads/discoveries/actions";
 import { Button } from "@/components/ui/button";
 import { LeadSearchSelect } from "@/components/leads/lead-search-select";
-import type { LeadSelectItem } from "@/lib/data/leads";
 import { partsTR } from "@/lib/time";
 
 const fieldClass =
@@ -19,7 +18,7 @@ function todayIso() {
 }
 
 /** "Keşif Ekle" formu: kime, ne zaman, nerede kesife gidildigi + nasil gectigi (spec). */
-export function DiscoveryVisitForm({ leads }: { leads: LeadSelectItem[] }) {
+export function DiscoveryVisitForm() {
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState(createDiscoveryVisitAction, initialState);
   const submittedRef = useRef(false);
@@ -51,7 +50,7 @@ export function DiscoveryVisitForm({ leads }: { leads: LeadSelectItem[] }) {
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex min-w-[200px] flex-1 flex-col gap-1.5">
           <span className="text-xs font-medium text-white/55">Lead</span>
-          <LeadSearchSelect leads={leads} />
+          <LeadSearchSelect />
         </label>
 
         <label className="flex w-40 flex-col gap-1.5">

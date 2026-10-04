@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Wallet, Percent, Users, Layers, TrendingUp, ReceiptText } from "lucide-react";
+import { Wallet, Percent, Users, Layers, TrendingUp, ReceiptText, TriangleAlert } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { getSalesStats, getSalesList } from "@/lib/data/sales";
 import { Card, CardHeader, CardTitle, CardBody, StatCard, HeroStatCard } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { SalesTable } from "@/components/leads/sales-table";
 import { MonthlyTrendChart } from "@/components/sales/monthly-trend-chart";
 import { SalespersonPerformanceChart } from "@/components/sales/salesperson-performance-chart";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatRate } from "@/lib/utils";
 
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
@@ -28,7 +28,7 @@ export default async function SalesPage() {
   const [stats, salesList] = await Promise.all([getSalesStats(), getSalesList()]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="stagger flex flex-col gap-6">
       <div className="animate-fade-in relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 to-brand-950 p-6 shadow-elevated-lg sm:p-7">
         <HvacBackdrop intensity="hero" />
         <div className="relative">
@@ -36,16 +36,33 @@ export default async function SalesPage() {
           <p className="mt-1 text-sm text-white/55">Satış performansınızı ve gerçekleşen sonuçları takip edin.</p>
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <HeroStatCard label="Toplam Satış Tutarı" value={formatCurrency(stats.totalRevenue)} icon={<Wallet className="h-4 w-4" />} />
+            <HeroStatCard
+              label="Toplam Satış Tutarı"
+              value={formatCurrency(stats.totalRevenue)}
+              icon={<Wallet className="h-4 w-4" />}
+              sparkline={stats.monthlyTrend.map((m) => m.revenue)}
+            />
             <HeroStatCard label="Potansiyel Satış Değeri" value={formatCurrency(stats.pipelineValue)} icon={<Layers className="h-4 w-4" />} />
           </div>
         </div>
       </div>
 
+      {profile.role === "owner" && stats.wonWithoutSale > 0 ? (
+        <div role="note" className="animate-fade-in flex items-start gap-3 rounded-xl border border-warning-500/40 bg-warning-500/[0.10] px-4 py-3">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-500" />
+          <p className="text-sm text-ink-900">
+            <span className="font-semibold">{stats.wonWithoutSale.toLocaleString("tr-TR")} lead “Satış” aşamasında ama satış tutarı girilmemiş.</span>{" "}
+            <span className="text-ink-600">
+              Bu kayıtlar ciroya ve dönüşüm oranına dahil edilmez. Lead&apos;in detay sayfasındaki “Yapılan Satış” bölümünden tutarı girin.
+            </span>
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
-        <StatCard label="Toplam Satış" value={stats.totalSales} tone="success" />
+        <StatCard label="Toplam Satış" value={stats.totalSales} tone="success" sparkline={stats.monthlyTrend.map((m) => m.count)} />
         <StatCard label="Ortalama Satış Değeri" value={formatCurrency(stats.avgSaleValue)} tone="accent" />
-        <StatCard label="Satışa Dönüşüm Oranı" value={`%${stats.conversionRate.toFixed(1)}`} tone="brand" />
+        <StatCard label="Satışa Dönüşüm Oranı" value={formatRate(stats.conversionRate)} tone="brand" />
         <StatCard label="Toplam Lead" value={stats.totalLeads} tone="ink" />
       </div>
 
@@ -108,7 +125,7 @@ export default async function SalesPage() {
         <CardBody>
           <p className="text-sm leading-relaxed text-ink-600">
             Toplam {stats.totalLeads} leadin {stats.totalSales} tanesi satışa dönüştü
-            {stats.totalLeads > 0 ? ` (dönüşüm oranı %${stats.conversionRate.toFixed(1)})` : ""}. Açık pipelinedeki{" "}
+            {stats.totalLeads > 0 ? ` (dönüşüm oranı ${formatRate(stats.conversionRate)})` : ""}. Açık pipelinedeki{" "}
             {formatCurrency(stats.pipelineValue)} değerindeki fırsatlar henüz sonuçlanmadı.
           </p>
         </CardBody>

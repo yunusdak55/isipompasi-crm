@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
-import { getLeadsCalendar, getOpenLeadsForSelect } from "@/lib/data/leads";
+import { getLeadsCalendar } from "@/lib/data/leads";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { AppointmentForm } from "@/components/leads/appointment-form";
 import { CalendarGrid, type CalendarCell } from "@/components/leads/calendar-grid";
@@ -38,10 +38,7 @@ export default async function LeadsCalendarPage({
   const today = partsTR(new Date());
   const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
-  const [leads, selectableLeads] = await Promise.all([
-    getLeadsCalendar(year, month),
-    getOpenLeadsForSelect(),
-  ]);
+  const leads = await getLeadsCalendar(year, month);
 
   const byDay = new Map<number, LeadListItem[]>();
   for (const lead of leads) {
@@ -80,7 +77,7 @@ export default async function LeadsCalendarPage({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-white">Takvim</h1>
-            <p className="text-sm text-white/55">Takip tarihi olan (keşif/randevu) leadler ay görünümünde.</p>
+            <p className="text-sm text-white/55">Takip tarihi olan leadler ay görünümünde. Takipler saat seçilmeden, o günün sabah 10:00&apos;una planlanır.</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -103,7 +100,7 @@ export default async function LeadsCalendarPage({
           </div>
         </div>
 
-        <AppointmentForm leads={selectableLeads} />
+        <AppointmentForm />
 
         <CalendarGrid cells={cells} monthLabel={`${TR_MONTHS[month]} ${year}`} />
 

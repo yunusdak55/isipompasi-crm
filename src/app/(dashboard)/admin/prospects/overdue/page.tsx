@@ -20,8 +20,8 @@ export default async function ProspectsOverduePage() {
         <div>
           <h1 className="text-xl font-semibold text-white">Gecikenler</h1>
           <p className="text-sm text-white/55">
-            Takip tarihi geçmiş {prospects.length} aday, en eski tarihten başlayarak sıralı. Adaya girip görüşme sonucunu
-            kaydedince listeden çıkar.
+            Takibe alınmış ve takip tarihinin üzerinden 24 saatten fazla geçmiş {prospects.length} aday — en az geciken
+            en üstte (1 gün, 2 gün, 5 gün…). Adaya girip görüşme sonucunu kaydedince listeden çıkar.
           </p>
         </div>
 
@@ -29,7 +29,7 @@ export default async function ProspectsOverduePage() {
           prospects={prospects}
           lastNotes={lastNotes}
           emptyTitle="Geciken aday yok"
-          emptyBody="Takip tarihi geçen ve henüz sonuçlanmamış aday yok."
+          emptyBody="Takibe alınan hiçbir adayın takip tarihi 24 saatten fazla geçmemiş."
         />
       </div>
     </div>

@@ -1,6 +1,20 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Phone, Mail, MapPin, Clock, Tag, FileText, Home, CircleDollarSign } from "lucide-react";
+import {
+  ArrowLeft,
+  Phone,
+  Mail,
+  MapPin,
+  Clock,
+  Tag,
+  FileText,
+  Home,
+  Building2,
+  Flame,
+  Waves,
+  Heater,
+  CircleDollarSign,
+} from "lucide-react";
 import { getLeadById, getLeadActivities, getAssignableProfiles, getSaleForLead } from "@/lib/data/leads";
 import { getSalespeople } from "@/lib/data/salespeople";
 import { getCurrentProfile } from "@/lib/auth/session";
@@ -15,22 +29,52 @@ import {
   HEATING_TYPE_LABELS,
   PURCHASE_TIMELINE_LABELS,
 } from "@/lib/constants/lead";
-import { formatCurrency, formatDate, formatDateTime, isLeadNew, isLeadOverdue, leadDisplayName } from "@/lib/utils";
-import { MeetingOutcomeForm } from "@/components/leads/meeting-outcome-form";
-import { FollowupForm } from "@/components/leads/followup-panel";
-import { AssignPanel } from "@/components/leads/assign-panel";
-import { ContactedByPanel } from "@/components/leads/contacted-by-panel";
+import { formatCurrency, formatDate, isLeadNew, isLeadOverdue, leadContactPerson, leadDisplayName } from "@/lib/utils";
+import { OutcomeForm } from "@/components/shared/outcome-form";
+import { FollowupStatusCard } from "@/components/shared/followup-status-card";
+import { ActivityTimeline } from "@/components/ui/activity-timeline";
+import { ContactPersonPanel, type ContactPersonOption } from "@/components/leads/contact-person-panel";
+import { clearLeadFollowupAction, logLeadOutcomeAction, snoozeLeadFollowupAction } from "@/app/(dashboard)/leads/actions";
+import { describeFollowup } from "@/lib/followup";
 import { SalePanel } from "@/components/leads/sale-panel";
 import { AgentNotePanel } from "@/components/leads/agent-note-panel";
 import type { PropertyType, BuildingStatus, HeatingType, PurchaseTimeline } from "@/lib/types/domain";
 
-function InfoItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium text-ink-600">{label}</dt>
-      <dd className="mt-0.5 text-sm text-ink-900">{value}</dd>
-    </div>
-  );
+function normalizeName(name: string | null | undefined) {
+  return (name ?? "").trim().toLocaleLowerCase("tr-TR");
+}
+
+/**
+ * TEK "Görüşen Kişi" listesi: isim-bazli kayitlar ("s:") + giris hesaplari
+ * ("p:"). Ayni isimli hesap/kayit tek satir olarak gosterilir (isim kaydi
+ * kazanir). Mevcut secim pasif/silinmis olsa bile listede kalir ki form
+ * yanlislikla "Belirtilmedi"ye dusmesin.
+ */
+function buildContactOptions(
+  salespeople: { id: string; full_name: string; is_active: boolean }[],
+  profiles: { id: string; full_name: string | null }[],
+  current: { contactedById: string | null; contactedName: string | null; assignedId: string | null; assignedName: string | null }
+): ContactPersonOption[] {
+  const options: ContactPersonOption[] = [];
+  const seen = new Set<string>();
+
+  for (const sp of salespeople) {
+    if (!sp.is_active && sp.id !== current.contactedById) continue;
+    options.push({ value: `s:${sp.id}`, label: sp.full_name });
+    seen.add(normalizeName(sp.full_name));
+  }
+  for (const p of profiles) {
+    if (seen.has(normalizeName(p.full_name))) continue;
+    options.push({ value: `p:${p.id}`, label: p.full_name?.trim() || "İsimsiz hesap" });
+    seen.add(normalizeName(p.full_name));
+  }
+  if (current.contactedById && !options.some((o) => o.value === `s:${current.contactedById}`)) {
+    options.push({ value: `s:${current.contactedById}`, label: current.contactedName ?? "Silinmiş kişi" });
+  }
+  if (current.assignedId && !options.some((o) => o.value === `p:${current.assignedId}`) && !current.contactedById) {
+    options.push({ value: `p:${current.assignedId}`, label: current.assignedName ?? "Hesap" });
+  }
+  return options;
 }
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -71,14 +115,40 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   ]);
 
   const cityLine = [lead.city, lead.district].filter(Boolean).join(" / ");
-  const showNew = isLeadNew(lead.status);
-  const showOverdue = isLeadOverdue({
+  const housingText = [
+    lead.property_type ? PROPERTY_TYPE_LABELS[lead.property_type as PropertyType] : null,
+    lead.area_m2 ? `${lead.area_m2} m²` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const systemInfo = [
+    housingText ? { key: "housing", title: "Konut tipi / alan", text: housingText, Icon: Home } : null,
+    lead.building_status
+      ? { key: "building", title: "Bina durumu", text: BUILDING_STATUS_LABELS[lead.building_status as BuildingStatus], Icon: Building2 }
+      : null,
+    lead.heating_type
+      ? { key: "heating", title: "Mevcut ısıtma", text: HEATING_TYPE_LABELS[lead.heating_type as HeatingType], Icon: Flame }
+      : null,
+    lead.underfloor_heating ? { key: "underfloor", title: "Yerden ısıtma var", text: "Yerden ısıtma", Icon: Waves } : null,
+    lead.radiator ? { key: "radiator", title: "Radyatör var", text: "Radyatör", Icon: Heater } : null,
+  ].filter((x): x is NonNullable<typeof x> => x !== null);
+  const overdueInput = {
     status: lead.status,
     lastContactAt: lead.last_contact_at,
     createdAt: lead.created_at,
     nextFollowupAt: lead.next_followup_at,
     lastActivityAt: lead.last_activity_at,
+  };
+  const showOverdue = isLeadOverdue(overdueInput);
+  const showNew = isLeadNew(overdueInput);
+  const followupSummary = describeFollowup(lead.next_followup_at, showOverdue);
+  const contactOptions = buildContactOptions(salespeople, assignableProfiles, {
+    contactedById: lead.contacted_by,
+    contactedName: lead.contacted_by_person?.full_name ?? null,
+    assignedId: lead.assigned_salesperson,
+    assignedName: lead.assigned_profile?.full_name ?? null,
   });
+  const contactValue = lead.contacted_by ? `s:${lead.contacted_by}` : lead.assigned_salesperson ? `p:${lead.assigned_salesperson}` : "";
 
   return (
     <div className="flex flex-col gap-5">
@@ -138,6 +208,20 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               </span>
             ) : null}
           </div>
+          {/* EV / SİSTEM BİLGİLERİ - eskiden ayri bir kartti (spec 2026-10-02:
+              "gereksiz bir alan açmışsın, müşterinin numarası bölgesi falan
+              olan en üstte, sistem bilgileri de orada olsun"). Sadece DOLU
+              olanlar gosterilir; hicbiri yoksa satir hic cikmaz. */}
+          {systemInfo.length > 0 ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-600">
+              {systemInfo.map(({ key, title, text, Icon }) => (
+                <span key={key} title={title} className="inline-flex items-center gap-1.5">
+                  <Icon className="h-3.5 w-3.5" />
+                  {text}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-col items-end gap-2">
@@ -145,12 +229,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <StatusBadge status={lead.status} />
           </div>
           <p className="text-xs text-ink-600">
-            Satış Personeli:{" "}
-            <span className="font-medium text-ink-900">{lead.assigned_profile?.full_name ?? "Atanmadı"}</span>
-          </p>
-          <p className="text-xs text-ink-600">
             Görüşen Kişi:{" "}
-            <span className="font-medium text-ink-900">{lead.contacted_by_person?.full_name ?? "Belirtilmedi"}</span>
+            <span className="font-medium text-ink-900">{leadContactPerson(lead) ?? "Belirtilmedi"}</span>
           </p>
           <LinkButton href={`/leads/${id}/edit`} variant="secondary" className="mt-1">
             Düzenle
@@ -160,9 +240,27 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="flex flex-col gap-5 lg:col-span-2">
-          {/* AJAN GÖRÜŞÜ - dogrudan gorunur, duzenlemeye girmeden okunup
-              guncellenebilir (spec: "düzenlemeye basmadan görmeyelim"). */}
-          <AgentNotePanel leadId={id} notes={lead.notes} />
+          {/* GÖRÜŞME SONUCU - ajans admin panelindeki ile AYNI form (spec
+              2026-10-02): "görüşmede ne oldu" notu zaman çizelgesine düşer;
+              takip (gün sayısı + not + erteleme/kaldırma), satış ve kayıp
+              tek yerden. Eski ayrı "Takip" ve "Durum" girişleri buraya taşındı. */}
+          <Card hoverable className="animate-slide-up">
+            <CardHeader>
+              <CardTitle>Görüşme Sonucu</CardTitle>
+            </CardHeader>
+            <CardBody className="flex flex-col gap-4">
+              <FollowupStatusCard
+                summary={followupSummary}
+                snoozeAction={snoozeLeadFollowupAction.bind(null, id)}
+                clearAction={clearLeadFollowupAction.bind(null, id)}
+              />
+              <OutcomeForm
+                action={logLeadOutcomeAction.bind(null, id)}
+                askSaleAmount
+                canWin={profile?.role !== "sales"}
+              />
+            </CardBody>
+          </Card>
 
           {/* YAPILAN SATIŞ - gercek satis tutari, "sales" tablosuna kaydedilir.
               Sadece owner/admin gorur/kaydeder (RLS: ciro hassas veri). */}
@@ -187,35 +285,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </Card>
           ) : null}
 
-          {/* EV / SİSTEM BİLGİLERİ */}
-          <Card hoverable className="animate-slide-up">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Home className="h-4 w-4 text-ink-400" />
-                Ev / Sistem Bilgileri
-              </CardTitle>
-            </CardHeader>
-            <CardBody>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-                <InfoItem
-                  label="Konut Tipi"
-                  value={lead.property_type ? PROPERTY_TYPE_LABELS[lead.property_type as PropertyType] : "—"}
-                />
-                <InfoItem label="Alan" value={lead.area_m2 ? `${lead.area_m2} m²` : "—"} />
-                <InfoItem
-                  label="Bina Durumu"
-                  value={lead.building_status ? BUILDING_STATUS_LABELS[lead.building_status as BuildingStatus] : "—"}
-                />
-                <InfoItem
-                  label="Mevcut Isıtma"
-                  value={lead.heating_type ? HEATING_TYPE_LABELS[lead.heating_type as HeatingType] : "—"}
-                />
-                <InfoItem label="Yerden Isıtma" value={lead.underfloor_heating ? "Var" : "Yok"} />
-                <InfoItem label="Radyatör" value={lead.radiator ? "Var" : "Yok"} />
-              </dl>
-            </CardBody>
-          </Card>
-
           {/* ZAMAN ÇİZELGESİ - notlar, takip planlamalari ve durum degisiklikleri
               TEK bir kronolojik yerde birlesir (spec: "3 ayrı not kısmı... tek
               kısım olsun, hepsi birbirine bağlı olsun"). Giris noktasi artik
@@ -225,84 +294,32 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <CardHeader>
               <CardTitle>Zaman Çizelgesi</CardTitle>
             </CardHeader>
-            <CardBody className="flex flex-col gap-4">
-              {activities.length === 0 ? (
-                <p className="text-sm text-ink-600">
-                  Henüz aktivite kaydı yok. Lead {formatDate(lead.created_at)} tarihinde oluşturuldu.
-                </p>
-              ) : (
-                <ol className="flex flex-col gap-4">
-                  {activities.map((activity, index) => (
-                    <li
-                      key={activity.id}
-                      className="animate-slide-up flex gap-3 text-sm"
-                      style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
-                    >
-                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
-                      <div>
-                        <p className="text-ink-900">{activity.description}</p>
-                        <p className="text-xs text-ink-600">{formatDateTime(activity.created_at)}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
+            <CardBody>
+              <ActivityTimeline
+                items={activities}
+                emptyText={`Henüz aktivite kaydı yok. Lead ${formatDate(lead.created_at)} tarihinde oluşturuldu.`}
+              />
             </CardBody>
           </Card>
         </div>
 
         <div className="flex flex-col gap-5">
-          {/* GÖRÜŞME SONUCU - durum degistirme ve not yazma TEK formda (spec:
-              "görüşmenin sonucuna göre lead durumunu seçsin - görüştük, şöyle
-              oldu böyle oldu diye"). */}
-          <Card hoverable className="animate-slide-up">
-            <CardHeader>
-              <CardTitle>Görüşme Sonucu</CardTitle>
-            </CardHeader>
-            <CardBody>
-              <MeetingOutcomeForm leadId={id} currentStatus={lead.status} />
-            </CardBody>
-          </Card>
+          {/* AJAN GÖRÜŞÜ - dogrudan gorunur, duzenlemeye girmeden okunup
+              guncellenebilir (spec: "düzenlemeye basmadan görmeyelim"). */}
+          <AgentNotePanel leadId={id} notes={lead.notes} />
 
-          {/* ATAMA - sadece owner/admin */}
-          {canAssign ? (
-            <Card hoverable className="animate-slide-up">
-              <CardHeader>
-                <CardTitle>Satış Personeli Ata</CardTitle>
-              </CardHeader>
-              <CardBody>
-                <AssignPanel
-                  leadId={id}
-                  currentAssigned={lead.assigned_salesperson}
-                  assignableProfiles={assignableProfiles}
-                />
-              </CardBody>
-            </Card>
-          ) : null}
-
-          {/* GÖRÜŞEN KİŞİ - firma sahibinin Firma Ayarları'ndan isim bazlı
-              tanımladığı kişi (spec: "leadle görüşen kişiyi seçebilelim") -
-              yukarıdaki gerçek hesap atamasından bilerek ayrı, bilgi amaçlı. */}
+          {/* GÖRÜŞEN KİŞİ - TEK kavram (eski "Satış Personeli Ata" + "Görüşen
+              Kişi" iki karti birlestirildi). Sadece owner degistirebilir. */}
           {canAssign ? (
             <Card hoverable className="animate-slide-up">
               <CardHeader>
                 <CardTitle>Görüşen Kişi</CardTitle>
               </CardHeader>
               <CardBody>
-                <ContactedByPanel leadId={id} currentContactedBy={lead.contacted_by} salespeople={salespeople} />
+                <ContactPersonPanel leadId={id} currentValue={contactValue} options={contactOptions} />
               </CardBody>
             </Card>
           ) : null}
-
-          {/* TAKİP */}
-          <Card hoverable className="animate-slide-up">
-            <CardHeader>
-              <CardTitle>Takip</CardTitle>
-            </CardHeader>
-            <CardBody>
-              <FollowupForm leadId={id} nextFollowupAt={lead.next_followup_at} nextFollowupNote={lead.next_followup_note} />
-            </CardBody>
-          </Card>
         </div>
       </div>
     </div>

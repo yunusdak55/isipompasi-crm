@@ -50,10 +50,35 @@ export function isProfileBlocked(profile: ProfileWithCompany): boolean {
 // olarak loglanir (bkz. lib/supabase/server.ts, lib/supabase/fetch-with-timeout.ts) -
 // burada ayrica manuel suresi olcup loglamaya gerek yok (yinelenen/asenkron
 // requestId'siz log gurultusu olurdu).
+/**
+ * Istek basina TEK getClaims() (JWT yerel dogrulanir, ag turu yok): hem profil
+ * hem rol okuyan kod ayni sonucu paylasir. cache() = ayni istek icinde tekrar
+ * hesaplanmaz, istekler arasi veri sizdirmaz.
+ */
+const getClaimsCached = cache(async () => {
+  const supabase = await createClient();
+  return supabase.auth.getClaims();
+});
+
+/**
+ * Oturum JWT'sindeki (app_metadata) rol - VERITABANI sorgusu atmadan. Yalnizca
+ * "hangi hatirlatma sorgusunu atayim" gibi OPTIMIZASYON ipuclari icindir;
+ * yetki karari icin ASLA kullanilmaz (yetki = RLS + requireProfile'daki profil).
+ */
+export async function getClaimsRoleHint(): Promise<string | null> {
+  try {
+    const { data } = await withTimeout(getClaimsCached(), "getClaimsRoleHint");
+    const role = (data?.claims as { app_metadata?: { role?: unknown } } | undefined)?.app_metadata?.role;
+    return typeof role === "string" ? role : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getCurrentProfileInner(): Promise<ProfileWithCompany | null> {
   const supabase = await createClient();
 
-  const { data: claimsData } = await supabase.auth.getClaims();
+  const { data: claimsData } = await getClaimsCached();
   const userId = claimsData?.claims?.sub;
 
   if (!userId) return null;

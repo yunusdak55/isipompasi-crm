@@ -30,6 +30,14 @@ yarn-error.log*
 .env
 .env*.local
 
+# performans denetimi - izole test projesi kimlik bilgileri (ASLA commit etme)
+.perftest-credentials.json
+lighthouse-reports/
+
+# Supabase CLI yerel durumu (hangi projeye "link"li oldugu, erisim jetonu
+# onbellegi) - makineye ozgu, ASLA commit etme.
+supabase/.temp/
+
 # vercel
 .vercel
 

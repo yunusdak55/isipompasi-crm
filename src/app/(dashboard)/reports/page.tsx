@@ -6,7 +6,8 @@ import { Card, CardHeader, CardTitle, CardBody, StatCard } from "@/components/ui
 import { DistributionList, EmptyState } from "@/components/ui/distribution-list";
 import { MonthlyComparisonPanel } from "@/components/reports/monthly-comparison-panel";
 import { PeriodSelect } from "@/components/reports/period-select";
-import { formatCurrency } from "@/lib/utils";
+import { StatusBars } from "@/components/charts/status-bars";
+import { formatCurrency, formatRate } from "@/lib/utils";
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
@@ -20,12 +21,16 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const periodOptions = getReportPeriodOptions();
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="stagger flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-ink-900">Raporlar</h1>
           <p className="text-sm text-ink-600">
             Satış hunisini ve dağılımları tek ekranda görün — <span className="font-medium text-ink-900">{data.periodLabel}</span> gösteriliyor.
+          </p>
+          <p className="mt-0.5 text-[11px] text-ink-400">
+            Dönem seçimi üstteki kutulara, huniye ve dağılımlara uygulanır (leadin oluşturulma tarihine göre). “Aylık Karşılaştırma” kendi ay
+            seçicilerini, “Geciken Takip” ise her zaman şu anki durumu kullanır.
           </p>
         </div>
         <PeriodSelect options={periodOptions} value={data.period} />
@@ -47,7 +52,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <>
           <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-5">
             <StatCard label="Toplam Lead" value={data.totalLeads} tone="brand" />
-            <StatCard label="Satışa Dönüşüm" value={`%${data.conversionRate.toFixed(1)}`} tone="success" />
+            <StatCard label="Satışa Dönüşüm" value={formatRate(data.conversionRate)} tone="success" />
             <StatCard label="Toplam Ciro" value={formatCurrency(data.totalSaleAmount)} tone="success" />
             <StatCard label="Ortalama Teklif" value={formatCurrency(data.avgOfferAmount)} tone="accent" />
             <StatCard label="Ortalama Satış" value={formatCurrency(data.avgSaleAmount)} tone="ink" />
@@ -73,27 +78,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </CardTitle>
             </CardHeader>
             <CardBody>
-              <div className="flex flex-col gap-2">
-                {data.funnel.map((stage, index) => {
-                  const max = Math.max(1, ...data.funnel.map((s) => s.count));
-                  return (
-                    <div
-                      key={stage.status}
-                      className="animate-slide-up flex items-center gap-3"
-                      style={{ animationDelay: `${index * 40}ms` }}
-                    >
-                      <span className="w-24 shrink-0 text-xs font-medium text-ink-600">{stage.label}</span>
-                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-ink-100">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-brand-500 to-accent-500 transition-all duration-500 ease-settle"
-                          style={{ width: `${(stage.count / max) * 100}%`, transitionDelay: `${index * 40}ms` }}
-                        />
-                      </div>
-                      <span className="w-8 shrink-0 text-right text-xs font-semibold tabular-nums text-ink-900">{stage.count}</span>
-                    </div>
-                  );
-                })}
-              </div>
+              <StatusBars funnel={data.funnel} />
             </CardBody>
           </Card>
 

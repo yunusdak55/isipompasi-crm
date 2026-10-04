@@ -10,6 +10,7 @@ import type { LeadStatus } from "@/lib/types/domain";
 import type { Database } from "@/lib/types/database.types";
 import { friendlyDbError } from "@/lib/errors";
 import { TR_TZ, followupDateTR } from "@/lib/time";
+import { MAX_FOLLOWUP_DAYS, formatFollowupDate, parseFollowupDays, resolveFollowupAt } from "@/lib/followup";
 
 // ----------------------------------------------------------------------------
 // Leadler sayfasi "Google gibi" canli oneri kutusu (spec: "S yazınca S ile
@@ -324,30 +325,77 @@ export async function updateLeadStatusAction(leadId: string, payload: StatusPayl
 }
 
 // ----------------------------------------------------------------------------
-// Gorusme Sonucu: telefonla/yuz yuze gorusme sonrasi TEK adimda hem durum
-// degistirilir hem not yazilir (spec: "görüşme sonucuna göre lead durumunu
-// seçsin - işte görüştük, şöyle oldu böyle oldu diye"). Onceden ayri "Durum"
-// kutusu ve ayri "Not ekle" formu vardi, iki ayri islem gerekiyordu - agent
-// sadece WhatsApp uzerinden lead OLUSTURABILDIGI, telefon gorusmesine hic
-// erisemedigi icin bu adim daima firma sahibi/satis personeli tarafindan
-// elle yapilir. Ikisi de opsiyonel ama en az biri dolu olmali.
+// GORUSME SONUCU (firma paneli) - ajans admin panelindeki "Görüşme Sonucu"
+// ile AYNI akis (spec 2026-10-02: "firma panelinde görüşmede ne oldu kısmı
+// benim paneldeki gibi olsun, zaman çizelgesine de o şekil not eklenebilsin"):
+// yazilan not HER ZAMAN zaman cizelgesine ("note") duser; sonuc butonu
+// durumu/takibi tek adimda gunceller:
+//   followup -> Takip durumu + takip tarihi (+ opsiyonel takip notu)
+//   won      -> satis tutari kaydi (upsertSaleAction) + durum Satis
+//   lost     -> durum Kayip, acik takip kapanir
+//   note     -> yalnizca not (durum ve takip DEGISMEZ)
+// Eski "MeetingOutcomeForm" (durum dropdown'u + opsiyonel not) ve ayri
+// "Takip" karti bu akisa tasindi - tek giris noktasi.
 // ----------------------------------------------------------------------------
 
-export type MeetingOutcomeState = { error: string | null };
+export type LeadOutcomeState = { error: string | null };
+type LeadOutcome = "followup" | "lost" | "won" | "note";
 
-export async function logMeetingOutcomeAction(
+/** Acik (tamamlanmamis) takip kaydini gunceller, yoksa olusturur. */
+async function upsertOpenFollowup(
+  supabase: SupabaseServerClient,
+  params: { leadId: string; companyId: string; followupAtIso: string; note: string | null }
+) {
+  const { data: existing } = await supabase
+    .from("followups")
+    .select("id")
+    .eq("lead_id", params.leadId)
+    .eq("is_completed", false)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const result = existing
+    ? await supabase.from("followups").update({ followup_date: params.followupAtIso, note: params.note }).eq("id", existing.id)
+    : await supabase
+        .from("followups")
+        .insert({ lead_id: params.leadId, company_id: params.companyId, followup_date: params.followupAtIso, note: params.note });
+  if (result.error) console.error("upsertOpenFollowup error:", result.error.message);
+  return result.error;
+}
+
+/** Raporlar "Tamamlanan Takip" `followups.is_completed`'i sayar: acik takip gorevlerini kapatir. */
+async function closeOpenFollowups(supabase: SupabaseServerClient, leadId: string, nowIso: string) {
+  const { error } = await supabase
+    .from("followups")
+    .update({ is_completed: true, completed_at: nowIso })
+    .eq("lead_id", leadId)
+    .eq("is_completed", false);
+  if (error) console.error("closeOpenFollowups error:", error.message);
+}
+
+export async function logLeadOutcomeAction(
   leadId: string,
-  prevState: MeetingOutcomeState,
+  prevState: LeadOutcomeState,
   formData: FormData
-): Promise<MeetingOutcomeState> {
-  const statusRaw = String(formData.get("status") ?? "").trim();
-  const note = String(formData.get("note") ?? "").trim();
+): Promise<LeadOutcomeState> {
+  const profile = await requireProfile();
 
-  // "Satış" buradan yapilamaz - satis tutari kaydedilmeden durum "won" olursa
-  // ciro/satis personeli performansi hic yansimaz (bkz. upsertSaleAction).
-  // Tek dogru yol Kanban'daki tutar modalidir - burada bilerek engelliyoruz.
-  if (statusRaw === "won") {
-    return { error: "Satış tutarını girmek için Kanban'da \"Satış\" kolonuna taşıyın." };
+  const note = String(formData.get("note") ?? "").trim();
+  const outcome = String(formData.get("outcome") ?? "") as LeadOutcome;
+
+  if (!["followup", "lost", "won", "note"].includes(outcome)) return { error: "Bir sonuç seçin." };
+  if (!note) return { error: "Görüşmede ne olduğunu yazın." };
+
+  let followupAt: Date | null = null;
+  if (outcome === "followup") {
+    const days = parseFollowupDays(String(formData.get("followup_days") ?? ""));
+    if (days === null) return { error: "Takibe almak için kaç gün sonra aranacağını yazın (0-3650)." };
+    followupAt = resolveFollowupAt(days);
+  }
+
+  if (outcome === "won" && profile.role === "sales") {
+    return { error: "Satış kaydı için yetkiniz yok — firma sahibine bildirin." };
   }
 
   const supabase = await createClient();
@@ -357,94 +405,182 @@ export async function logMeetingOutcomeAction(
     .select("status, company_id, next_followup_at")
     .eq("id", leadId)
     .single();
-
   if (fetchError || !current) return { error: "Lead bulunamadı." };
 
-  const nextStatus = (statusRaw || null) as LeadStatus | null;
-  const statusChanged = nextStatus !== null && nextStatus !== current.status;
+  const nowIso = new Date().toISOString();
 
-  // Secim kutusu artik "— Değiştirme —" yerine mevcut durumu gosteriyor
-  // (spec: "illaki seçeneklerden birini seçsin") - yani "degismedi" durumu
-  // artik statusRaw'in bos olmasiyla degil, secilenin zaten mevcut durumla
-  // AYNI olmasiyla anlasilir. En az durum degisikligi ya da not olmali.
-  if (!statusChanged && !note) {
-    return { error: "Durum değiştirin veya bir not yazın." };
+  // SATIS: tutar + sales kaydi + durum gecisi mevcut tek yolda (upsertSaleAction)
+  // yapilir; basarisizsa HIC not yazilmaz (kullanicinin yazdigi form korunur).
+  if (outcome === "won") {
+    const saleForm = new FormData();
+    saleForm.set("sale_amount", String(formData.get("sale_amount") ?? ""));
+    const saleResult = await upsertSaleAction(leadId, { error: null }, saleForm);
+    if (saleResult.error) return saleResult;
   }
 
-  // PERF (jet hizi): eskiden bu akis 5-6 SIRALI yazmaydi (lead guncelle ->
-  // durum aktivitesi -> not -> takibi kapat -> takip tarihini temizle,
-  // ~1 sn). Simdi: (1) lead TEK guncelleme (durum + last_contact_at + varsa
-  // takip tarihi temizligi), (2) aktivite satirlari TEK insert + acik takipleri
-  // kapatma PARALEL. Toplam 3 ag turu.
-  //
-  // Bir takip tarihi varsa artik gercek bir temas oldu -> takip gorevi yerine
-  // getirilmis sayilir (bkz. asagidaki followups kapatma) ve leads.
-  // next_followup_at/next_followup_note temizlenir; aksi halde lead "Takipte"
-  // listesinde eski tarihiyle sonsuza dek kalirdi (onceki denetimde bulunan hata).
-  const nowIso = new Date().toISOString();
   const leadUpdate: Database["public"]["Tables"]["leads"]["Update"] = { last_contact_at: nowIso };
-  if (statusChanged) leadUpdate.status = nextStatus as LeadStatus;
-  if (current.next_followup_at) {
+  let t0 = Date.now();
+  if (outcome === "won") {
+    // upsertSaleAction satirlari VERITABANI saatiyle yazdi, buradaki satirlar
+    // uygulama saatiyle - saat farki yuzunden not satis satirlarinin ALTINA
+    // dusebiliyordu. Not, o satirlarin hemen ustune oturtulur.
+    const { data: latest } = await supabase
+      .from("activities")
+      .select("created_at")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latest) t0 = Math.max(t0, new Date(latest.created_at).getTime() + 1);
+  }
+  const rows: Database["public"]["Tables"]["activities"]["Insert"][] = [
+    { lead_id: leadId, company_id: current.company_id, type: "note", description: note, created_at: new Date(t0).toISOString() },
+  ];
+
+  if (outcome === "followup" && followupAt) {
+    leadUpdate.status = "followup";
+    leadUpdate.next_followup_at = followupAt.toISOString();
+    leadUpdate.next_followup_note = null;
+    if (current.status !== "followup") {
+      rows.push({
+        lead_id: leadId,
+        company_id: current.company_id,
+        type: "status_change",
+        description: `Durum değişti: ${LEAD_STATUS_LABELS[current.status]} → ${LEAD_STATUS_LABELS.followup}`,
+        from_status: current.status,
+        to_status: "followup",
+        created_at: new Date(t0 + 1).toISOString(),
+      });
+    }
+    rows.push({
+      lead_id: leadId,
+      company_id: current.company_id,
+      type: "system",
+      description: `Takip planlandı: ${formatFollowupDate(followupAt)}`,
+      created_at: new Date(t0 + 2).toISOString(),
+    });
+  } else if (outcome === "lost") {
+    leadUpdate.status = "lost";
+    leadUpdate.next_followup_at = null;
+    leadUpdate.next_followup_note = null;
+    if (current.status !== "lost") {
+      rows.push({
+        lead_id: leadId,
+        company_id: current.company_id,
+        type: "status_change",
+        description: `Durum değişti: ${LEAD_STATUS_LABELS[current.status]} → ${LEAD_STATUS_LABELS.lost}`,
+        from_status: current.status,
+        to_status: "lost",
+        created_at: new Date(t0 + 1).toISOString(),
+      });
+    }
+  } else if (outcome === "won") {
+    // Durum + satis aktivitesi upsertSaleAction'da yazildi; takip artik gecersiz.
     leadUpdate.next_followup_at = null;
     leadUpdate.next_followup_note = null;
   }
 
   const { error: leadUpdateError } = await supabase.from("leads").update(leadUpdate).eq("id", leadId);
   if (leadUpdateError) {
-    console.error("logMeetingOutcomeAction lead update error:", leadUpdateError.message);
+    console.error("logLeadOutcomeAction lead update error:", leadUpdateError.message);
     return { error: `Güncellenemedi: ${friendlyDbError(leadUpdateError)}` };
   }
 
-  // Zaman cizelgesi satirlari: durum degisikligi + not TEK insert'te; created_at
-  // 1ms arayla verilir ki cizelgedeki sira (once durum, sonra not) sabit kalsin.
-  const t0 = Date.now();
-  const activityRows: Database["public"]["Tables"]["activities"]["Insert"][] = [];
-  if (statusChanged && nextStatus) {
-    activityRows.push({
-      lead_id: leadId,
-      company_id: current.company_id,
-      type: "status_change",
-      description: `Durum değişti: ${LEAD_STATUS_LABELS[current.status]} → ${LEAD_STATUS_LABELS[nextStatus]}`,
-      from_status: current.status,
-      to_status: nextStatus,
-      created_at: new Date(t0).toISOString(),
-    });
-  }
-  if (note) {
-    activityRows.push({
-      lead_id: leadId,
-      company_id: current.company_id,
-      type: "note",
-      description: note,
-      created_at: new Date(t0 + 1).toISOString(),
-    });
-  }
-
-  // Raporlar "Tamamlanan Takip" `followups.is_completed`'i sayar: bu noktada
-  // gercek bir temas oldu, acik (is_completed=false) takip gorevi kapatilir.
-  const [activityResult, followupResult] = await Promise.all([
-    supabase.from("activities").insert(activityRows),
-    current.next_followup_at
-      ? supabase
-          .from("followups")
-          .update({ is_completed: true, completed_at: nowIso })
-          .eq("lead_id", leadId)
-          .eq("is_completed", false)
-      : Promise.resolve({ error: null }),
+  const [activityResult] = await Promise.all([
+    supabase.from("activities").insert(rows),
+    outcome === "followup" && followupAt
+      ? upsertOpenFollowup(supabase, {
+          leadId,
+          companyId: current.company_id,
+          followupAtIso: followupAt.toISOString(),
+          note: null,
+        })
+      : outcome === "lost" || outcome === "won"
+        ? closeOpenFollowups(supabase, leadId, nowIso)
+        : Promise.resolve(null),
   ]);
 
-  if (followupResult.error) {
-    console.error("logMeetingOutcomeAction followup complete error:", followupResult.error.message);
-  }
   if (activityResult.error) {
-    console.error("logMeetingOutcomeAction activity insert error:", activityResult.error.message);
-    return { error: `Kaydedilemedi: ${friendlyDbError(activityResult.error)}` };
+    console.error("logLeadOutcomeAction activity insert error:", activityResult.error.message);
+    return { error: `Not kaydedilemedi: ${friendlyDbError(activityResult.error)}` };
   }
 
   revalidateLead(leadId);
   return { error: null };
 }
 
+// ----------------------------------------------------------------------------
+// Takibi ERTELE / KALDIR - eskiden takibi degistirmenin tek yolu yeni bir
+// gorusme sonucu girmekti (iki panelde de eksikti, spec 2026-10-02: "takip
+// kismini cok daha gelismis yap"). Ertele: yeni tarih BUGUNDEN itibaren
+// hesaplanir; her ikisi de zaman cizelgesine sistem satiri yazar.
+// ----------------------------------------------------------------------------
+
+export async function snoozeLeadFollowupAction(leadId: string, days: number): Promise<LeadOutcomeState> {
+  await requireProfile();
+  if (!Number.isInteger(days) || days < 1 || days > MAX_FOLLOWUP_DAYS) return { error: "Geçersiz gün sayısı." };
+
+  const supabase = await createClient();
+  const { data: current, error: fetchError } = await supabase
+    .from("leads")
+    .select("status, company_id, next_followup_at, next_followup_note")
+    .eq("id", leadId)
+    .single();
+  if (fetchError || !current) return { error: "Lead bulunamadı." };
+  if (!current.next_followup_at) return { error: "Ertelenecek bir takip yok." };
+  if (current.status === "won" || current.status === "lost") return { error: "Kapanmış lead'in takibi ertelenemez." };
+
+  const next = resolveFollowupAt(days);
+  const { error } = await supabase.from("leads").update({ next_followup_at: next.toISOString() }).eq("id", leadId);
+  if (error) return { error: `Ertelenemedi: ${friendlyDbError(error)}` };
+
+  await Promise.all([
+    upsertOpenFollowup(supabase, {
+      leadId,
+      companyId: current.company_id,
+      followupAtIso: next.toISOString(),
+      note: current.next_followup_note,
+    }),
+    logActivity(supabase, {
+      leadId,
+      companyId: current.company_id,
+      type: "system",
+      description: `Takip ertelendi: ${formatFollowupDate(current.next_followup_at)} → ${formatFollowupDate(next)}`,
+    }),
+  ]);
+
+  revalidateLead(leadId);
+  return { error: null };
+}
+
+export async function clearLeadFollowupAction(leadId: string): Promise<LeadOutcomeState> {
+  await requireProfile();
+
+  const supabase = await createClient();
+  const { data: current, error: fetchError } = await supabase
+    .from("leads")
+    .select("company_id, next_followup_at")
+    .eq("id", leadId)
+    .single();
+  if (fetchError || !current) return { error: "Lead bulunamadı." };
+  if (!current.next_followup_at) return { error: null };
+
+  const { error } = await supabase.from("leads").update({ next_followup_at: null, next_followup_note: null }).eq("id", leadId);
+  if (error) return { error: `Kaldırılamadı: ${friendlyDbError(error)}` };
+
+  await Promise.all([
+    closeOpenFollowups(supabase, leadId, new Date().toISOString()),
+    logActivity(supabase, {
+      leadId,
+      companyId: current.company_id,
+      type: "system",
+      description: `Takip kaldırıldı (planlanan: ${formatFollowupDate(current.next_followup_at)})`,
+    }),
+  ]);
+
+  revalidateLead(leadId);
+  return { error: null };
+}
 
 // ----------------------------------------------------------------------------
 // Item 6: Takip tarihi olusturma/duzenleme
@@ -585,110 +721,63 @@ export async function createAppointmentAction(
 }
 
 // ----------------------------------------------------------------------------
-// Item 8: Satis personeli atama (sadece owner/admin - RLS de sales'in baskasina
-// atamasini zaten engeller, burada ayrica erken/anlasilir bir hata verilir)
+// GORUSEN KISI - TEK kavram (spec 2026-10-02: "Görüşen Kişi/Satış Personeli
+// iki kısım var, teke indir, Görüşen Kişi olsun sadece"). Secenekler iki
+// kaynaktan gelir ama kullaniciya TEK liste olarak sunulur:
+//   "s:<id>" -> isim-bazli kayit (salespeople)  => contacted_by
+//   "p:<id>" -> giris hesabi (profiles)         => assigned_salesperson
+// ONEMLI (bkz. 0016_salespeople_roster.sql): assigned_salesperson, "sales"
+// rolundeki gercek hesabin RLS ile SADECE kendi leadlerini gormesini saglar;
+// kolon silinmedi/birlestirilmedi - sadece ayni anda en fazla BIRI dolu tutulur.
 // ----------------------------------------------------------------------------
 
-export type AssignActionState = { error: string | null };
+export type ContactPersonState = { error: string | null };
 
-export async function assignSalespersonAction(
+export async function setContactPersonAction(
   leadId: string,
-  prevState: AssignActionState,
+  prevState: ContactPersonState,
   formData: FormData
-): Promise<AssignActionState> {
+): Promise<ContactPersonState> {
   const profile = await requireProfile();
   if (profile.role === "sales") {
     return { error: "Bu işlem için yetkiniz yok." };
   }
 
-  const raw = String(formData.get("assigned_salesperson") ?? "");
-  const assignedSalesperson = raw === "" ? null : raw;
+  const raw = String(formData.get("person") ?? "");
+  let update: { contacted_by: string | null; assigned_salesperson: string | null };
+  if (raw === "") {
+    update = { contacted_by: null, assigned_salesperson: null };
+  } else if (raw.startsWith("s:")) {
+    update = { contacted_by: raw.slice(2), assigned_salesperson: null };
+  } else if (raw.startsWith("p:")) {
+    update = { contacted_by: null, assigned_salesperson: raw.slice(2) };
+  } else {
+    return { error: "Geçersiz seçim." };
+  }
 
   const supabase = await createClient();
 
-  const { data: lead, error: fetchError } = await supabase
-    .from("leads")
-    .select("company_id")
-    .eq("id", leadId)
-    .single();
-
+  const { data: lead, error: fetchError } = await supabase.from("leads").select("company_id").eq("id", leadId).single();
   if (fetchError || !lead) return { error: "Lead bulunamadı." };
 
-  const { error } = await supabase.from("leads").update({ assigned_salesperson: assignedSalesperson }).eq("id", leadId);
-
+  // Cross-tenant korumasi veritabani tetikleyicisinde (0026) - baska firmanin
+  // kisisi secilirse update reddedilir.
+  const { error } = await supabase.from("leads").update(update).eq("id", leadId);
   if (error) {
-    console.error("assignSalespersonAction error:", error.message);
-    return { error: `Atama başarısız: ${friendlyDbError(error)}` };
-  }
-
-  let salespersonName = "Atanmadı";
-  if (assignedSalesperson) {
-    const { data: p } = await supabase.from("profiles").select("full_name").eq("id", assignedSalesperson).single();
-    salespersonName = p?.full_name ?? "Bilinmiyor";
-  }
-
-  await logActivity(supabase, {
-    leadId,
-    companyId: lead.company_id,
-    type: "system",
-    description: `Satış personeli atandı: ${salespersonName}`,
-  });
-
-  revalidateLead(leadId);
-  return { error: null };
-}
-
-// ----------------------------------------------------------------------------
-// Görüşen Kişi: yukarıdaki assignSalespersonAction'dan BİLEREK ayrı - o
-// gerçek hesap/RLS izolasyonu içindir (bkz. 0016_salespeople_roster.sql
-// açıklaması), bu ise sadece firma sahibinin isim bazlı tanımladığı kişiyi
-// (spec: "leadle görüşen kişiyi seçebilelim") bilgi amaçlı işaretler.
-// ----------------------------------------------------------------------------
-
-export type ContactedByActionState = { error: string | null };
-
-export async function setContactedByAction(
-  leadId: string,
-  prevState: ContactedByActionState,
-  formData: FormData
-): Promise<ContactedByActionState> {
-  const profile = await requireProfile();
-  if (profile.role === "sales") {
-    return { error: "Bu işlem için yetkiniz yok." };
-  }
-
-  const raw = String(formData.get("contacted_by") ?? "");
-  const contactedBy = raw === "" ? null : raw;
-
-  const supabase = await createClient();
-
-  const { data: lead, error: fetchError } = await supabase
-    .from("leads")
-    .select("company_id")
-    .eq("id", leadId)
-    .single();
-
-  if (fetchError || !lead) return { error: "Lead bulunamadı." };
-
-  const { error } = await supabase.from("leads").update({ contacted_by: contactedBy }).eq("id", leadId);
-
-  if (error) {
-    console.error("setContactedByAction error:", error.message);
+    console.error("setContactPersonAction error:", error.message);
     return { error: `Kaydedilemedi: ${friendlyDbError(error)}` };
   }
 
   let name = "Belirtilmedi";
-  if (contactedBy) {
-    const { data: sp } = await supabase.from("salespeople").select("full_name").eq("id", contactedBy).single();
+  if (update.contacted_by) {
+    const { data: sp } = await supabase.from("salespeople").select("full_name").eq("id", update.contacted_by).single();
     name = sp?.full_name ?? "Bilinmiyor";
+  } else if (update.assigned_salesperson) {
+    const { data: p } = await supabase.from("profiles").select("full_name").eq("id", update.assigned_salesperson).single();
+    name = p?.full_name ?? "Bilinmiyor";
   }
 
-  await logActivity(supabase, {
-    leadId,
-    companyId: lead.company_id,
-    type: "system",
-    description: `Görüşen kişi: ${name}`,
-  });
+  await logActivity(supabase, { leadId, companyId: lead.company_id, type: "system", description: `Görüşen kişi: ${name}` });
 
   revalidateLead(leadId);
   return { error: null };

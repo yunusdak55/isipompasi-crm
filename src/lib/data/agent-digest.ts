@@ -1,7 +1,8 @@
 import { getReportsData, fetchReportsRawData } from "@/lib/data/reports";
 import { getLeadsOverdue } from "@/lib/data/leads";
+import { getOverdueSummary } from "@/lib/data/dashboard";
 import { getSalesStats } from "@/lib/data/sales";
-import { formatCurrency, formatRelativeDays, formatRelativeTimeAgo } from "@/lib/utils";
+import { formatCurrency, formatRate, formatRelativeDays } from "@/lib/utils";
 
 /**
  * Dijital Ajan sayfasinin TEK gercek veri kaynagi. Hem sayfadaki hazir
@@ -61,12 +62,17 @@ export async function getAgentDigest(): Promise<AgentDigest> {
   // takip sorgusu PARALEL atilir (5 sorgudan 3'e dustu); raw elde edilince
   // getReportsData/getSalesStats artik hic sorgu atmadan (sadece hesaplama)
   // onu paylasir.
-  const [raw, overdueLeads] = await Promise.all([fetchReportsRawData(), getLeadsOverdue()]);
+  const [raw, overdueSummary] = await Promise.all([fetchReportsRawData(), getOverdueSummary(8)]);
+  // RPC okunamazsa (nadir) eski yola dus: tum gecikmis leadleri cekip say.
+  const fallbackOverdue = overdueSummary ? null : await getLeadsOverdue();
+  const overdueCount = overdueSummary ? overdueSummary.count : (fallbackOverdue?.length ?? 0);
+  const overdueSource: { first_name: string | null; last_name: string | null; phone: string; city: string | null; next_followup_at: string | null }[] =
+    overdueSummary ? overdueSummary.leads : (fallbackOverdue ?? []).slice(0, 8);
   const [report, salesStats] = await Promise.all([getReportsData("all", raw), getSalesStats(raw)]);
 
-  const overdueForDisplay = overdueLeads.slice(0, 8).map((lead) => {
+  const overdueForDisplay = overdueSource.slice(0, 8).map((lead) => {
     const name = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim() || lead.phone;
-    const daysText = formatRelativeDays(lead.next_followup_at) ?? `${formatRelativeTimeAgo(lead.created_at)} geldi, yanıt yok`;
+    const daysText = formatRelativeDays(lead.next_followup_at) ?? "takip tarihi yok";
     return { name, city: lead.city, daysText };
   });
 
@@ -97,7 +103,7 @@ export async function getAgentDigest(): Promise<AgentDigest> {
 
   return {
     totalLeads: report.totalLeads,
-    overdueCount: overdueLeads.length,
+    overdueCount,
     conversionRate: report.conversionRate,
     totalRevenue: salesStats.totalRevenue,
     avgSaleValue: salesStats.avgSaleValue,
@@ -187,7 +193,7 @@ export function buildAgentInsights(d: AgentDigest): AgentInsight[] {
     insights.push({
       id: "low-conversion",
       tone: "warning",
-      text: `Dönüşüm oranınız %${d.conversionRate.toFixed(1)} — ${d.totalLeads} lead'e karşılık bu düşük. Fiyatlandırma, geri dönüş hızı veya keşif kalitesinden kaynaklanıyor olabilir.`,
+      text: `Dönüşüm oranınız ${formatRate(d.conversionRate)} — ${d.totalLeads} lead'e karşılık bu düşük. Fiyatlandırma, geri dönüş hızı veya keşif kalitesinden kaynaklanıyor olabilir.`,
     });
   }
 

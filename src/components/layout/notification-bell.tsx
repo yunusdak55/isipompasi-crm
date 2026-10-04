@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { DueFollowup } from "@/lib/data/leads";
 
 /** Bugun/gecmis takip tarihi olan leadleri listeleyen zil - dis servis gerektirmez, mevcut verilerden. */
@@ -51,15 +51,15 @@ export function NotificationBell({ items }: { items: DueFollowup[] }) {
           ) : (
             <ul className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
               {items.map((item, index) => (
-                <li key={item.leadId} className="animate-slide-up" style={{ animationDelay: `${Math.min(index, 8) * 25}ms` }}>
+                <li key={item.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index, 8) * 25}ms` }}>
                   <Link
-                    href={`/leads/${item.leadId}`}
+                    href={item.href}
                     onClick={() => setOpen(false)}
                     className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm transition-colors duration-150 hover:bg-white/[0.05] hover:translate-x-0.5"
                   >
                     <span className="truncate text-ink-900">{item.name}</span>
                     <span className={cn("shrink-0 text-xs font-medium", item.overdue ? "text-danger-500" : "text-ink-600")}>
-                      {formatDate(item.date)}
+                      {item.label}
                     </span>
                   </Link>
                 </li>

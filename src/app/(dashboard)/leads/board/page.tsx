@@ -7,7 +7,7 @@ import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { requireProfile } from "@/lib/auth/session";
 
 export default async function LeadsBoardPage() {
-  const [leadsByStatus, profile] = await Promise.all([getLeadsForBoard(), requireProfile()]);
+  const [board, profile] = await Promise.all([getLeadsForBoard(), requireProfile()]);
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
   if (profile.role === "admin") {
     redirect("/admin/companies");
@@ -36,7 +36,7 @@ export default async function LeadsBoardPage() {
       </div>
 
       <div className="relative flex min-h-0 flex-1">
-        <KanbanBoard initialLeadsByStatus={leadsByStatus} canRecordSale={canRecordSale} />
+        <KanbanBoard initialLeadsByStatus={board.leads} columnTotals={board.totals} canRecordSale={canRecordSale} />
       </div>
     </div>
   );

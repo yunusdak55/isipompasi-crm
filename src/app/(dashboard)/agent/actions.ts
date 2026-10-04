@@ -2,9 +2,24 @@
 
 import { requireProfile } from "@/lib/auth/session";
 import { getAgentDigest, buildAgentInsights } from "@/lib/data/agent-digest";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatRate } from "@/lib/utils";
 
 export type AgentChatTurn = { role: "user" | "agent"; text: string };
+
+/**
+ * Model talimata ragmen zaman zaman markdown vurgusu (**kalin**, __x__, `kod`,
+ * # baslik) uretiyor; sohbet arayuzu duz metin gosterdigi icin bunlar
+ * "**" olarak ekrana cikiyordu (bildirim, spec 2026-10-02). Listeler (1. / -)
+ * duz metin olarak okunabilir oldugu icin korunur.
+ */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*([\s\S]+?)\*\*/g, "$1")
+    .replace(/__([\s\S]+?)__/g, "$1")
+    .replace(/`{1,3}([^`]*)`{1,3}/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*/g, "");
+}
 
 /**
  * Dijital Ajan'in gercek LLM baglantisi (spec 2026-09-28: "ben mevcut
@@ -37,8 +52,8 @@ export async function askAgentAction(message: string, history: AgentChatTurn[]):
   const dataBlock = [
     `Firma: ${profile.company?.name ?? "Bilinmiyor"}`,
     `Toplam lead: ${digest.totalLeads}`,
-    `Gecikmiş takip: ${digest.overdueCount}`,
-    `Dönüşüm oranı: %${digest.conversionRate.toFixed(1)}`,
+    `Gecikmiş takip (takibe alınmış ve takip tarihi 24 saatten fazla geçmiş müşteri sayısı): ${digest.overdueCount}`,
+    `Dönüşüm oranı: ${formatRate(digest.conversionRate)}`,
     `Pipeline değeri: ${formatCurrency(digest.pipelineValue)}`,
     digest.hasAnySale ? `Toplam ciro: ${formatCurrency(digest.totalRevenue)}, ortalama satış: ${formatCurrency(digest.avgSaleValue)}` : "Henüz kayıtlı satış yok.",
     `Ortalama teklif: ${formatCurrency(digest.avgOfferAmount)}`,
@@ -69,6 +84,8 @@ export async function askAgentAction(message: string, history: AgentChatTurn[]):
     "- Veri bir soruyu cevaplamaya yetmiyorsa bunu açıkça söyle, tahmin yürütme.",
     "- Türkçe, kısa, net, samimi ama profesyonel bir dille yaz. Gereksiz giriş cümleleri kurma, doğrudan konuya gir.",
     "- Mümkün olduğunda somut bir aksiyon öner (kime dönülmeli, hangi aşama önceliklendirilmeli).",
+    "- \"Gecikmiş\" kelimesini YALNIZCA takibe alınmış ve takip tarihinin üzerinden 24 saatten fazla geçmiş müşteriler için kullan; bunlar verideki \"Gecikmiş takip\" sayısı ve listesindekilerdir. Takibe alınmamış veya takip tarihi 24 saatten az geçmiş hiçbir müşteriye gecikmiş deme.",
+    "- Düz metin yaz: markdown KULLANMA. Çift yıldız (**), alt çizgiyle vurgu, # başlık, ``` kod bloğu veya tablo kullanma. Vurguyu kelimelerle yap; liste gerekiyorsa her satırı \"1.\" ya da \"-\" ile başlat.",
     "- Fiyat/indirim önerme, satış kapatma taktiği verme — bunlar insan satış ekibinin işi, sen sadece analiz ve önceliklendirme yapıyorsun.",
     "",
     "GERÇEK VERİ:",
@@ -88,8 +105,10 @@ export async function askAgentAction(message: string, history: AgentChatTurn[]):
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
         messages,
-        temperature: 0.4,
-        max_tokens: 700,
+        // gpt-5.x ailesi `max_tokens` ve ozel `temperature` degerlerini REDDEDER
+        // (canli testte HTTP 400 alindi) - `max_completion_tokens` kullanilir,
+        // sicaklik varsayilanda birakilir.
+        max_completion_tokens: 900,
       }),
     });
 
@@ -100,7 +119,7 @@ export async function askAgentAction(message: string, history: AgentChatTurn[]):
     }
 
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const reply = json.choices?.[0]?.message?.content?.trim();
+    const reply = stripMarkdown(json.choices?.[0]?.message?.content ?? "").trim();
     return { reply: reply || "Bir cevap üretemedim, lütfen soruyu farklı şekilde tekrar sorun." };
   } catch (err) {
     console.error("askAgentAction fetch error:", err);

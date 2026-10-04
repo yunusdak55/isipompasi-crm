@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { LEAD_STATUS_ORDER } from "@/lib/constants/lead";
-import { NO_CONTACT_OVERDUE_HOURS, isLeadOverdue, leadDisplayName } from "@/lib/utils";
+import { FOLLOWUP_OVERDUE_HOURS, formatRelativeDays, isLeadOverdue, leadDisplayName } from "@/lib/utils";
 import { fetchAllRows } from "@/lib/data/paginate";
-import { endOfDayTR, monthStartTR, startOfDayTR } from "@/lib/time";
+import { endOfDayTR, monthStartTR } from "@/lib/time";
+import { sortByFollowupUrgency } from "@/lib/followup";
 import type { LeadPriority, LeadStatus } from "@/lib/types/domain";
 
 /**
@@ -31,10 +32,11 @@ export type LeadListItem = {
   last_activity_at: string | null;
   created_at: string;
   assigned_profile: { full_name: string | null } | null;
+  contacted_by_person: { full_name: string | null } | null;
 };
 
 const LEAD_LIST_COLUMNS =
-  "id, first_name, last_name, phone, city, area_m2, property_type, status, priority, next_followup_at, next_followup_note, offered_amount, last_contact_at, last_activity_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name)";
+  "id, first_name, last_name, phone, city, area_m2, property_type, status, priority, next_followup_at, next_followup_note, offered_amount, last_contact_at, last_activity_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name), contacted_by_person:salespeople!leads_contacted_by_fkey(full_name)";
 
 /**
  * Lead listesini SERVER-SIDE sayfalama + filtre ile getirir (spec md.29:
@@ -68,6 +70,12 @@ export async function getLeads(params: { search?: string; status?: LeadStatus; p
   const { data, count, error } = await query;
 
   if (error) {
+    // Olmayan bir sayfa numarasi (ör. silinen kayitlar sonrasi eski bir baglanti, elle yazilmis
+    // ?page=999) PostgREST'te "Requested range not satisfiable" (PGRST103) verir. Bos liste ve
+    // "0 lead" gostermek YANILTICI olurdu - ilk sayfaya dus.
+    if (error.code === "PGRST103" && page > 1) {
+      return getLeads({ ...params, page: 1 });
+    }
     console.error("getLeads error:", error.message);
     return { leads: [] as LeadListItem[], count: 0, page, pageSize };
   }
@@ -76,7 +84,14 @@ export async function getLeads(params: { search?: string; status?: LeadStatus; p
 }
 
 /** Lead detay sayfasi icin tek lead + atanan kisi. */
+/** URL'den gelen id gercekten UUID mi? Degilse veritabanina hic gitmeden "yok" sayilir (hata logu + bos sorgu yok). */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
+}
+
 export async function getLeadById(id: string) {
+  if (!isUuid(id)) return null;
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -100,6 +115,7 @@ export async function getLeadById(id: string) {
 
 /** Lead zaman cizelgesi (spec md.10). V1'de bos gelebilir; UI bunu ele alir. */
 export async function getLeadActivities(leadId: string) {
+  if (!isUuid(leadId)) return [];
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -118,6 +134,7 @@ export async function getLeadActivities(leadId: string) {
 
 /** Bir lead icin kayitli gercek satis (varsa). RLS: sadece owner/admin gorur. */
 export async function getSaleForLead(leadId: string) {
+  if (!isUuid(leadId)) return null;
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -136,28 +153,6 @@ export async function getSaleForLead(leadId: string) {
 }
 
 export type LeadSelectItem = { id: string; first_name: string | null; last_name: string | null; phone: string };
-
-/** Takvimden dogrudan randevu olustururken lead secim dropdown'u icin acik leadler. */
-export async function getOpenLeadsForSelect(): Promise<LeadSelectItem[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await fetchAllRows((from, to) =>
-    supabase
-      .from("leads")
-      .select("id, first_name, last_name, phone")
-      .not("status", "in", "(won,lost)")
-      .order("first_name")
-      .order("id")
-      .range(from, to)
-  );
-
-  if (error) {
-    console.error("getOpenLeadsForSelect error:", error.message);
-    return [];
-  }
-
-  return data ?? [];
-}
 
 /** Bir firmada lead atanabilecek kisiler (owner + sales). Atama dropdown'u icin. */
 export async function getAssignableProfiles(companyId: string) {
@@ -193,55 +188,71 @@ export type BoardLead = {
   next_followup_at: string | null;
   created_at: string;
   assigned_profile: { full_name: string | null } | null;
+  contacted_by_person: { full_name: string | null } | null;
 };
+
+/** Kanban'da her kolon icin sunucudan alinan EN FAZLA kart sayisi (en yeni olusturulandan baslayarak). */
+export const BOARD_COLUMN_CAP = 300;
+
+export type BoardData = {
+  leads: Record<LeadStatus, BoardLead[]>;
+  /** Her kolondaki GERCEK toplam (sunucudaki sayi) - yuklenen kart sayisindan buyuk olabilir. */
+  totals: Record<LeadStatus, number>;
+};
+
+const BOARD_SELECT =
+  "id, first_name, last_name, phone, city, status, priority, offered_amount, last_contact_at, last_activity_at, next_followup_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name), contacted_by_person:salespeople!leads_contacted_by_fkey(full_name)";
 
 /**
  * Kanban pipeline icin durum bazinda gruplanmis lead listesi. RLS sayesinde
  * kullanicinin (rol farketmeksizin) gorebilecegi leadlerle otomatik sinirli.
+ *
+ * SINIRLI YUKLEME (guvenlik supabi, 2026-10-05): eskiden TUM leadler cekilip tarayiciya
+ * gonderiliyordu (5.000 lead = ~3 MB sayfa, 9 sirali sorgu, binlerce kart). Simdi her
+ * kolon icin EN YENI BOARD_COLUMN_CAP kart + o kolonun gercek toplami TEK paralel turda
+ * gelir (5 sorgu). Gercek firmalar (yuzlerce lead) bu sinira hic takilmaz; sinir asilirsa
+ * kolon altinda "Liste Gorunumu" uyarisi cikar. Hicbir veri silinmez/gizlenmez - sadece
+ * ayni anda tarayiciya yuklenen miktar sinirlanir.
  */
-export async function getLeadsForBoard(): Promise<Record<LeadStatus, BoardLead[]>> {
+export async function getLeadsForBoard(): Promise<BoardData> {
   const supabase = await createClient();
 
-  const { data, error } = await fetchAllRows((from, to) =>
-    supabase
-      .from("leads")
-      .select(
-        "id, first_name, last_name, phone, city, status, priority, offered_amount, last_contact_at, last_activity_at, next_followup_at, created_at, assigned_profile:profiles!leads_assigned_salesperson_fkey(full_name)"
-      )
-      .order("created_at", { ascending: false })
-      .order("id")
-      .range(from, to)
+  const results = await Promise.all(
+    LEAD_STATUS_ORDER.map((status) =>
+      supabase
+        .from("leads")
+        .select(BOARD_SELECT, { count: "exact" })
+        .eq("status", status)
+        .order("created_at", { ascending: false })
+        .order("id")
+        .limit(BOARD_COLUMN_CAP)
+    )
   );
 
-  const grouped = Object.fromEntries(LEAD_STATUS_ORDER.map((status) => [status, [] as BoardLead[]])) as Record<
-    LeadStatus,
-    BoardLead[]
-  >;
+  const leads = Object.fromEntries(LEAD_STATUS_ORDER.map((status) => [status, [] as BoardLead[]])) as Record<LeadStatus, BoardLead[]>;
+  const totals = Object.fromEntries(LEAD_STATUS_ORDER.map((status) => [status, 0])) as Record<LeadStatus, number>;
 
-  if (error) {
-    console.error("getLeadsForBoard error:", error.message);
-    return grouped;
-  }
+  results.forEach((res, i) => {
+    const status = LEAD_STATUS_ORDER[i];
+    if (res.error) {
+      console.error("getLeadsForBoard error:", status, res.error.message);
+      return;
+    }
+    leads[status] = (res.data ?? []) as unknown as BoardLead[];
+    totals[status] = res.count ?? leads[status].length;
+  });
 
-  for (const lead of (data ?? []) as unknown as BoardLead[]) {
-    grouped[lead.status]?.push(lead);
-  }
-
-  return grouped;
+  return { leads, totals };
 }
 
 /**
  * "Takipte" ekrani (spec md.4): takip tarihi olan, henuz kapanmamis leadler.
  * Kapanmis (satis/kayip) leadlerde takip anlamsizdir.
  *
- * SIRALAMA (spec 2026-09-30, "HER YER icin" - bkz. getLeadsOverdue): bu liste
- * hem GECMIS (gecikmis) hem GELECEK (henuz gelmemis) takip tarihlerini birlikte
- * icerir. "En yakin once" tek yonlu (sadece ascending) siralamayla dogru
- * calismaz - gecikmis kisiler icin en YENI gecikme once gelmeli, gelecek
- * kisiler icin en YAKIN tarih once gelmeli. Ikisini de dogru veren tek olcut:
- * SU ANA olan MUTLAK zaman farki, kucukten buyuge (SQL'de degil, JS'te - Postgres
- * bunu index'siz basit bir ORDER BY ile ifade edemiyor, liste boyutu kucuk
- * oldugu icin JS'te siralamak performans sorunu yaratmaz).
+ * SIRALAMA (spec 2026-10-04, "HER YER icin" - bkz. lib/followup.ts
+ * sortByFollowupUrgency): once BUGUNKU takipler, sonra gecikmisler (en az
+ * geciken en ustte, gun sayisi arttikca asagi), sonra gelecek takipler (en
+ * yakin once). Gecmis ile gelecek artik birbirine karismaz.
  */
 export async function getLeadsFollowup(): Promise<LeadListItem[]> {
   const supabase = await createClient();
@@ -262,19 +273,56 @@ export async function getLeadsFollowup(): Promise<LeadListItem[]> {
     return [];
   }
 
-  const now = Date.now();
-  return ((data ?? []) as unknown as LeadListItem[]).sort(
-    (a, b) => Math.abs(new Date(a.next_followup_at as string).getTime() - now) - Math.abs(new Date(b.next_followup_at as string).getTime() - now)
-  );
+  return sortByFollowupUrgency((data ?? []) as unknown as LeadListItem[], (lead) => lead.next_followup_at as string);
 }
 
-export type DueFollowup = { leadId: string; name: string; date: string; overdue: boolean };
+export type UndatedFollowupLead = { id: string; first_name: string | null; last_name: string | null; phone: string };
+
+/**
+ * "Takip" ASAMASINDA ama takip TARIHI olmayan leadler. Takipte listesi tarihe gore
+ * calistigi icin bu kayitlar orada GORUNMEZ (Kanban'da "Takip" sutununa tarihsiz
+ * tasinabilir, "Takibi kaldir" da durumu degistirmez) - unutulmasinlar diye ayri
+ * uyari olarak gosterilir. Sayi tam (count), liste ilk 12 kayit (en yeni once).
+ */
+export async function getFollowupStageWithoutDate(): Promise<{ count: number; leads: UndatedFollowupLead[] }> {
+  const supabase = await createClient();
+
+  const [countRes, listRes] = await Promise.all([
+    supabase.from("leads").select("id", { count: "exact", head: true }).eq("status", "followup").is("next_followup_at", null),
+    supabase
+      .from("leads")
+      .select("id, first_name, last_name, phone")
+      .eq("status", "followup")
+      .is("next_followup_at", null)
+      .order("created_at", { ascending: false })
+      .order("id")
+      .limit(12),
+  ]);
+
+  if (countRes.error || listRes.error) {
+    console.error("getFollowupStageWithoutDate error:", (countRes.error ?? listRes.error)?.message);
+    return { count: 0, leads: [] };
+  }
+
+  return { count: countRes.count ?? 0, leads: (listRes.data ?? []) as UndatedFollowupLead[] };
+}
+
+/** Zil hatirlatmasi: lead (firma paneli) ya da aday (ajans admin) - href hedefi kaynaga gore degisir. */
+export type DueFollowup = {
+  id: string;
+  name: string;
+  date: string;
+  overdue: boolean;
+  href: string;
+  /** Sunucuda hesaplanan goreli yazi: "Bugün" / "Dün" / "3 gün gecikti" (bkz. formatRelativeDays). */
+  label: string;
+};
 
 /**
  * Topbar'daki hatirlatma zili icin: tarihi gelmis (bugun dahil) veya gecmis
  * takipler. Hafif bir liste - sadece isim + tarih, tam lead detayi degil.
- * SIRALAMA: hepsi <= bugun oldugu icin en YENI (en son gecikmis/bugunku)
- * once - bkz. getLeadsOverdue'daki ayni prensip.
+ * SIRALAMA: bugunku takipler en ustte, ardindan gecikmisler en az geciken
+ * once (gun sayisi arttikca asagi) - bkz. getLeadsOverdue'daki ayni prensip.
  */
 export async function getDueFollowups(): Promise<DueFollowup[]> {
   const supabase = await createClient();
@@ -296,11 +344,13 @@ export async function getDueFollowups(): Promise<DueFollowup[]> {
 
   const now = new Date();
   return (data ?? []).map((lead) => ({
-    leadId: lead.id,
+    id: lead.id,
+    href: `/leads/${lead.id}`,
     // Agent WhatsApp adini bulamazsa first_name bos olabilir (bkz. leadDisplayName).
     name: leadDisplayName(lead),
     date: lead.next_followup_at as string,
     overdue: new Date(lead.next_followup_at as string) < now,
+    label: formatRelativeDays(lead.next_followup_at) ?? "",
   }));
 }
 
@@ -333,37 +383,42 @@ export async function getLeadsCalendar(year: number, month: number): Promise<Lea
 }
 
 /**
- * "Gecikenler" ekrani (spec: iki bagimsiz tetikleyici - bkz. isLeadOverdue()
- * dokumantasyonu): (A) hic cevap verilmemis + 24 saat gecmis, (B) takip gunu
- * tamamen gecmis + o gunden beri hicbir aktivite yok.
+ * "Gecikenler" ekrani + Dijital Ajan'in "gecikmis takip" sayisi (spec
+ * 2026-10-02): YALNIZCA takibe alinmis leadler, takip tarihinin uzerinden
+ * 24 saatten fazla gecmis olanlar. SQL burada kaba on-filtre (takip tarihi
+ * esikten eski, kapanmamis); "takip zamanindan bu yana aktivite var mi"
+ * istisnasi PostgREST'te kolon-kolon karsilastirilamadigi icin kesin karar
+ * isLeadOverdue() ile (lib/utils.ts, TEK yer) JS'te veriliyor - rozetler,
+ * kanban ve chatbot ile bu sayfa arasinda ASLA celisme olmaz.
  *
- * SQL burada sadece KABA bir on-filtre (aday kume, veritabaninda kucuk
- * tutmak icin) - Kural B'nin "o takip gununden BERI hicbir aktivite yok"
- * kismi (last_activity_at ile GUN-hassas kolon-kolon karsilastirma)
- * PostgREST filtre sozdiziminde ifade edilemez. Kesin karar isLeadOverdue()
- * ile (bkz. lib/utils.ts) AYNI, TEK yerden yonetilen mantikla JS'te veriliyor -
- * Takipte/Kanban rozetleriyle bu sayfa arasinda ASLA celisme olmaz (gecmiste
- * yasanan, ayri kopya mantiklardan kaynaklanan bug'lar bu sayede imkansiz hale gelir).
+ * SIRALAMA (spec 2026-10-04, "HER YER icin"): GECIKME GUN SAYISINA gore
+ * kucukten buyuge - 1 gun gecikmis en ustte, sonra 2, 5, 10... (en yeni
+ * gecikme once, takibi kolay olsun). Takip tarihine gore AZALAN siralama
+ * (tarih ne kadar yeniyse gecikme o kadar az) tam olarak bunu verir.
  */
 export async function getLeadsOverdue(): Promise<LeadListItem[]> {
   const supabase = await createClient();
-  const noContactCutoff = new Date(Date.now() - NO_CONTACT_OVERDUE_HOURS * 60 * 60 * 1000).toISOString();
-  const todayStart = startOfDayTR();
+  const cutoff = new Date(Date.now() - FOLLOWUP_OVERDUE_HOURS * 60 * 60 * 1000).toISOString();
 
-  const { data, error } = await supabase
-    .from("leads")
-    .select(LEAD_LIST_COLUMNS)
-    .not("status", "in", "(won,lost)")
-    .or(
-      `and(last_contact_at.is.null,created_at.lt.${noContactCutoff}),and(next_followup_at.not.is.null,next_followup_at.lt.${todayStart.toISOString()})`
-    );
+  // fetchAllRows: 1000 satir ustu sessizce kesilmesin (bkz. data/paginate.ts).
+  const { data, error } = await fetchAllRows((from, to) =>
+    supabase
+      .from("leads")
+      .select(LEAD_LIST_COLUMNS)
+      .not("status", "in", "(won,lost)")
+      .not("next_followup_at", "is", null)
+      .lt("next_followup_at", cutoff)
+      .order("next_followup_at", { ascending: false })
+      .order("id")
+      .range(from, to)
+  );
 
   if (error) {
     console.error("getLeadsOverdue error:", error.message);
     return [];
   }
 
-  const overdue = ((data ?? []) as unknown as LeadListItem[]).filter((lead) =>
+  return ((data ?? []) as unknown as LeadListItem[]).filter((lead) =>
     isLeadOverdue({
       status: lead.status,
       lastContactAt: lead.last_contact_at,
@@ -372,15 +427,4 @@ export async function getLeadsOverdue(): Promise<LeadListItem[]> {
       lastActivityAt: lead.last_activity_at,
     })
   );
-
-  // SIRALAMA (spec 2026-09-30: "zaman dilimi en yakın olanlar en üstte
-  // gözükür, zaman dilimi uzaklaştıkça her şey aşağıda olur" - HER YER icin
-  // istendi). Once en ESKI (en uzun suredir dokunulmamis) once siralaniyordu -
-  // kullanici bunun tersini istiyor: "dün" gecikmis biri, "3 hafta önce"
-  // gecikmis birinden DAHA YUKARIDA gorunmeli (SU ANA en yakin once).
-  return overdue.sort((a, b) => {
-    const aRef = new Date(a.last_activity_at ?? a.last_contact_at ?? a.created_at).getTime();
-    const bRef = new Date(b.last_activity_at ?? b.last_contact_at ?? b.created_at).getTime();
-    return bRef - aRef;
-  });
 }

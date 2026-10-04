@@ -45,7 +45,7 @@ export function SalesJourneyStepper() {
   }, []);
 
   return (
-    <div className="sticky top-3 z-20 rounded-2xl border border-white/10 bg-brand-900/80 px-4 py-3 shadow-elevated-lg backdrop-blur-md sm:px-5">
+    <div className="sticky top-3 z-20 rounded-2xl border border-white/10 bg-brand-900/95 px-4 py-3 shadow-elevated-lg sm:px-5">
       <div className="relative">
         <div
           className="pointer-events-none absolute left-6 right-6 top-[15px] hidden h-px bg-gradient-to-r from-white/5 via-accent-500/35 to-white/5 sm:block"

@@ -12,18 +12,29 @@ import type { ReportPeriodOption } from "@/lib/data/reports";
 export function PeriodSelect({ options, value }: { options: ReportPeriodOption[]; value: string }) {
   const router = useRouter();
 
+  // Duz GET formu: JavaScript yuklenmeden/calismadan da (ör. yavas cihaz, arka
+  // plan sekmesi) "Uygula" ile calisir; JS hazirsa secim aninda otomatik gider.
   return (
-    <select
-      key={value}
-      defaultValue={value}
-      onChange={(e) => router.push(`/reports?period=${e.target.value}`)}
-      className="rounded-lg border border-line bg-canvas px-3 py-2 text-sm font-medium text-ink-900 transition-colors duration-150 focus-visible:border-accent-400 [&>option]:text-[#111827]"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <form action="/reports" method="get" className="flex items-center gap-2">
+      <select
+        key={value}
+        name="period"
+        defaultValue={value}
+        aria-label="Rapor dönemi"
+        onChange={(e) => router.push(`/reports?period=${e.target.value}`)}
+        className="rounded-lg border border-line bg-canvas px-3 py-2 text-sm font-medium text-ink-900 transition-colors duration-150 focus-visible:border-accent-400 [&>option]:text-[#111827]"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <noscript>
+        <button type="submit" className="rounded-lg border border-line px-3 py-2 text-sm text-ink-900">
+          Uygula
+        </button>
+      </noscript>
+    </form>
   );
 }

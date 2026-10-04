@@ -33,6 +33,9 @@ export function now(): number {
   return Date.now();
 }
 
+/** Bu sureden hizli VE basarili islemler varsayilan olarak loglanmaz (bkz. logPerf). */
+const SLOW_LOG_THRESHOLD_MS = 300;
+
 function severityLabel(durationMs: number): "normal" | "yavas" | "cok_yavas" | "kritik" {
   if (durationMs < 300) return "normal";
   if (durationMs < 700) return "yavas";
@@ -49,6 +52,13 @@ export function logPerf(entry: {
   result: PerfResult;
 }) {
   const { requestId, layer, op, table, durationMs, result } = entry;
+  // SESSIZ VARSAYILAN (performans denetimi 2026-10-04): her istek icin (ara katman
+  // + her Supabase cagrisi + sayfa toplami = bir sayfa gorunumunde 50+ satir)
+  // stdout'a yazmak, paylasimli sunucuda (Hostinger) g/c yuku + log dosyasi
+  // sismesi demek. Artik yalnizca YAVAS (>=300ms) ya da BASARISIZ islemler
+  // yazilir - "yavas ya da hatali" tani degeri tasiyan tek kisim bu. Her seyi
+  // gormek icin ortam degiskeni PERF_LOG_ALL=1.
+  if (result === "success" && durationMs < SLOW_LOG_THRESHOLD_MS && process.env.PERF_LOG_ALL !== "1") return;
   const severity = severityLabel(durationMs);
   const parts = [
     `[PERF]`,

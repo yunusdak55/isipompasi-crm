@@ -30,18 +30,28 @@ function parseValue(raw: string): ParsedValue | null {
   return { prefix, suffix, target, decimals: 0, grouped: true };
 }
 
-/** Kart degerleri icin premium "count-up" animasyonu - sayi 0'dan hedefe kisa bir egriyle yukselir. */
+/**
+ * Kart degerleri icin sayi animasyonu. GERCEK DEGER HER ZAMAN ILK BOYAMADAN
+ * ITIBAREN GORUNUR (sunucudan gelen HTML'de de dogru rakam vardir): eskiden sayi
+ * 0'dan sayarak yukseliyordu; hidrasyon bitene / sekme arka plandayken animasyon
+ * duraklayinca ekranda 0 ya da YARIM bir rakam kalabiliyordu (ör. "Toplam Lead 3"
+ * yerine 17) - rapor rakaminda kabul edilemez. Simdi animasyon yalnizca deger
+ * SONRADAN DEGISTIGINDE (otomatik yenileme, donem degisimi) eski degerden yenisine akar.
+ */
 export function AnimatedStatValue({ value }: { value: string | number }) {
   const raw = String(value);
   const parsed: ParsedValue | null =
     typeof value === "number" ? { prefix: "", suffix: "", target: value, decimals: 0, grouped: false } : parseValue(raw);
 
-  const [display, setDisplay] = useState(0);
+  const [display, setDisplay] = useState(parsed ? parsed.target : 0);
+  const fromRef = useRef(parsed ? parsed.target : 0);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!parsed) return;
     const target = parsed.target;
+    const from = fromRef.current;
+    if (from === target) return; // ilk yukleme / degisim yok: animasyon yok, deger zaten dogru
     let start: number | null = null;
     const duration = 700;
 
@@ -49,8 +59,9 @@ export function AnimatedStatValue({ value }: { value: string | number }) {
       if (start === null) start = ts;
       const progress = Math.min(1, (ts - start) / duration);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(target * eased);
+      setDisplay(from + (target - from) * eased);
       if (progress < 1) rafRef.current = requestAnimationFrame(tick);
+      else fromRef.current = target;
     }
 
     rafRef.current = requestAnimationFrame(tick);
@@ -58,7 +69,10 @@ export function AnimatedStatValue({ value }: { value: string | number }) {
     // sebeple (arka plan sekme, tarayici kisitlamasi vb.) hic calismazsa
     // deger sonsuza dek 0'da asili kalmasin diye sure sonunda kesin deger
     // zorlanir. RAF normal calisirsa bu zaten ayni degeri tekrar yazar.
-    const fallback = setTimeout(() => setDisplay(target), duration + 50);
+    const fallback = setTimeout(() => {
+      setDisplay(target);
+      fromRef.current = target;
+    }, duration + 50);
 
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);

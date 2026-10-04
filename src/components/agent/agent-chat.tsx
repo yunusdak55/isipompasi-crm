@@ -73,7 +73,7 @@ export function AgentChat({ insights, companyName }: { insights: AgentInsight[];
       <HvacBackdrop intensity="hero" className="opacity-90" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand-950/10 via-brand-950/55 to-brand-950/90" aria-hidden />
 
-      <div className="relative flex shrink-0 items-center gap-3 border-b border-white/10 bg-black/10 px-5 py-4 backdrop-blur-sm">
+      <div className="relative flex shrink-0 items-center gap-3 border-b border-white/10 bg-black/10 px-5 py-4">
         <AgentFigure size={66} state={isPending ? "thinking" : "idle"} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-white">
@@ -112,7 +112,7 @@ export function AgentChat({ insights, companyName }: { insights: AgentInsight[];
                   {m.text}
                 </p>
               ) : (
-                <div className="flex max-w-[85%] flex-col gap-1.5 rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-3.5 py-2.5 backdrop-blur-sm">
+                <div className="flex max-w-[85%] flex-col gap-1.5 rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-3.5 py-2.5">
                   <p className="whitespace-pre-line text-sm text-white/85">{m.text}</p>
                 </div>
               )}
@@ -122,7 +122,7 @@ export function AgentChat({ insights, companyName }: { insights: AgentInsight[];
 
         {isPending ? (
           <div className="animate-fade-in flex justify-start">
-            <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-sm">
+            <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-4 py-3">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/50 [animation-delay:0ms]" />
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/50 [animation-delay:150ms]" />
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/50 [animation-delay:300ms]" />
@@ -131,7 +131,7 @@ export function AgentChat({ insights, companyName }: { insights: AgentInsight[];
         ) : null}
       </div>
 
-      <div className="relative flex shrink-0 flex-col gap-3 border-t border-white/10 bg-black/10 px-5 py-4 backdrop-blur-sm">
+      <div className="relative flex shrink-0 flex-col gap-3 border-t border-white/10 bg-black/10 px-5 py-4">
         <div className="flex flex-wrap gap-2">
           {suggestions.map((q) => (
             <button

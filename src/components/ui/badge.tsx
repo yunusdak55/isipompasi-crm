@@ -3,14 +3,16 @@ import { LEAD_STATUS_LABELS, LEAD_STATUS_COLOR } from "@/lib/constants/lead";
 import { PROSPECT_STATUS_LABELS, PROSPECT_STATUS_COLOR } from "@/lib/constants/prospects";
 import type { LeadStatus, ProspectStatus } from "@/lib/types/domain";
 
-export type Tone = "brand" | "accent" | "success" | "danger" | "warning" | "ink";
+export type Tone = "brand" | "accent" | "success" | "danger" | "warning" | "ink" | "ice";
 
 // Pastel -50/-100 dolgular acik zemin icindi; koyu lacivert temada bunun yerine
 // dusuk opakli renk dolgusu + acik renkli metin ("cam" rozet) kullaniliyor -
 // brand/accent/success/danger/warning skalalarina (marka renkleri, kasitli
 // olarak flip edilmedi) dokunmadan sadece rozet tarifi koyu temaya uyarlandi.
 const toneClasses: Record<Tone, string> = {
-  brand: "bg-brand-500/15 text-brand-100 ring-brand-500/30",
+  // "brand" (ör. Lead durumu) artik BUZ mavisiyle: koyu lacivert zeminde daha okunur, paletle uyumlu.
+  brand: "bg-ice-500/15 text-ice-200 ring-ice-500/30",
+  ice: "bg-ice-500/15 text-ice-200 ring-ice-500/30",
   accent: "bg-accent-500/15 text-accent-300 ring-accent-500/30",
   success: "bg-success-500/15 text-success-100 ring-success-500/30",
   danger: "bg-danger-500/15 text-danger-100 ring-danger-500/30",
@@ -30,7 +32,8 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition-colors duration-150 ease-snappy",
+        // Basta rozet rengini tasiyan minik nokta (before) - durum bir bakista renkle de okunur.
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition-colors duration-150 ease-snappy before:h-1.5 before:w-1.5 before:shrink-0 before:rounded-full before:bg-current before:opacity-80 before:content-['']",
         toneClasses[tone],
         className
       )}

@@ -53,6 +53,23 @@ export const LEAD_STATUS_COLOR: Record<LeadStatus, string> = {
   lost: "danger",
 };
 
+/**
+ * Grafiklerde (halka, durum cubuklari, Kanban kolon vurgusu) kullanilan durum
+ * renkleri - TEK kaynak. "Isi & Soguk" paleti: Lead = buz mavisi (soguk/yeni),
+ * Kesif = turuncu (isiniyor), Takip = kehribar, Satis = yesil, Kayip = kirmizi.
+ * Koyu zeminde parlak okunmasi icin kart tonlarindan bir miktar acik secildi.
+ */
+export const LEAD_STATUS_CHART_COLOR: Record<LeadStatus, string> = {
+  new: "#5bbcf8",
+  discovery_offer: "#f47c20",
+  followup: "#e3b341",
+  won: "#34a56b",
+  lost: "#d9553f",
+};
+
+/** Lead hattini sol->sag mantiksal okuma sirasi: acik asamalar, sonra sonuclananlar. */
+export const LEAD_STATUS_FLOW_ORDER: LeadStatus[] = ["new", "discovery_offer", "followup", "won", "lost"];
+
 export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   villa: "Villa",
   detached_house: "Müstakil Ev",

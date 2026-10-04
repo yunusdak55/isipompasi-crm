@@ -1,6 +1,3 @@
-"use client";
-
-import { useState } from "react";
 import { formatCurrency } from "@/lib/utils";
 
 type TrendPoint = { key: string; label: string; count: number; revenue: number };
@@ -23,101 +20,93 @@ function formatAxisTick(value: number): string {
 }
 
 /**
- * "Aylik Satis Trendi" - gercek gridline + eksen etiketli, hover tooltipli
- * premium bar grafik (spec: "en premium grafikleri kullan"). Marka rengi
- * (accent, tek seri) korunur - dataviz yontemi: tek seri = tek renk, ayri
- * bir kategorik renklendirmeye gerek yok (bkz. dataviz skill, color-formula:
- * "nominal categorical, one series -> same slot-1 hue").
+ * "Aylik Satis Trendi" - gridline + eksen etiketli bar grafik. TASARIM YUKSELTMESI:
+ *  - Gecmis aylar BUZ mavisi, icinde bulunulan ay (son sutun) parlayan ISI turuncusu:
+ *    "gecmis soguk, simdi sicak" - hangi ayin gundemde oldugu renkle okunur.
+ *  - Satis olmayan aylar bos birakilmaz, ince bir taban cizgisi (pill) gosterilir.
+ *  - Tooltip SAF CSS (group-hover / odak): grafik artik sunucuda uretilir, tarayiciya
+ *    JS/durum yuku binmez. Barlar tabandan TRANSFORM ile buyur (kompozitor, tek seferlik).
  */
 export function MonthlyTrendChart({ data }: { data: TrendPoint[] }) {
-  const [hovered, setHovered] = useState<string | null>(null);
-
   const maxRevenue = niceCeiling(Math.max(1, ...data.map((m) => m.revenue)));
   const gridSteps = [0, 0.25, 0.5, 0.75, 1];
+  const lastIndex = data.length - 1;
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="relative flex h-56 gap-3 pl-12">
-        {/* Gridlines + Y ekseni etiketleri - kirli/dashed degil, tek-adim-yuzeyden-uzak gri, ince (hairline). */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 right-0">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-end gap-4 text-[11px] text-ink-400">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-ice-400" />
+          Geçmiş aylar
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-accent-500 shadow-[0_0_8px_rgba(244,124,32,0.8)]" />
+          Bu ay
+        </span>
+      </div>
+
+      <div className="relative mt-2 flex h-56 gap-2 pl-12 sm:gap-3">
+        <div className="pointer-events-none absolute inset-y-0 left-0 right-0" aria-hidden="true">
           {gridSteps.map((step) => (
-            <div
-              key={step}
-              className="absolute left-0 right-0 flex items-center"
-              style={{ bottom: `${step * 100}%` }}
-            >
+            <div key={step} className="absolute left-0 right-0 flex items-center" style={{ bottom: `${step * 100}%` }}>
               <span className="w-11 shrink-0 pr-2 text-right text-[10px] tabular-nums text-ink-400">
                 {formatAxisTick(Math.round(maxRevenue * step))}
               </span>
-              <span className="h-px flex-1 bg-line" />
+              <span className={step === 0 ? "h-px flex-1 bg-white/20" : "h-px flex-1 border-t border-dashed border-white/[0.08]"} />
             </div>
           ))}
         </div>
 
         {data.map((m, index) => {
-          const heightPct = m.revenue > 0 ? Math.max(2, (m.revenue / maxRevenue) * 100) : 0;
-          const isHovered = hovered === m.key;
+          const heightPct = m.revenue > 0 ? Math.max(3, (m.revenue / maxRevenue) * 100) : 0;
+          const isCurrent = index === lastIndex;
 
           return (
-            <div
-              key={m.key}
-              className="relative z-10 flex flex-1 flex-col items-center gap-2"
-              onMouseEnter={() => setHovered(m.key)}
-              onMouseLeave={() => setHovered((h) => (h === m.key ? null : h))}
-            >
+            <div key={m.key} className="group relative z-10 flex flex-1 flex-col items-center gap-2 outline-none" tabIndex={0}>
               <div className="flex w-full flex-1 items-end">
-                {/* DUZELTME (bildirilen bug: "animasyon gözükmüyor"): bu sarmalayici
-                    (tooltip'i barla birlikte konumlandirmak icin eklendi) flex/h-full
-                    OLMADAN barin `height: var(--bar-h)` (YUZDE) degerini COZUMLEYECEGI
-                    bir "containing block" saglamiyordu - yukseklik BELIRSIZ/auto kalinca
-                    (auto yukseklik, kendi icerigine gore hesaplanir, ama icerik de
-                    YUZDEYE gore hesaplaniyor - dongusel bagimlilik) CSS speci geregi
-                    yuzde 0'a cozumleniyordu, bar HIC BUYUMUYORDU (gorunmez kaliyordu).
-                    h-full, bu div'e ebeveyninden (200px, kesin) GERCEK bir yukseklik
-                    verir; flex flex-col justify-end de barin ALTA (baseline) yaslanip
-                    YUKARI dogru buyumesini saglar - digerlerinde oldugu gibi. */}
-                <div className="group relative h-full w-full flex flex-col justify-end">
-                  {/* Deger etiketi barin TAM tepesinde (spec: "trendin tam üstünde gözüksün, aralarına
-                      boşluk koyma") - hover'da ayrica ay + satış adedini de gösteren bir tooltip'e büyür. */}
+                <div className="relative flex h-full w-full flex-col items-center justify-end">
                   {m.revenue > 0 ? (
-                    <span className="absolute -top-[18px] left-0 right-0 text-center text-[11px] font-medium tabular-nums text-ink-600">
-                      {formatCurrency(m.revenue)}
-                    </span>
-                  ) : null}
-                  <div
-                    className="sales-bar-grow relative w-full origin-bottom rounded-t-[4px] bg-gradient-to-t from-accent-600 to-accent-300 transition-[filter,transform] duration-150 ease-snappy"
-                    style={{
-                      ["--bar-h" as string]: `${heightPct}%`,
-                      animationDelay: `${index * 60}ms`,
-                      filter: isHovered ? "brightness(1.12)" : undefined,
-                      transform: isHovered ? "scaleX(1.04)" : undefined,
-                    }}
-                  />
-
-                  {/* Hover tooltip - deger zaten dogrudan etiketli (marks-and-anatomy: "direkt
-                      etiketler onceliklidir") ama ay adedi/satis sayisi sadece burada gorunur. */}
-                  {isHovered ? (
-                    <div
-                      role="tooltip"
-                      className="animate-scale-in pointer-events-none absolute bottom-full left-1/2 z-20 mb-6 w-max -translate-x-1/2 rounded-lg border border-line bg-brand-950 px-3 py-2 text-left shadow-elevated-lg"
-                    >
-                      <p className="text-xs font-semibold text-white">{m.label}</p>
-                      <p className="mt-0.5 text-sm font-semibold tabular-nums text-accent-300">{formatCurrency(m.revenue)}</p>
-                      <p className="text-[11px] text-white/55">{m.count} satış</p>
-                    </div>
-                  ) : null}
+                    <>
+                      <span
+                        className={
+                          "mb-1.5 text-[11px] font-semibold tabular-nums transition-transform duration-200 ease-premium group-hover:-translate-y-0.5 " +
+                          (isCurrent ? "text-accent-300" : "text-ink-600")
+                        }
+                      >
+                        {formatCurrency(m.revenue)}
+                      </span>
+                      <div
+                        className={
+                          "grow-y w-full max-w-[64px] rounded-t-xl rounded-b-[4px] transition-[filter,transform] duration-200 ease-premium group-hover:scale-x-[1.04] group-hover:brightness-110 " +
+                          (isCurrent
+                            ? "bg-gradient-to-t from-accent-600 via-accent-500 to-flame-hot shadow-[0_0_28px_-4px_rgba(244,124,32,0.65)]"
+                            : "bg-gradient-to-t from-ice-600 via-ice-500 to-ice-300 shadow-[0_0_22px_-6px_rgba(91,188,248,0.5)]")
+                        }
+                        style={{ height: `${heightPct}%`, animationDelay: `${index * 70}ms` }}
+                      />
+                      <div
+                        role="tooltip"
+                        className="pointer-events-none absolute left-1/2 z-20 w-max -translate-x-1/2 translate-y-1 rounded-lg border border-line bg-brand-950 px-3 py-2 text-left opacity-0 shadow-elevated-lg transition-[opacity,transform] duration-150 ease-premium group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
+                        style={{ bottom: `calc(${heightPct}% + 30px)` }}
+                      >
+                        <p className="text-xs font-semibold text-white">{m.label}</p>
+                        <p className="mt-0.5 text-sm font-semibold tabular-nums text-accent-300">{formatCurrency(m.revenue)}</p>
+                        <p className="text-[11px] text-white/55">{m.count} satış</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mb-px h-1 w-7 rounded-full bg-white/[0.12]" />
+                  )}
                 </div>
               </div>
-              <span className="text-xs font-medium text-ink-600">{m.label}</span>
+              <span className={"text-xs font-medium " + (isCurrent ? "text-accent-300" : "text-ink-600")}>{m.label}</span>
             </div>
           );
         })}
       </div>
-      <p className="sr-only" aria-live="polite">
-        {hovered ? (() => {
-          const point = data.find((m) => m.key === hovered);
-          return point ? `${point.label}: ${formatCurrency(point.revenue)}, ${point.count} satış` : "";
-        })() : ""}
+
+      <p className="sr-only">
+        {data.map((m) => `${m.label}: ${formatCurrency(m.revenue)}, ${m.count} satış`).join(". ")}
       </p>
     </div>
   );

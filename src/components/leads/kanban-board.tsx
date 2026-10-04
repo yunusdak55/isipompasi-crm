@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -18,10 +18,10 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy, sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { updateLeadStatusAction, upsertSaleAction } from "@/app/(dashboard)/leads/actions";
-import { LEAD_STATUS_ORDER, LEAD_STATUS_LABELS } from "@/lib/constants/lead";
+import { LEAD_STATUS_ORDER, LEAD_STATUS_LABELS, LEAD_STATUS_CHART_COLOR } from "@/lib/constants/lead";
 import { Button } from "@/components/ui/button";
 import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
-import { cn, formatCurrency, isLeadNew, isLeadOverdue, leadDisplayName } from "@/lib/utils";
+import { cn, formatCurrency, isLeadNew, isLeadOverdue, leadContactPerson, leadDisplayName } from "@/lib/utils";
 import type { BoardLead } from "@/lib/data/leads";
 import type { LeadStatus } from "@/lib/types/domain";
 
@@ -61,7 +61,44 @@ type Density = "normal" | "compact";
 // dikey scroll'dur (bkz. Column) - kartlar asla ekranı taşırmaz.
 const DENSITY_THRESHOLD = 8;
 
-function KanbanCard({
+/**
+ * DUZELTME (performans denetimi 2026-10-01, canli kanit: izole test ortaminda
+ * 5.000 lead'lik bir firma icin Chrome'da olculdu - gercek sürükleme/kaydirma
+ * sirasinda 19 kare 50ms+ surdu, EN KOTU kare 1197ms (tam 1.2 saniyelik bir
+ * "donma"). Kok sebep: TUM kartlar (kac tane olursa olsun) ayni anda DOM'a
+ * yaziliyordu - 5.000 lead'de bu panoda 77.715 DOM dugumu olusturuyordu
+ * (saglikli bir sayfa birkaç yuz-bin dugum olur). React.memo (yukarida,
+ * KanbanCard) gereksiz YENIDEN RENDER'i onledi ama asil maliyet tarayicinin
+ * bu kadar buyuk bir DOM agacinda yapmak zorunda oldugu duzen/boyama
+ * (layout/paint) hesaplamasiydi - memo bunu COZEMEZ.
+ *
+ * COZUM: dnd-kit'in sortable sanallaştırmasi (gercek "windowing") karmasik
+ * ve surukle-birak'i bozma riski tasiyordu, bu yuzden daha GUVENLI bir yol
+ * secildi - HICBIR VERI KAYBOLMAZ/GIZLENMEZ, sadece kolon basina ayni anda
+ * DOM'a yazilan kart sayisi sinirlanir, "daha fazla goster" ile acilir.
+ * Gercek production olcegi (bkz. canli firma: ~311 toplam lead) bu sinirin
+ * COK altinda - gercek kullanicilar bu sinirla hic karsilasmaz, sadece
+ * stres-testi olcegindeki (binlerce lead) firmalarda devreye girer.
+ */
+const RENDER_LIMIT_PER_COLUMN = 100;
+const REVEAL_STEP = 200;
+
+// DUZELTME (performans denetimi 2026-10-01, kanit: kod incelemesi - canli
+// olcum, oturum acma otomasyonu guvenlik sinirlamasi yuzunden alinamadi,
+// bkz. rapor). Bu bilesen memo() OLMADAN her board state degisikliginde
+// (ör. surukleme sirasinda handleDragOver'in HER tetiklenisinde) TUM
+// kolonlardaki TUM kartlar icin yeniden calisiyordu - buyuk bir firma
+// (binlerce lead) icin tek bir surukleme hareketi binlerce bilesen
+// fonksiyonunu + binlerce useSortable() kancasini tekrar calistirabiliyordu.
+// `onQuickMove` KASITLI OLARAK karsilastirmaya dahil edilmedi: KanbanBoard
+// icinde her render'da yeniden olusturuluyor (useCallback'e sarilmadi,
+// board state'ine bagimli) - onu dahil etmek memo'yu buyuk olcude etkisiz
+// kilardi. Degismeden kalsa bile DAVRANIS bozulmaz: bu callback her zaman
+// GUNCEL lead/board bilgisini kapatilan (closure) degil setBoard'un
+// FONKSIYONEL formuyla okur - tek istisna (satış adi onizlemesi icin
+// board[from] okuyan satir) en kotu ihtimalle ayni lead nesnesini (zaten
+// degismedigi icin, bu kart yeniden render edilmediyse) bulur.
+const KanbanCard = memo(function KanbanCard({
   lead,
   status,
   density,
@@ -77,24 +114,27 @@ function KanbanCard({
     transition: DROP_TRANSITION,
   });
 
-  const showNew = isLeadNew(lead.status);
-  const showOverdue = isLeadOverdue({
+  const overdueInput = {
     status: lead.status,
     lastContactAt: lead.last_contact_at,
     createdAt: lead.created_at,
     nextFollowupAt: lead.next_followup_at,
     lastActivityAt: lead.last_activity_at,
-  });
+  };
+  const showOverdue = isLeadOverdue(overdueInput);
+  const showNew = isLeadNew(overdueInput);
   const compact = density === "compact";
 
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      // Sol kenar seridi durumun rengini tasir (Lead/Kesif/Takip/Satis/Kayip) - kart hangi
+      // kolondan gelirse gelsin (surukleme sirasinda dahi) bir bakista taninir.
+      style={{ transform: CSS.Transform.toString(transform), transition, borderLeftColor: LEAD_STATUS_CHART_COLOR[status] }}
       {...attributes}
       {...listeners}
       className={cn(
-        "flex touch-none cursor-grab flex-col rounded-lg border border-white/10 bg-white/[0.06] shadow-sm transition-shadow duration-150 ease-snappy hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.09] active:cursor-grabbing",
+        "group/card flex touch-none cursor-grab flex-col rounded-lg border border-l-[3px] border-white/10 bg-gradient-to-b from-white/[0.085] to-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-[border-color,background-color,translate] duration-150 ease-snappy hover:-translate-y-0.5 hover:border-white/20 hover:from-white/[0.12] active:cursor-grabbing",
         compact ? "gap-1 p-2 text-[13px]" : "gap-2 p-3 text-sm",
         isDragging && "opacity-0"
       )}
@@ -119,7 +159,7 @@ function KanbanCard({
         </p>
       ) : null}
       <p className={cn("truncate text-white/55", compact ? "text-[11px]" : "text-xs")}>
-        {lead.assigned_profile?.full_name ?? "Atanmadı"}
+        {leadContactPerson(lead) ?? "Belirtilmedi"}
       </p>
       <select
         aria-label="Durumu taşı"
@@ -130,7 +170,8 @@ function KanbanCard({
           if (to) onQuickMove(lead.id, status, to);
         }}
         className={cn(
-          "w-full rounded-md border border-white/15 bg-white/[0.08] text-white/75 transition-colors duration-150 focus-visible:border-accent-400 [&>option]:text-[#111827]",
+          // Sakin varsayilan (kartin gorsel gurultusunu azaltir), hover/odakta belirginlesir.
+          "w-full rounded-md border border-transparent bg-white/[0.04] text-white/40 transition-colors duration-150 group-hover/card:border-white/15 group-hover/card:bg-white/[0.08] group-hover/card:text-white/75 focus-visible:border-accent-400 [&>option]:text-[#111827]",
           compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs"
         )}
       >
@@ -143,7 +184,8 @@ function KanbanCard({
       </select>
     </div>
   );
-}
+},
+(prev, next) => prev.lead === next.lead && prev.status === next.status && prev.density === next.density);
 
 /** Kart surukleniyorken imleci takip eden "kaldirilmis" gorsel (DragOverlay). */
 function CardPreview({ lead }: { lead: BoardLead }) {
@@ -156,7 +198,7 @@ function CardPreview({ lead }: { lead: BoardLead }) {
         {lead.phone}
         {lead.city ? ` · ${lead.city}` : ""}
       </p>
-      <p className="truncate text-xs text-ink-600">{lead.assigned_profile?.full_name ?? "Atanmadı"}</p>
+      <p className="truncate text-xs text-ink-600">{leadContactPerson(lead) ?? "Belirtilmedi"}</p>
     </div>
   );
 }
@@ -178,15 +220,25 @@ function Column({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex h-full w-64 shrink-0 flex-col rounded-xl border border-white/10 bg-white/[0.03] p-2.5 transition-all duration-150 ease-snappy",
+        "relative flex h-full w-64 shrink-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.015] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-[border-color,background-color,box-shadow] duration-150 ease-snappy",
         isOver && "border-accent-400/50 bg-accent-500/[0.08] shadow-glow-accent ring-1 ring-inset ring-accent-400/30"
       )}
     >
-      <div className="flex shrink-0 items-center justify-between px-1 pb-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-white/50">{LEAD_STATUS_LABELS[status]}</span>
-        <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white/60">
-          {count}
+      {/* Kolon ust kenarinda durum renginde ince isik cizgisi. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-4 top-0 h-[2px] rounded-full"
+        style={{ background: `linear-gradient(90deg, transparent, ${LEAD_STATUS_CHART_COLOR[status]}, transparent)` }}
+      />
+      <div className="flex shrink-0 items-center justify-between px-1 pb-2.5 pt-1">
+        <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/60">
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ background: LEAD_STATUS_CHART_COLOR[status], boxShadow: `0 0 8px ${LEAD_STATUS_CHART_COLOR[status]}99` }}
+          />
+          {LEAD_STATUS_LABELS[status]}
         </span>
+        <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white/65">{count}</span>
       </div>
       {/* Kolon icerigi kendi ekseninde scroll olur - kart sayisi ne olursa
           olsun sutunlar arasi hizalanma bozulmaz, board ekrani tasmaz. */}
@@ -267,12 +319,22 @@ function SaleAmountModal({
 
 export function KanbanBoard({
   initialLeadsByStatus,
+  columnTotals,
   canRecordSale,
 }: {
   initialLeadsByStatus: BoardState;
+  /** Her kolonun sunucudaki GERCEK toplami (yuklenen kart sayisindan buyuk olabilir - bkz. BOARD_COLUMN_CAP). */
+  columnTotals: Record<LeadStatus, number>;
   canRecordSale: boolean;
 }) {
   const [board, setBoard] = useState<BoardState>(initialLeadsByStatus);
+  // Ilk yuklenen toplamlar + kart sayilari BIRLIKTE sabitlenir (board state'iyle ayni "an"):
+  // bir tasima sonrasi sunucu sayfayi yeniden dogrulayip yeni `columnTotals` gonderse bile
+  // (zaten tasimayi icerir) yerel fark bir kez daha eklenip toplam IKI KEZ kaymasin.
+  const [baseTotals] = useState(columnTotals);
+  const [initialLens] = useState(
+    () => Object.fromEntries(LEAD_STATUS_ORDER.map((s) => [s, initialLeadsByStatus[s].length])) as Record<LeadStatus, number>
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
   const dragStartStatus = useRef<LeadStatus | null>(null);
   // "Satış"a taşınırken tutar isteyen modal - hem surukle-birak hem "Taşı…"
@@ -284,6 +346,11 @@ export function KanbanBoard({
   // ve kart eski koluna geri doner - kullaniciya NEDENINI gostermezsek sessizce
   // "olmadi" gibi gorunur, kafa karistirir.
   const [moveError, setMoveError] = useState<string | null>(null);
+  // Kolon basina ayni anda DOM'a yazilan kart sayisi (bkz. RENDER_LIMIT_PER_COLUMN
+  // yorumu) - "daha fazla goster" ile buyur, HICBIR veri gizlenmez/kaybolmaz.
+  const [revealCount, setRevealCount] = useState<Record<LeadStatus, number>>(
+    () => Object.fromEntries(LEAD_STATUS_ORDER.map((s) => [s, RENDER_LIMIT_PER_COLUMN])) as Record<LeadStatus, number>
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -452,18 +519,45 @@ export function KanbanBoard({
         <div className="scrollbar-kanban flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2">
           {LEAD_STATUS_ORDER.map((status) => {
             const density: Density = board[status].length > DENSITY_THRESHOLD ? "compact" : "normal";
+            const columnLeads = board[status];
+            const visibleCount = Math.min(revealCount[status], columnLeads.length);
+            const visibleLeads = columnLeads.slice(0, visibleCount);
+            const remaining = columnLeads.length - visibleCount;
+            // Kolon toplami = sunucudaki gercek toplam +/- bu oturumdaki yerel tasimalar.
+            const total = baseTotals[status] + (columnLeads.length - initialLens[status]);
+            const notLoaded = Math.max(0, total - columnLeads.length);
             return (
-              <Column key={status} status={status} count={board[status].length} density={density}>
-                <SortableContext items={board[status].map((l) => l.id)} strategy={verticalListSortingStrategy}>
-                  {board[status].map((lead) => (
+              <Column key={status} status={status} count={total} density={density}>
+                <SortableContext items={visibleLeads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+                  {visibleLeads.map((lead) => (
                     <KanbanCard key={lead.id} lead={lead} status={status} density={density} onQuickMove={handleQuickMove} />
                   ))}
                 </SortableContext>
 
-                {board[status].length === 0 ? (
+                {columnLeads.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-white/15 px-2 py-4 text-center text-xs text-white/30">
                     Boş
                   </p>
+                ) : null}
+
+                {remaining > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setRevealCount((prev) => ({ ...prev, [status]: prev[status] + REVEAL_STEP }))}
+                    className="mt-1 shrink-0 rounded-lg border border-dashed border-white/15 px-2 py-2 text-center text-xs text-white/50 transition-colors duration-150 hover:border-white/25 hover:text-white/75"
+                  >
+                    + {Math.min(remaining, REVEAL_STEP)} daha göster ({remaining} kaldı)
+                  </button>
+                ) : null}
+
+                {notLoaded > 0 ? (
+                  <Link
+                    href={`/leads?status=${status}`}
+                    className="mt-1 shrink-0 rounded-lg border border-dashed border-warning-500/40 bg-warning-500/[0.07] px-2 py-2 text-center text-[11px] leading-snug text-warning-100 transition-colors duration-150 hover:bg-warning-500/[0.14]"
+                  >
+                    En yeni {columnLeads.length.toLocaleString("tr-TR")} lead gösteriliyor · {notLoaded.toLocaleString("tr-TR")} lead daha var.
+                    Tümü için Liste Görünümü →
+                  </Link>
                 ) : null}
               </Column>
             );

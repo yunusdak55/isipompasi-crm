@@ -33,7 +33,7 @@ export function AppShell({
   }, [pathname]);
 
   return (
-    <div className="flex h-screen bg-canvas">
+    <div className="flex h-screen">
       {sidebarOpen ? (
         <div
           aria-hidden

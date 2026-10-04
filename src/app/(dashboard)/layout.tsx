@@ -1,7 +1,8 @@
 import { after } from "next/server";
 import { headers } from "next/headers";
-import { requireProfile } from "@/lib/auth/session";
+import { getClaimsRoleHint, requireProfile } from "@/lib/auth/session";
 import { getDueFollowups } from "@/lib/data/leads";
+import { getDueProspectFollowups } from "@/lib/data/prospects";
 import { AppShell } from "@/components/layout/app-shell";
 import { logPerf, now } from "@/lib/perf-log";
 
@@ -23,7 +24,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // PERF (jet hizi): profil (+ firma adi, tek sorguda embed) ile hatirlatma
   // zili verisi BIRBIRINE BAGIMLI DEGIL - eskiden art arda (profil -> firma ->
   // hatirlatmalar, 3 sirali ag turu) bekleniyordu, simdi PARALEL (tek tur).
-  const [profile, dueFollowups] = await Promise.all([requireProfile(), getDueFollowups()]);
+  // Admin icin zil AJANSIN kendi aday takiplerini (agency_prospects) listeler;
+  // firma kullanicilari icin lead takiplerini. Eskiden ikisi de HER sayfada
+  // atiliyordu (digeri RLS geregi bos donse de bos bir veritabani turu + RLS
+  // degerlendirmesi demekti). Simdi rol JWT'den (sorgusuz) tahmin edilir ve
+  // YALNIZCA ilgili sorgu profille paralel atilir; tahmin profille uyusmazsa
+  // (nadir: rol yeni degismis, JWT eski) dogru sorgu ardindan calistirilir.
+  const guessedAdmin = (await getClaimsRoleHint()) === "admin";
+  const [profile, guessedReminders] = await Promise.all([
+    requireProfile(),
+    guessedAdmin ? getDueProspectFollowups() : getDueFollowups(),
+  ]);
+  const isAdmin = profile.role === "admin";
+  const dueFollowups =
+    isAdmin === guessedAdmin ? guessedReminders : isAdmin ? await getDueProspectFollowups() : await getDueFollowups();
 
   after(() => {
     logPerf({ requestId, layer: "page", op: `total:${pathname}`, durationMs: now() - pageStart, result: "success" });

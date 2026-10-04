@@ -18,10 +18,21 @@ export function HvacBackdrop({
   className,
   intensity = "ambient",
   interactive = false,
+  animated = false,
 }: {
   className?: string;
   intensity?: "ambient" | "hero";
   interactive?: boolean;
+  /**
+   * true: hero'daki SONSUZ SVG animasyonlari (boru akisi + dugum nefesi) acik.
+   * VARSAYILAN KAPALI (performans denetimi 2026-10-04): bu animasyonlar
+   * (stroke-dashoffset) GPU'da calismaz - tarayici sayfa acik kaldigi surece
+   * SVG'yi saniyede 60 kez yeniden boyar (surekli CPU/pil tuketimi, zayif
+   * cihazlarda kasma). Veri yogun ekranlarda (Dashboard, Satislar, admin
+   * listeleri, Dijital Ajan sohbeti) kapali; gorunum ayni kalir, sadece hareket
+   * etmez. Yalniz kisa sureli giris ekraninda acik.
+   */
+  animated?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const glow1Ref = useRef<HTMLDivElement>(null);
@@ -29,8 +40,9 @@ export function HvacBackdrop({
   const svgRef = useRef<SVGSVGElement>(null);
 
   const isHero = intensity === "hero";
-  const lineOpacity = isHero ? 0.18 : 0.09;
-  const nodeOpacity = isHero ? 0.9 : 0.6;
+  const lineOpacity = isHero ? 0.15 : 0.09;
+  // Dugumler (ring/nokta) hero kartlarinin icerigi uzerine denk geldiginde dikkat dagitiyordu: hafifletildi.
+  const nodeOpacity = isHero ? 0.55 : 0.5;
   const gridOpacity = isHero ? 0.05 : 0.035;
   const unitOpacity = isHero ? 0.5 : 0.22;
   const unitDetailOpacity = isHero ? 0.7 : 0.32;
@@ -85,6 +97,10 @@ export function HvacBackdrop({
       className={cn(
         "absolute inset-0 overflow-hidden",
         interactive ? "pointer-events-auto" : "pointer-events-none",
+        // AMBIENT (liste/tablo sayfalari): boru cizgileri ve dugumler yalnizca sag ust
+        // kosede belirir, icerigin ortasina dogru solar - eskiden cizgiler tablo/arama
+        // kutusunun uzerinden geciyor, dikkat dagitiyordu.
+        !isHero && "[mask-image:radial-gradient(ellipse_70%_60%_at_100%_0%,#000_0%,transparent_72%)]",
         className
       )}
       aria-hidden
@@ -92,13 +108,18 @@ export function HvacBackdrop({
       {/* Ambient glow'lar - lacivert zeminde derinlik + tek, kontrollu turuncu vurgu.
           Turuncu glow, isi pompasi siluetinin arkasinda durup onu "sicak isikla
           arkadan aydinlatiyor" hissi verecek sekilde konumlandi. */}
+      {/* Ambient glow'lar: ESKISINDE 420-520px'lik katmanlara blur-[110px]/[140px] filtresi
+          uygulaniyordu (her sayfada buyuk bir GPU katmani + filtre maliyeti). Ayni gorunum
+          radyal gradyanla, FILTRESIZ uretiliyor - ucuz. */}
       <div
         ref={glow1Ref}
-        className="absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full bg-brand-500/30 blur-[110px] transition-transform duration-300 ease-out"
+        className="absolute -left-40 -top-40 h-[620px] w-[620px] rounded-full transition-transform duration-300 ease-out"
+        style={{ background: "radial-gradient(closest-side, rgba(44,74,117,0.42), rgba(44,74,117,0.12) 55%, transparent)" }}
       />
       <div
         ref={glow2Ref}
-        className="absolute -bottom-32 -right-20 h-[520px] w-[520px] rounded-full bg-accent-500/[0.16] blur-[140px] transition-transform duration-300 ease-out"
+        className="absolute -bottom-44 -right-28 h-[760px] w-[760px] rounded-full transition-transform duration-300 ease-out"
+        style={{ background: "radial-gradient(closest-side, rgba(244,124,32,0.2), rgba(244,124,32,0.06) 55%, transparent)" }}
       />
 
       <svg
@@ -132,7 +153,7 @@ export function HvacBackdrop({
           strokeLinejoin="round"
           strokeLinecap="round"
           strokeDasharray={isHero ? "1 11" : undefined}
-          className={isHero ? "hvac-flow" : undefined}
+          className={isHero && animated ? "hvac-flow" : undefined}
         >
           <path d="M 90 780 L 90 460 L 280 460 L 280 220" />
           <path d="M 280 220 L 520 220 L 520 90" />
@@ -157,7 +178,7 @@ export function HvacBackdrop({
 
         {/* Vurgulu "vana" dugumu - turuncu, marka imzasi. isHero'da yavasca
             nefes alir (sistem "canli" hissi). */}
-        <g className={isHero ? "hvac-pulse" : undefined}>
+        <g className={isHero && animated ? "hvac-pulse" : undefined}>
           <circle cx="520" cy="90" r="9" stroke="var(--color-accent-500)" strokeOpacity={nodeOpacity} strokeWidth="2" />
           <circle cx="520" cy="90" r="2.5" fill="var(--color-accent-500)" fillOpacity={nodeOpacity} />
         </g>

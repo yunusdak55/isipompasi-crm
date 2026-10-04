@@ -40,6 +40,10 @@ function getDeploymentId() {
 const nextConfig = {
   poweredByHeader: false,
   deploymentId: getDeploymentId(),
+  // GUVENLIK DENETIMI 2026-10-01: next/image hic kullanilmiyor (grep ile
+  // dogrulandi, src/ altinda hicbir <Image> yok) - Image Optimization API
+  // (/\_next/image) zaten saldiri yuzeyi olmuyor ama acikca kapatiliyor.
+  images: { unoptimized: true },
 
   // PERF (jet hizi): public/ altindaki gorseller (logo vb.) Next.js varsayilaniyla
   // `max-age=0` geliyordu - tarayici HER sayfa gecisinde yeniden dogruluyordu.

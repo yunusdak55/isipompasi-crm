@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Loader2 } from "lucide-react";
-import { LEAD_STATUS_ORDER, LEAD_STATUS_LABELS } from "@/lib/constants/lead";
+import { LEAD_STATUS_LABELS } from "@/lib/constants/lead";
 import { searchLeadSuggestionsAction, type LeadSuggestion } from "@/app/(dashboard)/leads/actions";
 import { leadDisplayName } from "@/lib/utils";
 
@@ -23,11 +23,12 @@ const fieldClass =
 export function LeadFilters({ defaultSearch, defaultStatus }: { defaultSearch?: string; defaultStatus?: string }) {
   const router = useRouter();
   const [query, setQuery] = useState(defaultSearch ?? "");
-  // Arama kutusu debounce'i URL'i guncellerken GUNCEL durum filtresini de
-  // korumali - defaultStatus prop'u sadece ILK sunucu render'ini yansitir,
-  // kullanici durum secip SONRA arama yazarsa defaultStatus'a guvenmek
-  // secilen durumu sessizce sifirlardi. Bu yuzden ayrica state'te tutuluyor.
-  const [status, setStatus] = useState(defaultStatus ?? "");
+  // Durum filtresi artik bu bilesende DEGIL - sayfanin ustundeki tiklanabilir
+  // durum seridinde (leads/page.tsx StatusOverviewStrip; ayni islevi goren
+  // ikinci bir "Tum Durumlar" acilir menusu kullaniciyi sasirtiyordu, spec
+  // 2026-10-02). Serit sunucu navigasyonuyla degisir ve defaultStatus prop'u
+  // her seferinde guncel gelir; arama debounce'i bu degeri URL'e aynen tasir.
+  const status = defaultStatus ?? "";
   const [suggestions, setSuggestions] = useState<LeadSuggestion[]>([]);
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -51,13 +52,6 @@ export function LeadFilters({ defaultSearch, defaultStatus }: { defaultSearch?: 
     if (nextStatus) sp.set("status", nextStatus);
     // Yeni filtrede sayfa 1'e donulur - "page" bilerek eklenmiyor.
     router.replace(`/leads${sp.size > 0 ? `?${sp.toString()}` : ""}`);
-  }
-
-  // Durum secimi: buton beklemeden aninda filtrele (spec: "FİLTRELE
-  // butonuna gerek kalmasın otomatik seçince filtrelensin").
-  function handleStatusChange(value: string) {
-    setStatus(value);
-    updateUrl(query, value);
   }
 
   function handleQueryChange(value: string) {
@@ -130,19 +124,6 @@ export function LeadFilters({ defaultSearch, defaultStatus }: { defaultSearch?: 
           </div>
         ) : null}
       </div>
-
-      <select
-        defaultValue={defaultStatus ?? ""}
-        onChange={(e) => handleStatusChange(e.target.value)}
-        className={`px-3 py-2 ${fieldClass} [&>option]:text-[#111827]`}
-      >
-        <option value="">Tüm Durumlar</option>
-        {LEAD_STATUS_ORDER.map((status) => (
-          <option key={status} value={status}>
-            {LEAD_STATUS_LABELS[status]}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }

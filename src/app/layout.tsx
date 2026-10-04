@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Inter } from "next/font/google";
-import { BrowserPerfTiming } from "@/components/perf/browser-timing";
-import { NavigationTiming } from "@/components/perf/navigation-timing";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,8 +25,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="tr" className={inter.variable}>
       <body>
-        <BrowserPerfTiming />
-        <NavigationTiming />
         {children}
       </body>
     </html>

@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { sanitizeSearchTerm } from "@/lib/data/leads";
+import { sanitizeSearchTerm, type DueFollowup } from "@/lib/data/leads";
 import { fetchAllRows } from "@/lib/data/paginate";
-import { monthStartTR, startOfDayTR } from "@/lib/time";
+import { endOfDayTR, monthStartTR } from "@/lib/time";
+import { sortByFollowupUrgency } from "@/lib/followup";
+import { FOLLOWUP_OVERDUE_HOURS, formatRelativeDays } from "@/lib/utils";
 import type { AgencyProspect, ProspectActivity, ProspectStatus } from "@/lib/types/domain";
 
 const PROSPECT_COLUMNS =
@@ -105,10 +107,10 @@ export async function getProspectsCalendar(year: number, month: number): Promise
  * oldu/kayip degil) adaylar - leads.ts/getLeadsFollowup ile ayni yaklasim
  * (spec: "takvime eklediğim kişiler oraya düşsün").
  *
- * SIRALAMA (spec 2026-09-30, "HER YER icin" - bkz. leads.ts/getLeadsFollowup
- * ayni prensip): gecmis VE gelecek takip tarihleri birlikte oldugu icin
- * SU ANA olan mutlak zaman farkina gore siralaniyor - en yakin (ister
- * gecikmis ister yaklasan) her zaman en ustte.
+ * SIRALAMA (spec 2026-10-04, "HER YER icin" - bkz. lib/followup.ts
+ * sortByFollowupUrgency, leads.ts/getLeadsFollowup ile AYNI): bugunku
+ * takipler, sonra gecikmisler (en az geciken en ustte), sonra gelecek
+ * takipler (en yakin once).
  */
 export async function getProspectsFollowup(): Promise<AgencyProspect[]> {
   const supabase = await createClient();
@@ -125,32 +127,28 @@ export async function getProspectsFollowup(): Promise<AgencyProspect[]> {
     return [];
   }
 
-  const now = Date.now();
-  return ((data ?? []) as unknown as AgencyProspect[]).sort(
-    (a, b) => Math.abs(new Date(a.next_followup_at as string).getTime() - now) - Math.abs(new Date(b.next_followup_at as string).getTime() - now)
-  );
+  return sortByFollowupUrgency((data ?? []) as unknown as AgencyProspect[], (p) => p.next_followup_at as string);
 }
 
 /**
- * "Gecikenler" ekrani (spec: "gecikenlere takip tarihi geçen müşterileri
- * koy"): takip GUNU tamamen gecmis (bugunun basindan once), henuz kapanmamis
- * adaylar. isProspectOverdue (lib/utils.ts) ile AYNI gun-bazli kural,
- * rozetle bu liste birbirini yalanlamaz.
+ * "Gecikenler" ekrani: YALNIZCA takibe alinmis, takip tarihinin uzerinden
+ * 24 saatten fazla gecmis, kapanmamis adaylar (spec 2026-10-02 - firma
+ * paneli/chatbot ile AYNI kural, bkz. lib/utils.ts isProspectOverdue; eski
+ * gun-bazli "takip gunu gecmis" kurali rozetle celisiyordu).
  *
- * SIRALAMA (spec 2026-09-30: "zaman dilimi en yakın olanlar en üstte
- * gözükür, uzaklaştıkça aşağıda olur" - HER YER icin istendi, bkz.
- * leads.ts/getLeadsOverdue AYNI degisiklik): en YENI gecikme (ör. "dün")
- * en üstte, en ESKI gecikme (ör. "3 hafta önce") en altta.
+ * SIRALAMA (spec 2026-10-04, "HER YER icin" - leads.ts/getLeadsOverdue ile
+ * AYNI): gecikme GUN SAYISINA gore kucukten buyuge - 1 gun gecikmis en
+ * ustte, 2, 5, 10... asagida. Takip tarihine gore azalan siralama bunu verir.
  */
 export async function getProspectsOverdue(): Promise<AgencyProspect[]> {
   const supabase = await createClient();
-  const todayStart = startOfDayTR();
+  const cutoff = new Date(Date.now() - FOLLOWUP_OVERDUE_HOURS * 60 * 60 * 1000).toISOString();
 
   const { data, error } = await supabase
     .from("agency_prospects")
     .select(PROSPECT_COLUMNS)
     .not("next_followup_at", "is", null)
-    .lt("next_followup_at", todayStart.toISOString())
+    .lt("next_followup_at", cutoff)
     .not("status", "in", "(won,lost)")
     .order("next_followup_at", { ascending: false });
 
@@ -195,4 +193,38 @@ export async function getLastNotesByProspect(): Promise<Record<string, ProspectL
     }
   }
   return result;
+}
+
+/**
+ * Ajans admin'in zil hatirlatmasi: bugun/gecmis takip tarihi olan musteri
+ * adaylari. ESKIDEN admin icin zil, tenant lead'lerini (RLS admin'e hepsini
+ * gosterir) listeliyordu ve /leads/.. linkleri admin'i yonlendirip
+ * geri atiyordu - ajansin KENDI takipleri hic hatirlatilmiyordu.
+ */
+export async function getDueProspectFollowups(): Promise<DueFollowup[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("agency_prospects")
+    .select("id, company_name, next_followup_at")
+    .not("next_followup_at", "is", null)
+    .not("status", "in", "(won,lost)")
+    .lte("next_followup_at", endOfDayTR().toISOString())
+    .order("next_followup_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error("getDueProspectFollowups error:", error.message);
+    return [];
+  }
+
+  const now = new Date();
+  return (data ?? []).map((p) => ({
+    id: p.id,
+    href: `/admin/prospects/${p.id}`,
+    name: p.company_name,
+    date: p.next_followup_at as string,
+    overdue: new Date(p.next_followup_at as string) < now,
+    label: formatRelativeDays(p.next_followup_at) ?? "",
+  }));
 }
