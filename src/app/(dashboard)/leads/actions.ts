@@ -10,7 +10,7 @@ import type { LeadStatus } from "@/lib/types/domain";
 import type { Database } from "@/lib/types/database.types";
 import { friendlyDbError, TEXT_LIMITS } from "@/lib/errors";
 import { TR_TZ, followupDateTR } from "@/lib/time";
-import { MAX_FOLLOWUP_DAYS, formatFollowupDate, parseFollowupDays, resolveFollowupAt } from "@/lib/followup";
+import { formatFollowupDate, parseFollowupDays, resolveFollowupAt } from "@/lib/followup";
 
 // ----------------------------------------------------------------------------
 // Leadler sayfasi "Google gibi" canli oneri kutusu (spec: "S yazınca S ile
@@ -542,78 +542,6 @@ export async function logLeadOutcomeAction(
     console.error("logLeadOutcomeAction activity insert error:", activityResult.error.message);
     return { error: `Not kaydedilemedi: ${friendlyDbError(activityResult.error)}` };
   }
-
-  revalidateLead(leadId);
-  return { error: null };
-}
-
-// ----------------------------------------------------------------------------
-// Takibi ERTELE / KALDIR - eskiden takibi degistirmenin tek yolu yeni bir
-// gorusme sonucu girmekti (iki panelde de eksikti, spec 2026-10-02: "takip
-// kismini cok daha gelismis yap"). Ertele: yeni tarih BUGUNDEN itibaren
-// hesaplanir; her ikisi de zaman cizelgesine sistem satiri yazar.
-// ----------------------------------------------------------------------------
-
-export async function snoozeLeadFollowupAction(leadId: string, days: number): Promise<LeadOutcomeState> {
-  if (!Number.isInteger(days) || days < 1 || days > MAX_FOLLOWUP_DAYS) return { error: "Geçersiz gün sayısı." };
-
-  const supabase = await createClient();
-  // PERF: oturum, lead ve acik takip kaydi ayni ag turunda (bkz. logLeadOutcomeAction).
-  const [, { data: current, error: fetchError }, openFollowupId] = await Promise.all([
-    requireProfile(),
-    supabase.from("leads").select("status, company_id, next_followup_at, next_followup_note").eq("id", leadId).single(),
-    findOpenFollowupId(supabase, leadId),
-  ]);
-  if (fetchError || !current) return { error: "Lead bulunamadı." };
-  if (!current.next_followup_at) return { error: "Ertelenecek bir takip yok." };
-  if (current.status === "won" || current.status === "lost") return { error: "Kapanmış lead'in takibi ertelenemez." };
-
-  const next = resolveFollowupAt(days);
-  const { error } = await supabase.from("leads").update({ next_followup_at: next.toISOString() }).eq("id", leadId);
-  if (error) return { error: `Ertelenemedi: ${friendlyDbError(error)}` };
-
-  await Promise.all([
-    upsertOpenFollowup(supabase, {
-      leadId,
-      companyId: current.company_id,
-      followupAtIso: next.toISOString(),
-      note: current.next_followup_note,
-      existingId: openFollowupId,
-    }),
-    logActivity(supabase, {
-      leadId,
-      companyId: current.company_id,
-      type: "system",
-      description: `Takip ertelendi: ${formatFollowupDate(current.next_followup_at)} → ${formatFollowupDate(next)}`,
-    }),
-  ]);
-
-  revalidateLead(leadId);
-  return { error: null };
-}
-
-export async function clearLeadFollowupAction(leadId: string): Promise<LeadOutcomeState> {
-  const supabase = await createClient();
-  // PERF: oturum ile lead ayni ag turunda (bkz. logLeadOutcomeAction).
-  const [, { data: current, error: fetchError }] = await Promise.all([
-    requireProfile(),
-    supabase.from("leads").select("company_id, next_followup_at").eq("id", leadId).single(),
-  ]);
-  if (fetchError || !current) return { error: "Lead bulunamadı." };
-  if (!current.next_followup_at) return { error: null };
-
-  const { error } = await supabase.from("leads").update({ next_followup_at: null, next_followup_note: null }).eq("id", leadId);
-  if (error) return { error: `Kaldırılamadı: ${friendlyDbError(error)}` };
-
-  await Promise.all([
-    closeOpenFollowups(supabase, leadId, new Date().toISOString()),
-    logActivity(supabase, {
-      leadId,
-      companyId: current.company_id,
-      type: "system",
-      description: `Takip kaldırıldı (planlanan: ${formatFollowupDate(current.next_followup_at)})`,
-    }),
-  ]);
 
   revalidateLead(leadId);
   return { error: null };

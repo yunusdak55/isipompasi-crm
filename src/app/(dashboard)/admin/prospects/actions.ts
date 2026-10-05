@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/types/database.types";
 import { friendlyDbError } from "@/lib/errors";
 import { TR_TZ } from "@/lib/time";
-import { MAX_FOLLOWUP_DAYS, formatFollowupDate, parseFollowupDays, resolveFollowupAt } from "@/lib/followup";
+import { formatFollowupDate, parseFollowupDays, resolveFollowupAt } from "@/lib/followup";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 type ProspectActivityType = Database["public"]["Tables"]["agency_prospect_activities"]["Row"]["type"];
@@ -297,71 +297,6 @@ export async function logProspectOutcomeAction(
   if (systemLine) {
     await logProspectActivity(supabase, { prospectId, type: "status_change", description: systemLine });
   }
-
-  revalidateProspects(prospectId);
-  return { error: null };
-}
-
-// ----------------------------------------------------------------------------
-// Takibi ERTELE / KALDIR (firma panelindeki snoozeLeadFollowupAction /
-// clearLeadFollowupAction ile AYNI davranis; spec 2026-10-02: "takip kismini
-// cok daha gelismis yap"). Eskiden takibi degistirmenin tek yolu yeni bir
-// Gorusme Sonucu girmekti.
-// ----------------------------------------------------------------------------
-
-export type ProspectFollowupChangeState = { error: string | null };
-
-export async function snoozeProspectFollowupAction(prospectId: string, days: number): Promise<ProspectFollowupChangeState> {
-  await requireAdmin();
-  if (!Number.isInteger(days) || days < 1 || days > MAX_FOLLOWUP_DAYS) return { error: "Geçersiz gün sayısı." };
-
-  const supabase = await createClient();
-  const { data: current, error: fetchError } = await supabase
-    .from("agency_prospects")
-    .select("status, next_followup_at")
-    .eq("id", prospectId)
-    .single();
-  if (fetchError || !current) return { error: "Aday bulunamadı." };
-  if (!current.next_followup_at) return { error: "Ertelenecek bir takip yok." };
-  if (current.status === "won" || current.status === "lost") return { error: "Kapanmış adayın takibi ertelenemez." };
-
-  const next = resolveFollowupAt(days);
-  const { error } = await supabase.from("agency_prospects").update({ next_followup_at: next.toISOString() }).eq("id", prospectId);
-  if (error) return { error: `Ertelenemedi: ${friendlyDbError(error)}` };
-
-  await logProspectActivity(supabase, {
-    prospectId,
-    type: "system",
-    description: `Takip ertelendi: ${formatFollowupDate(current.next_followup_at)} → ${formatFollowupDate(next)}`,
-  });
-
-  revalidateProspects(prospectId);
-  return { error: null };
-}
-
-export async function clearProspectFollowupAction(prospectId: string): Promise<ProspectFollowupChangeState> {
-  await requireAdmin();
-
-  const supabase = await createClient();
-  const { data: current, error: fetchError } = await supabase
-    .from("agency_prospects")
-    .select("next_followup_at")
-    .eq("id", prospectId)
-    .single();
-  if (fetchError || !current) return { error: "Aday bulunamadı." };
-  if (!current.next_followup_at) return { error: null };
-
-  const { error } = await supabase
-    .from("agency_prospects")
-    .update({ next_followup_at: null, next_followup_note: null })
-    .eq("id", prospectId);
-  if (error) return { error: `Kaldırılamadı: ${friendlyDbError(error)}` };
-
-  await logProspectActivity(supabase, {
-    prospectId,
-    type: "system",
-    description: `Takip kaldırıldı (planlanan: ${formatFollowupDate(current.next_followup_at)})`,
-  });
 
   revalidateProspects(prospectId);
   return { error: null };
