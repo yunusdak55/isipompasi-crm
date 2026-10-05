@@ -225,7 +225,44 @@ Kaydetme işlemleri (yalnızca "sonra" ölçüldü; "önce" koddan sayılan tur 
 | Firma Ayarları | 322 ms | 30 KB |
 | `/` ile açılış (belge TTFB) | 1005 ms | — |
 
-Canlının "sonra" sütunu main'e birleştirip dağıttıktan sonra aynı yöntemle doldurulacak.
+
+### Canlıda "sonra" (yeni kod d7665a6, 16:07:42'de yayına girdi; aynı tarayıcı, aynı hesap)
+
+Sunucu tarafı (CDN'in bildirdiği `x-hcdn-upstream-rt`): sayfalarda ilk bayt **30–47 ms**, `/api/dashboard-today` (tek veritabanı turu, tam yanıt) **109 ms**, veritabanına gitmeyen istek 23 ms. Gerçek tıklamalarda 202 isteğin TTFB'si: ortanca **104 ms**, p90 169 ms.
+
+| Tıklamadan içeriğe (gerçek tıklama, 3'er ölçüm) | Önce (eski kod) | Sonra |
+|---|---|---|
+| Dashboard | 494 ms (iskelet taze) – 1041 ms (iskelet bayat) | 201 / 224 / 225 ms |
+| Takvim | — | 163 / 179 / 180 ms |
+| Leadler | — | 268 / 360 / 396 ms |
+| Firma Ayarları | — | 256 / 308 / 315 ms |
+| Raporlar | — | 317 / 322 / 426 ms |
+| Gecikenler | — | 201 / 363 / **1503** ms |
+| Takipte | — | 393 / 427 / **1508** ms |
+| Satışlar | — | 394 / 564 / **1610** ms |
+| Sayfa açılışında prefetch isteği | 25 | 0 |
+
+Tam RSC yanıtı (layout dahil, medyan): Leadler 483 → 270 ms (143 → 29 KB), Satışlar 528 → 340 ms (172 → 57 KB), Takipte 358 → 287 ms, Gecikenler 322 → 245 ms, Lead düzenle 320 → 257 ms. Dashboard, Takvim, Kanban ve Raporlar'da fark ölçüm gürültüsünün içinde kaldı (ikinci ölçümde aynı sayfalar ±100 ms oynadı; nedeni aşağıda).
+
+### Kalan takılma: Türkiye → Avrupa ağ yolu (uygulama / sunucu / veritabanı değil)
+
+Canlıda isteklerin ~%1'inde **1,1–1,5 sn**'lik duraklama var (yukarıdaki kalın değerler). Kaynağı ayrıştırıldı:
+
+| Hedef (aynı bilgisayardan, HTTP/2, ardışık istekler) | İstek | 600 ms üstü duraklama |
+|---|---|---|
+| Cloudflare İstanbul ucu | 1500 | 1 (%0,07) |
+| AWS Frankfurt | 300 | 1 (%0,33) |
+| AWS Paris | 300 | 2 (%0,67) |
+| AWS İrlanda | 300 | 2 (%0,67) |
+| Hostinger CDN (panelin sabit CSS dosyası) | 1500 | 12 (%0,8) |
+
+- Duraklama, sunucuya hiç uğramayan sabit dosyada da aynı oranda çıkıyor (tarayıcıda: sabit dosya 1/70, `robots.txt` 1/70, veritabanlı API 1/70).
+- Avrupa'daki **her** hedefte var, İstanbul'daki uçta yok denecek kadar az. `ping`: modem %0 kayıp, 1.1.1.1 %0, Hostinger ucu %0,7–3,3 kayıp ve 1,1 sn'ye varan gecikme.
+- Yani kaynak, bu bağlantının (Türk Telekom) yurt dışı yolundaki paket kaybı/gecikmesi. Sunucuyu Avrupa içinde başka bir şehre (Milano dahil) taşımak bunu değiştirmez.
+- Bu turun dolaylı kazancı: eskiden her sayfa görüntüleme aynı bağlantıdan ~25 istek atıyordu; her biri bu duraklamaya yakalanabiliyor ve yakalanınca aynı bağlantıdaki diğer istekleri de bekletiyordu. Şimdi tıklama başına tek istek var.
+- Kalıcı çare adayı: kullanıcı bağlantısını Türkiye içinde karşılayan bir uç (ör. İstanbul'da ucu olan bir CDN) kullanmak. Alan adının DNS'ini değiştirmeyi gerektirir; etkisi denenmeden bilinemez.
+
+Veritabanı konumu için yeni veri: tek veritabanı turu sunucu tarafında ~85 ms (109 − 23). Paris ↔ İrlanda ağ gidiş-dönüşü bunun tahminen 15–20 ms'si; gerisi Supabase API katmanı. Veritabanını Paris'e taşımanın getirisi tur başına bu kadar.
 
 ### Doğrulama
 
