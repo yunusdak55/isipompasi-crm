@@ -32,19 +32,17 @@ const QUICK_FOLLOWUP_DAYS = [1, 3, 7, 14, 30];
  *  - Secilen gun sayisinin gercek tarihi/gunu canli onizlenir ("Salı 6 Ekim
  *    10:00"), hafta sonuna denk gelirse uyarilir.
  *  - Hizli secimler 1/3/7/14/30 gun.
- *  - Firma panelinde "Satış" icin tutar (zorunlu) sorulur.
+ * Firma panelinde satis bu formdan DEGIL, lead detayindaki ayri "Satış" bolumunden
+ * kaydedilir (canWin=false; bkz. components/leads/sale-section.tsx).
  */
 export function OutcomeForm({
   action,
   winLabel = "Satış",
-  askSaleAmount = false,
   canWin = true,
 }: {
   action: OutcomeAction;
   winLabel?: string;
-  /** true: "Satış" sonucu tutar ister (firma paneli). */
-  askSaleAmount?: boolean;
-  /** false: satis sonucu bu rol icin gizlenir (ör. "sales" rolu satis kaydedemez). */
+  /** false: satis sonucu bu formda gosterilmez (firma paneli: ayri "Satış" bolumu var). */
   canWin?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -52,17 +50,11 @@ export function OutcomeForm({
 
   const [note, setNote] = useState("");
   const [days, setDays] = useState("");
-  const [saleOpen, setSaleOpen] = useState(false);
-  const [saleAmount, setSaleAmount] = useState("");
-  const [saleNote, setSaleNote] = useState("");
 
   useEffect(() => {
     if (justSaved) {
       setNote("");
       setDays("");
-      setSaleOpen(false);
-      setSaleAmount("");
-      setSaleNote("");
     }
   }, [justSaved]);
 
@@ -173,33 +165,16 @@ export function OutcomeForm({
 
       <div className="flex flex-wrap gap-2">
         {canWin ? (
-          askSaleAmount ? (
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={() => setSaleOpen((v) => !v)}
-              aria-expanded={saleOpen}
-              className={cn(
-                outcomeButton,
-                "border-success-500/40 bg-success-500/15 text-[#7ee2ad] hover:bg-success-500/25",
-                saleOpen && "bg-success-500/25"
-              )}
-            >
-              <Handshake className="h-4 w-4" />
-              {winLabel}
-            </button>
-          ) : (
-            <button
-              type="submit"
-              name="outcome"
-              value="won"
-              disabled={isPending}
-              className={cn(outcomeButton, "border-success-500/40 bg-success-500/15 text-[#7ee2ad] hover:bg-success-500/25")}
-            >
-              <Handshake className="h-4 w-4" />
-              {winLabel}
-            </button>
-          )
+          <button
+            type="submit"
+            name="outcome"
+            value="won"
+            disabled={isPending}
+            className={cn(outcomeButton, "border-success-500/40 bg-success-500/15 text-[#7ee2ad] hover:bg-success-500/25")}
+          >
+            <Handshake className="h-4 w-4" />
+            {winLabel}
+          </button>
         ) : null}
 
         <button
@@ -224,48 +199,6 @@ export function OutcomeForm({
           Sadece Not
         </button>
       </div>
-
-      {askSaleAmount && canWin && saleOpen ? (
-        <div className="animate-fade-in flex flex-col gap-2 rounded-lg border border-success-500/30 bg-success-500/[0.08] p-3">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-ink-600">Satış tutarı (₺)</span>
-            <input
-              type="number"
-              name="sale_amount"
-              min={0}
-              step="1"
-              value={saleAmount}
-              onChange={(e) => setSaleAmount(e.target.value)}
-              placeholder="ör. 425000"
-              autoFocus
-              className={cn(fieldClass, "w-full")}
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-ink-600">
-              Satış notu <span className="font-normal text-ink-500">(isteğe bağlı)</span>
-            </span>
-            <textarea
-              name="sale_note"
-              rows={2}
-              value={saleNote}
-              onChange={(e) => setSaleNote(e.target.value)}
-              placeholder="ör. 3 taksit, ilk ödeme peşin; 12 kW ısı pompası, montaj dahil."
-              className={cn(fieldClass, "w-full resize-none")}
-            />
-          </label>
-          <button
-            type="submit"
-            name="outcome"
-            value="won"
-            disabled={isPending || saleAmount.trim() === ""}
-            className={cn(outcomeButton, "border-success-500/50 bg-success-500/25 text-[#8ef0b8] hover:bg-success-500/35")}
-          >
-            <Check className="h-4 w-4" />
-            Satışı Kaydet
-          </button>
-        </div>
-      ) : null}
 
       {state.error ? (
         <p role="alert" className="text-xs text-[#ffb4a3]">

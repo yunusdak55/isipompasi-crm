@@ -9,7 +9,9 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "node_modules/**"]),
+  // .claude/worktrees: baska oturumlarin calisma kopyalari (kendi .next ciktilariyla) - bu
+  // kopyanin lint'ine karismasin (binlerce sahte hata uretiyordu).
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "node_modules/**", ".claude/worktrees/**"]),
   {
     rules: {
       // Formlar "kaydedildi" geri bildirimini effect icinde state ile gosteriyor

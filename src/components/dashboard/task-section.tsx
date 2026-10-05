@@ -8,24 +8,21 @@ type SectionTone = "accent" | "danger" | "success";
 
 const TONE = {
   accent: {
-    icon: "bg-accent-500/20 text-accent-300 ring-accent-500/30 shadow-[0_0_20px_-4px_rgba(244,124,32,0.55)]",
+    icon: "bg-accent-500/20 text-accent-300 ring-accent-500/30",
     avatar: "from-accent-500/30 to-accent-500/10 text-accent-200 ring-accent-500/25",
     bar: "before:bg-accent-500",
-    header: "from-accent-500/[0.08]",
   },
   danger: {
-    icon: "bg-danger-500/20 text-[#ffc2b4] ring-danger-500/30 shadow-[0_0_20px_-4px_rgba(196,67,46,0.6)]",
+    icon: "bg-danger-500/20 text-[#ffc2b4] ring-danger-500/30",
     avatar: "from-danger-500/30 to-danger-500/10 text-[#ffc2b4] ring-danger-500/25",
     bar: "before:bg-danger-500",
-    header: "from-danger-500/[0.08]",
   },
   success: {
-    icon: "bg-success-500/20 text-[#9af0c3] ring-success-500/30 shadow-[0_0_20px_-4px_rgba(47,133,88,0.6)]",
+    icon: "bg-success-500/20 text-[#9af0c3] ring-success-500/30",
     avatar: "from-success-500/30 to-success-500/10 text-[#9af0c3] ring-success-500/25",
     bar: "before:bg-success-500",
-    header: "from-success-500/[0.08]",
   },
-} satisfies Record<SectionTone, { icon: string; avatar: string; bar: string; header: string }>;
+} satisfies Record<SectionTone, { icon: string; avatar: string; bar: string }>;
 
 const CHIP: Record<ChipTone, string> = {
   accent: "bg-accent-500/15 text-accent-200 ring-accent-500/30",
@@ -125,7 +122,6 @@ export function TaskSection({
   items,
   agenda = false,
   moreHref,
-  moreLabel,
   remaining,
   emptyTitle,
   emptyBody,
@@ -141,7 +137,6 @@ export function TaskSection({
   items: TaskItem[];
   agenda?: boolean;
   moreHref: string;
-  moreLabel: string;
   /** Listede gosterilmeyen kalan kayit sayisi. */
   remaining: number;
   emptyTitle: string;
@@ -150,7 +145,7 @@ export function TaskSection({
 }) {
   return (
     <Card id={id} className={cn("scroll-mt-24 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]", className)}>
-      <div className={cn("flex items-center justify-between gap-3 border-b border-line bg-gradient-to-r to-transparent px-4 py-3.5 sm:px-5", TONE[tone].header)}>
+      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset", TONE[tone].icon)}>{icon}</span>
           <div className="min-w-0">
@@ -186,14 +181,8 @@ export function TaskSection({
         </ul>
       )}
 
-      {remaining > 0 ? (
-        <Link
-          href={moreHref}
-          className="block border-t border-line px-5 py-3 text-center text-xs font-medium text-ink-400 transition-colors duration-150 hover:bg-white/[0.04] hover:text-white"
-        >
-          + {remaining} kişi daha · {moreLabel}
-        </Link>
-      ) : null}
+      {/* Bilerek link DEGIL: listenin tek girisi basliktaki "Tümünü gör". */}
+      {remaining > 0 ? <p className="border-t border-line px-5 py-3 text-center text-xs text-ink-400">+ {remaining} kişi daha</p> : null}
     </Card>
   );
 }

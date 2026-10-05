@@ -32,8 +32,7 @@ import { OutcomeForm } from "@/components/shared/outcome-form";
 import { ActivityTimeline } from "@/components/ui/activity-timeline";
 import { ContactPersonPanel, type ContactPersonOption } from "@/components/leads/contact-person-panel";
 import { logLeadOutcomeAction } from "@/app/(dashboard)/leads/actions";
-import { SaleShowcase } from "@/components/leads/sale-showcase";
-import { DAY_MS, startOfDayTR } from "@/lib/time";
+import { SaleSection } from "@/components/leads/sale-section";
 import { AgentNotePanel } from "@/components/leads/agent-note-panel";
 import type { PropertyType, BuildingStatus, HeatingType, PurchaseTimeline } from "@/lib/types/domain";
 
@@ -265,29 +264,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               <CardTitle>Görüşme Sonucu</CardTitle>
             </CardHeader>
             <CardBody className="flex flex-col gap-4">
-              <OutcomeForm
-                action={logLeadOutcomeAction.bind(null, id)}
-                askSaleAmount
-                canWin={profile?.role !== "sales"}
-              />
+              {/* Satis burada sorulmaz: ayri "Satış" bolumunden kaydedilir (asagida). */}
+              <OutcomeForm action={logLeadOutcomeAction.bind(null, id)} canWin={false} />
             </CardBody>
           </Card>
 
-          {/* YAPILAN SATIŞ - yalnizca satis KAYDI VARSA (spec 2026-10-05: satis yokken
-              bos tutar formu gosterilmez; tutar "Görüşme Sonucu -> Satış" adiminda
-              girilir). Sadece owner gorur (RLS: ciro hassas veri). */}
-          {canAssign && sale ? (
-            <SaleShowcase
+          {/* SATIŞ - Gorusme Sonucu'ndan AYRI, sade bolum (spec 2026-10-05): tutar +
+              istege bagli not. Sadece owner gorur/kaydeder (RLS: ciro hassas veri). */}
+          {canAssign ? (
+            <SaleSection
               leadId={id}
-              amount={Number(sale.sale_amount)}
-              saleDate={sale.sale_date}
-              note={sale.notes}
-              offeredAmount={lead.offered_amount}
-              leadCreatedAt={lead.created_at}
-              daysToClose={Math.round(
-                (startOfDayTR(new Date(sale.sale_date)).getTime() - startOfDayTR(new Date(lead.created_at)).getTime()) / DAY_MS
-              )}
-              contactName={leadContactPerson(lead)}
+              sale={sale ? { amount: Number(sale.sale_amount), saleDate: sale.sale_date, note: sale.notes } : null}
             />
           ) : null}
 

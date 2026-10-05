@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarClock, Sparkles } from "lucide-react";
 import { TodayHero } from "@/components/dashboard/today-hero";
 import { TaskSection } from "@/components/dashboard/task-section";
-import { PipelineCard } from "@/components/dashboard/pipeline-card";
 import { buildTodayView, formatClock, formatTodayLabel, greetingFor } from "@/components/dashboard/view-model";
 import type { DashboardToday } from "@/lib/data/dashboard";
 
@@ -117,59 +116,53 @@ export function DashboardLive({ initial, firstName }: { initial: Snapshot; first
         onRefresh={refresh}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="flex flex-col gap-6">
-          <TaskSection
-            id="bugun"
-            title="Bugünkü Takipler"
-            icon={<CalendarClock className="h-4 w-4" />}
-            tone="accent"
-            count={today.counts.due}
-            countLabel={today.counts.dueCarry > 0 ? `saat sırasıyla · ${today.counts.dueCarry} tanesi dünden kaldı` : "saat sırasıyla"}
-            items={view.due}
-            agenda
-            moreHref="/leads/followups"
-            moreLabel="Takipte'de gör"
-            remaining={today.counts.due - view.due.length}
-            emptyTitle="Bugün için planlı takip yok"
-            emptyBody="Bir müşteriye takip tarihi verdiğinizde, saat sırasıyla burada görünür."
-          />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+        <TaskSection
+          id="bugun"
+          title="Bugünkü Takipler"
+          icon={<CalendarClock className="h-4 w-4" />}
+          tone="accent"
+          count={today.counts.due}
+          countLabel="saat sırasıyla"
+          items={view.due}
+          agenda
+          moreHref="/leads/followups"
+          remaining={today.counts.due - view.due.length}
+          emptyTitle="Bugün için planlı takip yok"
+          emptyBody="Bir müşteriye takip tarihi verdiğinizde, saat sırasıyla burada görünür."
+        />
 
-          <TaskSection
-            id="yeni"
-            title="Yeni Gelenler"
-            icon={<Sparkles className="h-4 w-4" />}
-            tone="success"
-            count={today.counts.fresh}
-            countLabel="son 24 saat"
-            items={view.fresh}
-            moreHref="/leads"
-            moreLabel="Leadler'de gör"
-            remaining={today.counts.fresh - view.fresh.length}
-            emptyTitle="Yeni lead yok"
-            emptyBody="Son 24 saatte yeni bir müşteri gelmedi."
-          />
-        </div>
-
-        <div className="flex flex-col gap-6">
-          <TaskSection
-            id="geciken"
-            title="Geciken Takipler"
-            icon={<AlertTriangle className="h-4 w-4" />}
-            tone="danger"
-            count={today.counts.overdue}
-            countLabel="en az geciken önce"
-            items={view.overdue}
-            moreHref="/leads/overdue"
-            moreLabel="Gecikenler'de gör"
-            remaining={today.counts.overdue - view.overdue.length}
-            emptyTitle="Geciken takip yok"
-            emptyBody="Takibe aldığınız hiçbir müşterinin tarihi 24 saatten fazla geçmemiş."
-          />
-
-          <PipelineCard today={today} />
-        </div>
+        <TaskSection
+          id="geciken"
+          title="Geciken Takipler"
+          icon={<AlertTriangle className="h-4 w-4" />}
+          tone="danger"
+          count={today.counts.overdue}
+          countLabel="en az geciken önce"
+          items={view.overdue}
+          moreHref="/leads/overdue"
+          remaining={today.counts.overdue - view.overdue.length}
+          emptyTitle="Geciken takip yok"
+          emptyBody="Takibe aldığınız hiçbir müşterinin tarihi 24 saatten fazla geçmemiş."
+        />
       </div>
+
+      {/* Yeni gelen yoksa kart hic gosterilmez (ustteki "Yeni lead: 0" zaten soyluyor). */}
+      {today.counts.fresh > 0 ? (
+        <TaskSection
+          id="yeni"
+          title="Yeni Gelenler"
+          icon={<Sparkles className="h-4 w-4" />}
+          tone="success"
+          count={today.counts.fresh}
+          countLabel="son 24 saat"
+          items={view.fresh}
+          moreHref="/leads"
+          remaining={today.counts.fresh - view.fresh.length}
+          emptyTitle="Yeni lead yok"
+          emptyBody="Son 24 saatte yeni bir müşteri gelmedi."
+        />
+      ) : null}
     </div>
   );
 }

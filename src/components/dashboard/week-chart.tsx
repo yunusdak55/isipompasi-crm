@@ -11,10 +11,9 @@ const BAR_AREA = 104; // px - en yuksek cubugun yuksekligi
 export function WeekChart({ days }: { days: WeekDay[] }) {
   const max = Math.max(1, ...days.map((d) => d.count));
   const total = days.reduce((sum, d) => sum + d.count, 0);
-  const peak = days.reduce((best, d) => (d.count > best.count ? d : best), days[0]);
 
   return (
-    <div className="relative flex flex-col rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-5">
+    <div className="relative flex flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">Önümüzdeki 7 gün</p>
@@ -23,11 +22,6 @@ export function WeekChart({ days }: { days: WeekDay[] }) {
             <span className="text-xs text-white/50">planlı takip</span>
           </p>
         </div>
-        {peak.count > 0 ? (
-          <span className="rounded-full bg-white/[0.07] px-2.5 py-1 text-[11px] font-medium text-white/60 ring-1 ring-inset ring-white/10">
-            En yoğun: <span className="text-white/85">{peak.isToday ? "bugün" : peak.label === "Yarın" ? "yarın" : peak.weekdayLong}</span>
-          </span>
-        ) : null}
       </div>
 
       <div className="relative mt-5" style={{ height: BAR_AREA + 24 }}>
@@ -95,11 +89,6 @@ export function WeekChart({ days }: { days: WeekDay[] }) {
         ))}
       </ul>
 
-      {days[0]?.carry > 0 ? (
-        <p className="mt-3 text-[11px] leading-snug text-white/40">
-          Bugün sütunu, dünden kalan <span className="text-white/65">{days[0].carry}</span> takibi de içerir.
-        </p>
-      ) : null}
     </div>
   );
 }

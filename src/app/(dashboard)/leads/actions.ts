@@ -836,6 +836,9 @@ export async function upsertSaleAction(
 ): Promise<SaleActionState> {
   const amountRaw = String(formData.get("sale_amount") ?? "").trim().replace(",", ".");
   const amount = Number(amountRaw);
+  // Satis notu alani formda yoksa (Kanban tutar penceresi) mevcut nota dokunulmaz.
+  const noteField = formData.get("sale_note");
+  const note = noteField === null ? undefined : String(noteField).trim().slice(0, TEXT_LIMITS.note);
 
   const supabase = await createClient();
 
@@ -844,7 +847,7 @@ export async function upsertSaleAction(
   const [profile, { data: lead, error: leadFetchError }, { data: existing }] = await Promise.all([
     requireProfile(),
     supabase.from("leads").select("company_id, status, assigned_salesperson").eq("id", leadId).single(),
-    supabase.from("sales").select("id").eq("lead_id", leadId).limit(1).maybeSingle(),
+    supabase.from("sales").select("id, sale_amount, notes").eq("lead_id", leadId).limit(1).maybeSingle(),
   ]);
   if (profile.role === "sales") {
     return { error: "Bu işlem için yetkiniz yok." };
@@ -859,10 +862,11 @@ export async function upsertSaleAction(
   // gercek satis personeline yazilir - aksi halde "Satis Personeli Performansi"
   // her zaman owner/admin'i gosterir (bug: satis rolu bu formu hic goremedigi
   // icin gercek satisci asla "salesperson" olamiyordu).
+  const noteColumn = note === undefined ? {} : { notes: note || null };
   if (existing) {
     const { error } = await supabase
       .from("sales")
-      .update({ sale_amount: amount, salesperson: lead.assigned_salesperson })
+      .update({ sale_amount: amount, salesperson: lead.assigned_salesperson, ...noteColumn })
       .eq("id", existing.id);
     if (error) {
       console.error("upsertSaleAction update error:", error.message);
@@ -871,46 +875,66 @@ export async function upsertSaleAction(
   } else {
     const { error } = await supabase
       .from("sales")
-      .insert({ lead_id: leadId, company_id: lead.company_id, sale_amount: amount, salesperson: lead.assigned_salesperson });
+      .insert({ lead_id: leadId, company_id: lead.company_id, sale_amount: amount, salesperson: lead.assigned_salesperson, ...noteColumn });
     if (error) {
       console.error("upsertSaleAction insert error:", error.message);
       return { error: `Satış kaydedilemedi: ${friendlyDbError(error)}` };
     }
   }
 
-  // Satis tutari girildiginde lead'in durumu da otomatik "Satis"a gecer -
-  // aksi halde lead ayni anda hem "satis" (sales tablosunda) hem de eski
-  // durumunda (orn. "Takip") gorunmeye devam ediyordu (bildirilen bug).
-  // PERF: zaman cizelgesi satiri ile durum guncellemesi birbirinden bagimsiz - ayni turda.
-  const [, statusResult] = await Promise.all([
-    logActivity(supabase, {
-      leadId,
-      companyId: lead.company_id,
+  // ZAMAN CIZELGESI: yalnizca GERCEKTEN degiseni yazar (ayni tutar/not yeniden
+  // kaydedilirse satir eklenmez). "Satış" ile baslayan satirlari cizelge satis
+  // ikonuyla, belirgin gosterir (bkz. components/ui/activity-timeline.tsx).
+  // Sira: satis -> durum degisikligi -> satis notu (en ustte not gorunur).
+  const nowMs = Date.now();
+  const becameWon = lead.status !== "won";
+  const rows: Database["public"]["Tables"]["activities"]["Insert"][] = [];
+  if (!existing || Number(existing.sale_amount) !== amount) {
+    rows.push({
+      lead_id: leadId,
+      company_id: lead.company_id,
       type: "system",
-      // Zaman Cizelgesi "Satış" ile baslayan satirlari satis ikonuyla, belirgin gosterir
-      // (bkz. components/ui/activity-timeline.tsx).
       description: `${existing ? "Satış tutarı güncellendi" : "Satış yapıldı"}: ${formatCurrencyTR(amount)}`,
-    }),
-    lead.status !== "won"
-      ? supabase.from("leads").update({ status: "won", last_contact_at: new Date().toISOString() }).eq("id", leadId)
-      : Promise.resolve(null),
-  ]);
-
-  if (statusResult) {
-    const statusError = statusResult.error;
-    if (statusError) {
-      console.error("upsertSaleAction status sync error:", statusError.message);
-    } else {
-      await logActivity(supabase, {
-        leadId,
-        companyId: lead.company_id,
-        type: "status_change",
-        description: `Durum değişti: ${LEAD_STATUS_LABELS[lead.status as LeadStatus]} → ${LEAD_STATUS_LABELS.won}`,
-        fromStatus: lead.status as LeadStatus,
-        toStatus: "won",
-      });
-    }
+      created_at: new Date(nowMs).toISOString(),
+    });
   }
+  if (becameWon) {
+    rows.push({
+      lead_id: leadId,
+      company_id: lead.company_id,
+      type: "status_change",
+      description: `Durum değişti: ${LEAD_STATUS_LABELS[lead.status as LeadStatus]} → ${LEAD_STATUS_LABELS.won}`,
+      from_status: lead.status as LeadStatus,
+      to_status: "won",
+      created_at: new Date(nowMs + 1).toISOString(),
+    });
+  }
+  if (note && note !== (existing?.notes ?? "")) {
+    rows.push({
+      lead_id: leadId,
+      company_id: lead.company_id,
+      type: "note",
+      description: `${SALE_NOTE_PREFIX}${note}`,
+      created_at: new Date(nowMs + 2).toISOString(),
+    });
+  }
+
+  // Satis tutari girildiginde lead'in durumu da otomatik "Satis"a gecer - aksi halde
+  // lead ayni anda hem "satis" (sales tablosunda) hem de eski durumunda (orn. "Takip")
+  // gorunmeye devam ediyordu (bildirilen bug). Satilan leadin takibi de kapanir.
+  // PERF: durum, acik takipler ve cizelge satirlari birbirinden bagimsiz - ayni turda.
+  const [statusResult, , activityResult] = await Promise.all([
+    becameWon
+      ? supabase
+          .from("leads")
+          .update({ status: "won", last_contact_at: new Date(nowMs).toISOString(), next_followup_at: null, next_followup_note: null })
+          .eq("id", leadId)
+      : Promise.resolve(null),
+    becameWon ? closeOpenFollowups(supabase, leadId, new Date(nowMs).toISOString()) : Promise.resolve(null),
+    rows.length > 0 ? supabase.from("activities").insert(rows) : Promise.resolve(null),
+  ]);
+  if (statusResult?.error) console.error("upsertSaleAction status sync error:", statusResult.error.message);
+  if (activityResult?.error) console.error("upsertSaleAction activity error:", activityResult.error.message);
 
   revalidateLead(leadId);
   return { error: null };
@@ -951,40 +975,6 @@ export async function updateAgentNoteAction(
   }
 
   await logActivity(supabase, { leadId, companyId: lead.company_id, type: "system", description: "Ajan görüşü güncellendi." });
-
-  revalidateLead(leadId);
-  return { error: null };
-}
-
-// ----------------------------------------------------------------------------
-// SATIS NOTU (spec 2026-10-05): "Yapılan Satış" kartindaki not - odeme sekli,
-// taksit, teslim, satilan urun/miktar. `sales.notes` kolonuna yazilir ve Zaman
-// Cizelgesi'ne "Satış notu: ..." satiri olarak (satis ikonuyla) duser.
-// ----------------------------------------------------------------------------
-
-export type SaleNoteState = { error: string | null };
-
-export async function saveSaleNoteAction(leadId: string, prevState: SaleNoteState, formData: FormData): Promise<SaleNoteState> {
-  const note = String(formData.get("sale_note") ?? "").trim().slice(0, TEXT_LIMITS.note);
-  if (!note) return { error: "Satış notunu yazın." };
-
-  const supabase = await createClient();
-  const [profile, { data: sale }] = await Promise.all([
-    requireProfile(),
-    supabase.from("sales").select("id, company_id, notes").eq("lead_id", leadId).limit(1).maybeSingle(),
-  ]);
-  if (profile.role === "sales") return { error: "Bu işlem için yetkiniz yok." };
-  if (!sale) return { error: "Önce satışı kaydedin." };
-  // Ayni not yeniden kaydedilirse Zaman Cizelgesi'ne ikinci satir yazilmaz.
-  if (sale.notes === note) return { error: null };
-
-  const { error } = await supabase.from("sales").update({ notes: note }).eq("id", sale.id);
-  if (error) {
-    console.error("saveSaleNoteAction error:", error.message);
-    return { error: `Not kaydedilemedi: ${friendlyDbError(error)}` };
-  }
-
-  await logActivity(supabase, { leadId, companyId: sale.company_id, type: "note", description: `${SALE_NOTE_PREFIX}${note}` });
 
   revalidateLead(leadId);
   return { error: null };
