@@ -83,7 +83,8 @@ export function CreateCompanyForm() {
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Firma Sahibi Giriş Bilgileri</p>
         <p className="mb-2 text-[11px] text-white/40">
-          Bu e-posta/şifre ile firma sahibi doğrudan panele giriş yapar — kendi satış personelini oradan kendisi ekler.
+          Bu e-posta/şifre ile firma sahibi doğrudan panele giriş yapar — kendi satış personelini oradan kendisi ekler. Yeni firma{" "}
+          <strong className="font-semibold text-white/65">tamamen boş</strong> açılır (lead yok); başka firmaların verisi görünmez.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 sm:col-span-2">

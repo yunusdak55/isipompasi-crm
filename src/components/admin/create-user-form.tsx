@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Plus, X, Check } from "lucide-react";
+import Link from "next/link";
+import { Plus, X, Check, Info } from "lucide-react";
 import { createCompanyUserAction, type CreateUserState } from "@/app/(dashboard)/admin/actions";
 import { Button } from "@/components/ui/button";
 import { useSaveFeedback } from "@/lib/hooks/use-save-feedback";
@@ -26,10 +27,13 @@ export function CreateUserForm({ companies }: { companies: CompanySelectItem[] }
   const [state, formAction, isPending] = useActionState(createCompanyUserAction, initialState);
   const justSaved = useSaveFeedback(isPending, state.error);
   const formRef = useRef<HTMLFormElement>(null);
+  const [companyId, setCompanyId] = useState("");
+  const selected = companies.find((c) => c.id === companyId) ?? null;
 
   useEffect(() => {
     if (justSaved) {
       formRef.current?.reset();
+      setCompanyId("");
       setOpen(false);
     }
   }, [justSaved]);
@@ -38,7 +42,7 @@ export function CreateUserForm({ companies }: { companies: CompanySelectItem[] }
     return (
       <Button type="button" variant="secondary" onClick={() => setOpen(true)} className="gap-1.5">
         <Plus className="h-4 w-4" />
-        Yeni Kullanıcı Ekle
+        Mevcut Firmaya Kullanıcı Ekle
       </Button>
     );
   }
@@ -48,7 +52,13 @@ export function CreateUserForm({ companies }: { companies: CompanySelectItem[] }
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-white/55">Firma *</span>
-          <select name="company_id" required defaultValue="" className={fieldClass}>
+          <select
+            name="company_id"
+            required
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value)}
+            className={fieldClass}
+          >
             <option value="" disabled>
               Firma seçin…
             </option>
@@ -93,6 +103,37 @@ export function CreateUserForm({ companies }: { companies: CompanySelectItem[] }
             className={fieldClass}
           />
         </label>
+      </div>
+
+      <div className="flex items-start gap-2.5 rounded-lg border border-accent-400/25 bg-accent-400/[0.07] px-3 py-2.5 text-xs leading-relaxed text-white/75">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-300" />
+        {selected ? (
+          <p>
+            Bu kişi <strong className="font-semibold text-white">{selected.name}</strong> firmasının{" "}
+            {selected.leadCount > 0 ? (
+              <>
+                <strong className="font-semibold text-white">mevcut {selected.leadCount.toLocaleString("tr-TR")} lead&apos;ini</strong>{" "}
+                ve tüm verilerini görecek.
+              </>
+            ) : (
+              <>verilerini görecek (henüz lead yok).</>
+            )}{" "}
+            Tamamen <strong className="font-semibold text-white">boş, yeni bir müşteri hesabı</strong> için bunun yerine{" "}
+            <Link href="/admin/companies" className="font-semibold text-accent-300 underline-offset-2 hover:underline">
+              Firmalar → Yeni Firma Ekle
+            </Link>{" "}
+            kullanın.
+          </p>
+        ) : (
+          <p>
+            Bu form, <strong className="font-semibold text-white">var olan bir firmaya</strong> ek kullanıcı ekler; eklenen kişi o firmanın
+            mevcut tüm leadlerini görür. Yeni, boş bir müşteri hesabı için{" "}
+            <Link href="/admin/companies" className="font-semibold text-accent-300 underline-offset-2 hover:underline">
+              Firmalar → Yeni Firma Ekle
+            </Link>{" "}
+            kullanın.
+          </p>
+        )}
       </div>
 
       {state.error ? (

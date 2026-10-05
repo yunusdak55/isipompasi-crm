@@ -57,17 +57,22 @@ export async function getAgencyCompanyStats(): Promise<AgencyCompanyStat[]> {
   });
 }
 
-export type CompanySelectItem = { id: string; name: string };
+export type CompanySelectItem = { id: string; name: string; leadCount: number };
 
-/** Kullanici olusturma formundaki firma secim dropdown'u icin. */
+/**
+ * Kullanici olusturma formundaki firma secim dropdown'u icin. `leadCount`:
+ * secilen firmaya eklenen kullanici o firmanin MEVCUT bu kadar lead'ini
+ * gorecek (RLS firma bazli) - form bunu admin'e acikca soyler, boylece
+ * "yeni hesap actim ama icinde leadler var" karisikligi yasanmaz.
+ */
 export async function getCompaniesForSelect(): Promise<CompanySelectItem[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("companies").select("id, name").order("name");
-  if (error) {
-    console.error("getCompaniesForSelect error:", error.message);
+  const { data, error } = await supabase.rpc("agency_company_stats");
+  if (error || !data) {
+    if (error) console.error("getCompaniesForSelect error:", error.message);
     return [];
   }
-  return data ?? [];
+  return data.map((row) => ({ id: row.id, name: row.name, leadCount: Number(row.lead_count) }));
 }
 
 export type AdminUserRow = {
