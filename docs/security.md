@@ -43,7 +43,7 @@ Bu doküman: (1) neyin nasıl korunduğunu, (2) yeni özellik eklerken uyulacak 
 ```bash
 npm run security:check   # canlı DB'ye karşı 41 saldırı denemesi (izole geçici firma/kullanıcı; sonunda siler)
 npm run check            # tip kontrolü + lint + npm audit + güvenlik testi
-npm run backup           # tüm tabloları backups/<tarih>/ altına JSON olarak yedekler (git dışı)
+npm run backup           # CANLI projenin tüm tablolarını backups/<tarih>/ altına JSON olarak yedekler (git dışı) + özel "db-backups" Storage kovasına kopyalar
 ```
 
 `scripts/security-audit.mjs` her migration / Auth ayarı değişikliğinden sonra çalıştırılmalı. Yeni tablo/kolon/politika
@@ -63,8 +63,9 @@ Bunlar proje **Auth yapılandırması** olduğu için otomatik araçla değişti
    `Redirect URLs` = `https://panel.iklimlen.com/**` (+ geliştirme için `http://localhost:3000/**`).
 3. **Authentication → Password:** minimum uzunluk 10, "büyük+küçük harf+rakam" zorunlu; **"Prevent use of leaked passwords"** aç
    (Pro plan gerektirebilir). Uygulama parola politikasını Auth ayarından bağımsız olarak da zorluyor.
-4. **Yedek:** Free planda otomatik yedek/PITR yok. Pro plana geçin (günlük yedek + PITR) ve/veya `npm run backup`'ı haftalık çalıştırıp
-   çıktıyı şifreli/ayrı bir yere kopyalayın.
+4. **Yedek:** Free planda otomatik yedek/PITR yok. `npm run backup` her gece launchd ile çalışır (`scripts/run-backup-cron.sh`): yerel
+   `backups/` + canlı projedeki özel `db-backups` Storage kovası (ikinci kopya; Mac kaybına karşı). İkisi de Supabase hesabının/projesinin
+   kaybına ya da Mac kapalıyken oluşan kayba karşı korumaz — bunun için Pro plana geçin (günlük yedek + PITR).
 5. **Legacy API anahtarları:** WhatsApp agent `sb_secret_...` kullanıyorsa Settings → API Keys → Legacy anahtarları devre dışı bırakın.
 6. **GitHub:** sohbette/ekranda paylaşılmış tüm kişisel erişim jetonlarını (PAT) `github.com/settings/tokens` altından silin;
    **Supabase Personal Access Token'ı** (`SUPABASE_ACCESS_TOKEN`, `.env.local`) da iş bitince iptal edin.
