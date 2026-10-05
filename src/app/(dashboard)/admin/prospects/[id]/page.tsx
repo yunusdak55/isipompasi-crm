@@ -32,14 +32,13 @@ import { isProspectOverdue } from "@/lib/utils";
  * gosteriliyor, degistirmenin TEK yolu "Görüşme Sonucu" formu.
  */
 export default async function ProspectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const profile = await requireProfile();
+  const { id } = await params;
+  // PERF: profil, aday ve zaman cizelgesi birbirine bagimli degil - ayni ag turunda
+  // (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, prospect, activities] = await Promise.all([requireProfile(), getProspectById(id), getProspectActivities(id)]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
-
-  const { id } = await params;
-  // PERF: aday ve zaman cizelgesi birbirine bagimli degil - paralel.
-  const [prospect, activities] = await Promise.all([getProspectById(id), getProspectActivities(id)]);
 
   if (!prospect) {
     notFound();

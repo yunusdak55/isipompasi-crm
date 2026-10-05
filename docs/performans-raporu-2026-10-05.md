@@ -11,7 +11,9 @@ Canlı veritabanında yalnızca okuma yapıldı; hiçbir kayıt, ayar ya da migr
 2. Dashboard'daki otomatik yenileme (`router.refresh()`) her seferinde 13–26 isteklik bir prefetch dalgası başlatıyordu; boşta duran sekme **117 sn'de 64 istek** attı.
 3. Saatlik oturum yenilemesi, paralel istekler yüzünden **4–5 kat** çalışıyordu (bir kez de `http_400` ile başarısız oldu).
 
-Üçü de bu dalda düzeltildi. **Düzeltme sonrası ölçüm henüz yapılamadı** (neden ve nasıl yapılacağı: "Sana kalan adımlar").
+> **Not (aynı gün, ikinci tur):** aşağıdaki ilk turun iki önlemi — iskelet ömrünü uzatmak ve satır linklerinde "fare üstüne gelince prefetch" — ikinci turda yerini daha köklü bir çözüme bıraktı (iskeletler tamamen kaldırıldı). Güncel durum için "İkinci tur — genel hız taraması" bölümüne bakın.
+
+Üçü de bu dalda düzeltildi. Düzeltme sonrası ölçüm **yerelde** (üretim derlemesi + izole test veritabanı) yapıldı: bkz. "Düzeltme sonrası ölçüm". Canlıdaki "sonra" ölçümü main'e birleştirmeden sonra yapılacak.
 
 ## Akış (anlaşıldığı haliyle)
 
@@ -96,6 +98,27 @@ Doğrulama: `npm run typecheck` temiz, `npm run lint` 0 hata (10 uyarı; öncesi
 
 **Doğrulanmayanlar:** tarayıcıda giriş yapılmış halde hiçbir değişiklik çalıştırılmadı (yerelde `.env.local` yok, parola giremem). Dashboard'un istemci bileşenine taşınması ve proxy değişikliği en çok dikkat isteyen iki yer.
 
+## Düzeltme sonrası ölçüm (yerel, 2026-10-05 14:48–14:58)
+
+Ortam: `npm run build && npm run start` (localhost:3000), izole test projesi (PerfTest Firma, 5.000 lead), giriş yapılmış Chrome, sekme görünür. "Önce" sütunu canlıdan (Hostinger, 311 lead). **Ortamlar farklı olduğu için milisaniyeler birebir kıyaslanamaz; kıyaslanabilir olan davranıştır** (kaç istek gidiyor, iskelet sunucu beklenmeden geliyor mu).
+
+| Ölçüm | Önce (canlı) | Sonra (yerel) |
+|---|---|---|
+| Dashboard boşta, giden istek | 117 sn'de **64** | 134 sn'de **2** (yalnızca `/api/dashboard-today`, 61. ve 121. sn; 563 ve 346 ms). Damga 14:48 → 14:50 |
+| Uzun bekleyip menüye tıklama: URL + iskelet | 38 sn sonra **497 ms** | 179 sn sonra **12,7 ms** (içerik 545 ms) |
+| 5 dk'dan uzun bekleyip tıklama (324. sn) | — | menüdeki nokta 1,3 ms, iskelet 25,6 ms, içerik 902 ms; ardından menü iskeletleri yeniden prefetch edildi |
+| Dashboard açılışında `_rsc` prefetch (ilk 5 sn) | 25 | 19 (yalnızca 10 menü linki; satır linki 0) |
+| Leadler sayfasında boşta prefetch | ~1 sn'de 13 | 5 sn'de **0** (ekranda 40 satır linki varken) |
+| Satırın üzerine gelince / tıklayınca | — | yalnızca o satır için 2 istek; tıklamada iskelet 8,9 ms, içerik 448 ms |
+| Damgaya tıklayıp elle yenileme | `router.refresh()` + 13–26 prefetch | 1 istek, 359 ms; düğme o sırada devre dışı |
+| Sekmeden 22 sn ayrılıp geri dönme | prefetch dalgası; bir yenileme 4124 ms | gizliyken 0 istek, dönüşte 1 istek (253 ms) |
+| 20 eşzamanlı oturumlu istek | — | 20/20 `200`, yönlendirme yok, oturum düşmedi |
+| Konsol hatası | — | yok |
+
+5 dakikayı aşan beklemede iskelet artık önbellekte değildir; yerelde 25,6 ms'de gelmesi sunucunun ilk baytının 17 ms olmasındandır. Canlıda bu süre sunucunun ilk baytı kadar olur (düzeltme öncesi `_rsc` TTFB 105–541 ms ölçülmüştü); o arada tıklanan menüdeki nokta anında belirir. Gerekirse sekme görünürken menü iskeletleri ~4 dakikada bir yenilenerek bu da kapatılabilir; önce canlıda ölçülmeli.
+
+**Hâlâ doğrulanmayanlar:** gerçek bir saatlik jeton yenilemesi sırasında tek-uçuş (yalnızca simülasyon + yukarıdaki 20 eşzamanlı istek; yenileme anı zorlanamadı), boyama kaynaklı takılma, canlıdaki TTFB dağılımı, admin kullanıcı formundaki uyarının görünümü.
+
 ### Bilerek yapılmayanlar
 
 - **CSP / `connection()`**: canlıda etkisiz olduğu doğru, ama kaldırmak bir güvenlik katmanını (CDN kapatılırsa yeniden işleyecek) ölçülmüş bir kazanç olmadan silmek olurdu.
@@ -110,12 +133,122 @@ Doğrulama: `npm run typecheck` temiz, `npm run lint` 0 hata (10 uyarı; öncesi
 | Telefon biçimi | 310 kayıt `05XXXXXXXXX`, 1 kayıt `+90XXXXXXXXXX` → düz metin eşleşmesi aynı kişiyi kaçırabilir |
 | `(company_id, phone)` tekilliği | Yok; yalnızca `idx_leads_phone` |
 | Supabase planı | **Free** → otomatik yedek ve PITR yok |
-| Yerel yedek | Çalışıyor: launchd `com.iklimlen.dbbackup`, son 7 gün mevcut, sonuncusu 05.10 00:16 |
-| Yedeğin çalıştığı yer | `/Users/yunusdak/Projects/iklimlen-crm` (bu repo değil; orada commit'lenmemiş değişiklikler var) |
+| Yerel yedek | **Düzeltildi (05.10 14:28).** launchd `com.iklimlen.dbbackup` çalışıyordu ama 02–05 Ekim arasında canlıyı değil **test projesini** yedekliyordu (aşağıya bkz.) |
+| Yedeğin çalıştığı yer | `/Users/yunusdak/Projects/iklimlen-crm` |
 
 Yedekler tek bir diskte duruyor; o Mac kaybolursa yedek de gider.
 
-`supabase/proposed/0033_lead_phone_unique_and_agent_upsert.sql` iki şey önerir: (A) firma başına telefonun son 10 hanesi üzerinden UNIQUE indeks, (B) agent için yalnızca kontrattaki alanlara yazan atomik `agent_upsert_lead` RPC'si (yalnızca `service_role` çağırabilir). **Bu SQL hiçbir veritabanında çalıştırılmadı** (Docker yok); uygulamadan önce yerel Supabase'de denenmeli.
+**Düzeltme (aynı gün, sonraki oturum):** bu raporun ilk hali "yerel yedek çalışıyor, sonuncusu 05.10 00:16" diyordu; klasörlerin içeriğine bakılınca yanlış çıktı. `scripts/backup-db.mjs` `.env.local`'i okuyordu ve o dosya 01.10 akşamı izole test projesine çevrilmişti: 02, 03 ve 05 Ekim klasörlerinde canlı veri değil "PerfTest Firma" (5.000 sahte lead) var, 02 Ekim yarım, 04 Ekim boş (ağ hatası). Son gerçek canlı yedek 01.10 03:12'ydi. Yapılanlar: betik artık canlı ayar dosyasını (`.env.production-backup.local`) okur, hedef canlı proje değilse **durur**, ağ hatasını tekrar dener, yarım klasör bırakmaz, `manifest.json` yazar; gece görevi başarısız olursa ekranda bildirim çıkar. 05.10 14:28'de taze canlı yedek alındı (311 lead, 807 satır). Yanıltıcı klasörler silinmedi, adlarına `-TEST` / `-BOS` eklendi.
+
+**İkinci kopya (05.10 14:41):** her yedek artık tek dosya olarak canlı projedeki özel `db-backups` Storage kovasına da yükleniyor. Doğrulandı: kova `public: false`, anahtarsız indirme/listeleme reddediliyor, herkese açık adres kapalı, indirilen arşiv yerel klasörle birebir aynı. Sınırı: kopya veritabanıyla aynı Supabase hesabında ve gece görevi bu Mac'te çalışıyor; Mac kapalıysa yeni yedek alınmaz.
+
+`supabase/proposed/0033_lead_phone_unique_and_agent_upsert.sql` iki şey önerir: (A) firma başına telefonun son 10 hanesi üzerinden UNIQUE indeks, (B) agent için yalnızca kontrattaki alanlara yazan atomik `agent_upsert_lead` RPC'si (yalnızca `service_role` çağırabilir). İlk turda hiçbir veritabanında çalıştırılmamıştı. **Sonraki oturumda izole test projesine uygulandı ve sınandı** (`npx tsx scripts/verify-lead-phone-unique.mts`, 23/23): aynı firmada aynı numara `05…` / `+90…` / boşluklu / parantezli yazılsa da ikinci kez eklenemiyor, başka firmada serbest, 10 eşzamanlı ekleme tek lead üretiyor; RPC ismi ezmiyor, notları alta ekliyor, insan alanlarına dokunmuyor ve yalnızca `service_role` çağırabiliyor. Panelde bu durumda artık "Bu telefon numarası bu firmada zaten kayıtlı…" mesajı çıkıyor (`leads/actions.ts`); yerelde ekranda denendi (var olan `5300004782` numarası `+90 530 000 47 82` olarak girildi → reddedildi, lead sayısı 5.000'de kaldı). **Canlıya henüz uygulanmadı:** canlıda çift numara olmadığı yeniden doğrulandı (311 lead, 0 çift, hepsi ≥10 hane) ve taze yedek alındı, ancak uygulama komutu izin katmanında reddedildi; SQL'i Supabase SQL Editor'de kullanıcının çalıştırması gerekiyor. Uygulandıktan sonra dosya `supabase/migrations/` altına taşınmalı ve n8n akışı tek `agent_upsert_lead` çağrısına indirilmeli (bkz. `docs/whatsapp-agent-contract.md`).
+
+## İkinci tur — genel hız taraması (2026-10-05 öğleden sonra)
+
+Amaç: tıklama gecikmesi dışında kalan bütün beklemeleri bulmak. Yöntem: (1) her rotayı yerel üretim derlemesinde 5'er kez ölçmek, (2) sunucunun her Supabase çağrısını `PERF_LOG_ALL=1` ile kaydedip sayfa başına sıralı tur sayısını çıkarmak, (3) canlı veritabanında `pg_stat_statements` ile yavaş sorgu aramak (salt okunur), (4) canlı sitenin şu anki sürelerini tarayıcıdan ölçmek (salt okunur), (5) gerçek tıklamalarda "içerik ne zaman görünüyor"u ölçmek.
+
+### Bulunan kök nedenler
+
+| # | Kök neden | Kanıt |
+|---|---|---|
+| 1 | **Her sayfa önce profili bekliyor, veriyi sonra istiyordu** (tıklama başına boşuna bir Supabase turu); bazı sayfa ve kaydetme işlemlerinde 3–7 sıralı tur | Sunucu kaydı: `/dashboard` = `profiles` 94 ms → `dashboard_today` 97 ms (art arda). Lead düzenle: profil → lead → kategoriler |
+| 2 | **`loading.tsx` iskeleti içeriği en az 300 ms bekletiyordu.** React, bir Suspense yedeği gösterildikten sonra asıl içeriği 300 ms'den önce göstermez (`FALLBACK_THROTTLE_MS = 300`, react-dom 19.2.8) | Sunucu 90–140 ms'de yanıt verirken içerik hep 307 / 308 / 311 ms'de göründü (üç farklı sayfa, aynı taban) |
+| 3 | **Giriş animasyonları içeriği gizliyordu:** `.stagger` 420 ms + 340 ms'ye varan gecikme; satırlar 25 ms × 12 + 220 ms; grafikler 760–900 ms | CSS'ten: son bölüm içerik geldikten 760 ms, son satır 520 ms sonra tam görünür |
+| 4 | **Satır tabloları RSC yanıtını şişiriyordu:** Leadler 20 satır için 139 KB (sınıf adları tek başına 63 KB; her satır mobil + masaüstü iki kez) | Canlıda Leadler ve Satışlar, benzer sorgu sayılı sayfalardan ~120–190 ms geç bitiyor |
+| 5 | Alan adı kökü (`/`) açılışında sayfa render edilip profil sorgusu bekleniyor, sonra yönlendiriliyordu | Canlı: `/` üzerinden 1005–1902 ms, doğrudan `/dashboard` 970 ms |
+
+Sorun olmadığı görülenler: canlı veritabanında uygulama sorguları hızlı (`dashboard_stats` ort. 5,3 ms, `dashboard_today` 9,8 ms; en çok zaman alanlar Supabase panelinin kendi sorguları). Yani gecikme sorgu süresi değil, **tur sayısı**.
+
+### Yapılanlar
+
+| Alan | Değişiklik |
+|---|---|
+| Tüm sayfalar (25 rota) | Profil ile veri aynı `Promise.all`'da. Firma kimliğine bağlı veride JWT ipucu (`getClaimsCompanyHint`, `requireProfileWithCompanyData`); lead detayda atama listeleri + satış kaydı da ilk tura alındı |
+| Kaydetme işlemleri (`leads/actions.ts`) | Görüşme sonucu, ertele, takibi kaldır, görüşen kişi, satış, ajan notu: ilk okumalar tek turda. Görüşme sonucu (takip) 5 → 3, satış 7 → 4, görüşen kişi 5 → 3 sıralı tur |
+| `/api/dashboard-today` | Profil ile veri aynı turda |
+| `src/proxy.ts` | Girişli kullanıcı `/` adresinden rolüne göre doğrudan yönlendirilir (JWT rol ipucu). Yönlendirme yanıtları artık tazelenen oturum çerezlerini de taşır |
+| Rotalar | 24 `loading.tsx` kaldırıldı; yerine `NavProgress` (yalnızca geçiş 150 ms'yi aşarsa görünen şerit). Linklerde prefetch kapalı (boş istekler bitti) |
+| `lead-table`, `sales-table` | İstemci bileşeni: yanıtta eleman ağacı yerine veri (Leadler 139 → 30 KB) |
+| `globals.css` + 23 bileşen | `.stagger` 420 → 180 ms, gecikme en çok 80 ms; satır gecikmesi 25 → 6 ms/satır; `slide-up` 220 → 150 ms; grafik çizimleri 760–900 → 320–400 ms |
+| `lib/data/paginate.ts` | 1000 satırı aşan tablolarda ikinci paralel grup 2 → 5 sayfa (5.000 satır: 3 → 2 tur) |
+
+### Önce / sonra — sunucu yanıtı (yerel, test veritabanı 5.000 lead, 5 ölçüm medyanı, tam RSC yanıtı)
+
+| Sayfa | Önce | Sonra | |
+|---|---|---|---|
+| Dashboard | 227 ms | 142 ms | −37% |
+| Leadler | 216 ms · 139 KB | 141 ms · 30 KB | −35% |
+| Leadler (filtreli) | 203 ms | 131 ms | −35% |
+| Lead detay | 209 ms | 119 ms | −43% |
+| Lead düzenle | 284 ms | 105 ms | −63% |
+| Yeni lead | 181 ms | 97 ms | −46% |
+| Keşifler | 176 ms | 96 ms | −45% |
+| Gecikenler | 274 ms | 171 ms | −38% |
+| Takvim | 324 ms | 250 ms | −23% |
+| Kanban | 308 ms | 227 ms | −26% |
+| Takipte | 464 ms | 404 ms | −13% |
+| Satışlar | 548 ms | 358 ms | −35% |
+| Raporlar | 822 ms | 562 ms | −32% |
+| Dijital Ajan | 671 ms | 513 ms | −24% |
+| Firma Ayarları | 197 ms | 101 ms | −49% |
+
+Takipte / Takvim / Kanban / Raporlar / Ajan'ın kalan süresi 5.000 lead'lik veri hacminden (0,4–0,6 MB yanıt, sayfalı okuma); canlıdaki 311 lead'de bu sayfalar tek turdur.
+
+### Önce / sonra — tıklamadan içeriğin görünmesine (yerel, gerçek tıklama, Chrome, sekme görünür)
+
+| | Önce | Sonra |
+|---|---|---|
+| Dashboard | 307 ms | 143–155 ms |
+| Leadler | 311 ms | 127–163 ms |
+| Firma Ayarları | 308 ms | 112–141 ms |
+| Lead satırı → detay | 448 ms (ilk açılış) | 168 ms |
+| Satır ve metinlerin tamamen görünmesi (içerik geldikten sonra) | +520 ms (satırlar), +760 ms (bölümler) | +150–220 ms |
+| Yavaş sayfa (Raporlar ~630 ms) | iskelet | şerit 220. ms'de görünüyor, içerik gelince kayboluyor |
+| Sayfa açılışında boş prefetch isteği | 19 | 0 |
+
+Kaydetme işlemleri (yalnızca "sonra" ölçüldü; "önce" koddan sayılan tur sayısıdır): ertele 545 ms (5 → 3 tur), yalnızca not 487 ms (4 → 3), not + takip 700 ms (5 → 3). Üçü de ekranda doğrulandı (zaman çizelgesi ve takip tarihi doğru).
+
+### Canlı sitenin bugünkü hali (eski kod, 311 lead; "önce" — tarayıcıdan, İstanbul)
+
+| Sayfa | Yanıt tamam | Boyut |
+|---|---|---|
+| Dashboard | 363 ms | 75 KB |
+| Leadler | 483 ms | 143 KB |
+| Kanban | 359 ms | 142 KB |
+| Takipte | 358 ms | 63 KB |
+| Lead detay | 332 ms | 32 KB |
+| Yeni lead | 267 ms | 19 KB |
+| Satışlar | 528 ms | 172 KB |
+| Raporlar | 347 ms | 64 KB |
+| Dijital Ajan | 330 ms | 15 KB |
+| Firma Ayarları | 322 ms | 30 KB |
+| `/` ile açılış (belge TTFB) | 1005 ms | — |
+
+Canlının "sonra" sütunu main'e birleştirip dağıttıktan sonra aynı yöntemle doldurulacak.
+
+### Doğrulama
+
+`npm run typecheck` temiz · `npm run lint` 0 hata (10 eski uyarı) · `npm run build` başarılı · `scripts/smoke-routes.mts` (firma sahibi, satış personeli, ajans admin, boş firma, bozuk girdiler) **tüm sayfalar sağlam** · sunucu `TZ=UTC` ile (Hostinger gibi) çalıştırılıp 10 sayfa tam yüklendi: konsolda hata / hydration uyarısı yok · sunucu kaydında başarısız çağrı yok.
+
+### Bu turda bulunup düzeltilen diğer hatalar
+
+- **Tanımsız renk tonları:** `accent-400` 49 yerde, `ink-500` 14 yerde (ve 11 ton daha) kullanılıyor ama temada tanımlı değildi; Tailwind sınıf üretmediği için bu vurgular (aktif menü ikonu, bekleme noktası, hata sayfası metni) renksiz kalıyordu. Ara tonlar eklendi.
+- **Yönlendirmede kaybolan oturum çerezi:** proxy yönlendirme yanıtı, aynı istekte tazelenen çerezleri taşımıyordu.
+- Gece yedeğinin 4 gece test veritabanını yedeklemesi ve lead formundaki "çift telefon" mesajı (yukarıda "Veri koruması").
+
+### Sunucu konumu (İstanbul'dan ölçüm, Türk Telekom, TCP bağlantı süresi, 12 ölçüm medyanı)
+
+| Bölge | Gecikme |
+|---|---|
+| Milano | 42 ms |
+| Frankfurt | 52 ms |
+| Paris | 57 ms |
+| Zürih | 64 ms |
+| Londra | 69 ms |
+| İrlanda (veritabanının şu anki yeri) | 83 ms |
+
+Hostinger'ın Türkiye'de veri merkezi yok; Avrupa'da Fransa, Almanya, Litvanya, Hollanda, Birleşik Krallık var ve konum hPanel'den ücretsiz taşınabiliyor. Supabase'te bölge sonradan değiştirilemiyor (yeni proje + veri taşıma gerekir); Frankfurt (`eu-central-1`) mevcut. Tarayıcı açısından Fransa ile Almanya arasındaki fark ~5 ms; asıl kazanç **sunucu ile veritabanını aynı şehre koymak** (şu an Fransa ↔ İrlanda, her sorgu turunda tahmini 15–20 ms): Hostinger Almanya + Supabase Frankfurt. Beklenen kazanç etkileşim başına ~20–80 ms; karşılığı bir veritabanı taşıması (yeni anahtarlar, kullanıcı hesapları, n8n bağlantısı). Öneri: önce bu turdaki kod değişikliklerini canlıda ölçmek; taşıma ancak ondan sonra da gerek görülürse.
 
 ## Sana kalan adımlar
 

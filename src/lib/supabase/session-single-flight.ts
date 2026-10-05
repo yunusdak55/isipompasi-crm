@@ -23,7 +23,7 @@
  */
 
 export type SessionCookie = { name: string; value: string; options?: Record<string, unknown> };
-export type SessionResult = { claims: { sub?: string } | null; cookiesToSet: SessionCookie[] };
+export type SessionResult = { claims: { sub?: string; app_metadata?: Record<string, unknown> } | null; cookiesToSet: SessionCookie[] };
 
 /** Yenilenmis cerezlerin, eski cerezle gelen gecikmeli isteklere verilecegi sure. */
 const REUSE_MS = 20_000;

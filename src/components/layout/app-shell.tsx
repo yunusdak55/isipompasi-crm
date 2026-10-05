@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { NavProgress } from "@/components/layout/nav-progress";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types/domain";
 import type { DueFollowup } from "@/lib/data/leads";
@@ -53,6 +54,12 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar profile={profile} companyName={companyName} dueFollowups={dueFollowups} onMenuClick={() => setSidebarOpen(true)} />
+        {/* Yavas kalan sayfa gecislerinde gorunen ince serit (bkz. NavProgress). */}
+        <div className="relative h-0">
+          <Suspense fallback={null}>
+            <NavProgress />
+          </Suspense>
+        </div>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>

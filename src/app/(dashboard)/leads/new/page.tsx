@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { requireProfile } from "@/lib/auth/session";
+import { requireProfileWithCompanyData } from "@/lib/auth/session";
 import { LeadForm } from "@/components/leads/lead-form";
 import { getProductCategories } from "@/lib/data/product-categories";
 import { createLeadAction } from "../actions";
 
 export default async function NewLeadPage() {
-  const profile = await requireProfile();
+  // PERF: profil ile firma kategorileri ayni ag turunda (bkz. requireProfileWithCompanyData).
+  const { profile, data } = await requireProfileWithCompanyData(getProductCategories);
 
   // DUZELTME (denetim bulgusu, 2026-10-01, bkz. dashboard/page.tsx ayni
   // aciklama): burada admin icin AYRI/farkli bir "firma yok" mesaji vardi -
@@ -17,7 +18,7 @@ export default async function NewLeadPage() {
     redirect("/admin/companies");
   }
 
-  const categories = await getProductCategories(profile.company_id);
+  const categories = data ?? [];
 
   return (
     <div className="flex flex-col gap-5">

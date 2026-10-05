@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Building2, Users, Contact, SlidersHorizontal, Bell } from "lucide-react";
-import { requireProfile } from "@/lib/auth/session";
+import { requireProfileWithCompanyData } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableProfiles } from "@/lib/data/leads";
 import { getSalespeople } from "@/lib/data/salespeople";
@@ -50,7 +50,20 @@ function NotificationRow({ label, description, active }: { label: string; descri
 }
 
 export default async function SettingsPage() {
-  const profile = await requireProfile();
+  const supabase = await createClient();
+
+  // PERF (jet hizi): bu 4 sorgu birbirine BAGIMLI degil (hepsi sadece company_id
+  // ister) - eskiden art arda bekleniyordu (~1.2 sn), simdi tek turda paralel.
+  // Olcum 2026-10-05: profil de ayni turda istenir (firma kimligi JWT ipucundan,
+  // bkz. requireProfileWithCompanyData) - eskiden profil icin ayri bir tur vardi.
+  const { profile, data } = await requireProfileWithCompanyData((companyId) =>
+    Promise.all([
+      supabase.from("companies").select("*").eq("id", companyId).single().then(({ data: row }) => (row as Company | null) ?? null),
+      getAssignableProfiles(companyId),
+      getSalespeople(companyId),
+      getProductCategories(companyId),
+    ])
+  );
 
   // Ajans admin'in kendine ait bir firmasi yok (company_id = null) - bu sayfa
   // tamamen firma baglamina gore kurulu, admin'e boş "Hesabınıza bağlı bir
@@ -61,21 +74,13 @@ export default async function SettingsPage() {
     redirect("/admin/companies");
   }
 
-  const supabase = await createClient();
   // admin buraya hic ulasmiyor (yukarida yonlendiriliyor) - kalan roller owner/sales.
   const canEdit = profile.role === "owner";
 
-  // PERF (jet hizi): bu 4 sorgu birbirine BAGIMLI degil (hepsi sadece company_id
-  // ister) - eskiden art arda bekleniyordu (~1.2 sn), simdi tek turda paralel.
-  const companyId = profile.company_id;
-  const [company, users, salespeople, categories] = await Promise.all([
-    companyId
-      ? supabase.from("companies").select("*").eq("id", companyId).single().then(({ data }) => (data as Company | null) ?? null)
-      : Promise.resolve<Company | null>(null),
-    companyId ? getAssignableProfiles(companyId) : Promise.resolve([]),
-    companyId ? getSalespeople(companyId) : Promise.resolve([]),
-    companyId ? getProductCategories(companyId) : Promise.resolve([]),
-  ]);
+  const company = data?.[0] ?? null;
+  const users = data?.[1] ?? [];
+  const salespeople = data?.[2] ?? [];
+  const categories = data?.[3] ?? [];
 
   return (
     <div className="flex flex-col gap-5">

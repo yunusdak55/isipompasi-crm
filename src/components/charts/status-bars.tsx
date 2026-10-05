@@ -18,7 +18,7 @@ export function StatusBars({ funnel }: { funnel: { status: LeadStatus; count: nu
         const color = LEAD_STATUS_CHART_COLOR[status];
         const pct = total > 0 ? (count / total) * 100 : 0;
         return (
-          <div key={status} className="animate-slide-up flex items-center gap-3" style={{ animationDelay: `${index * 50}ms` }}>
+          <div key={status} className="animate-slide-up flex items-center gap-3" style={{ animationDelay: `${index * 12}ms` }}>
             <span className="flex w-28 shrink-0 items-center gap-2 text-xs font-medium text-ink-600">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}99` }} />
               {LEAD_STATUS_LABELS[status]}
@@ -30,7 +30,7 @@ export function StatusBars({ funnel }: { funnel: { status: LeadStatus; count: nu
                   width: `${count === 0 ? 0 : Math.max(2, (count / max) * 100)}%`,
                   background: `linear-gradient(90deg, ${color}99, ${color})`,
                   boxShadow: `0 0 14px -2px ${color}80`,
-                  animationDelay: `${index * 60 + 100}ms`,
+                  animationDelay: `${index * 15 + 40}ms`,
                 }}
               />
             </div>

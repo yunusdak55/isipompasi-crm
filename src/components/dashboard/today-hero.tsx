@@ -56,7 +56,7 @@ function PriorityTile({
         "hover:-translate-y-0.5 hover:border-white/30",
         active ? TILE_TONE[tone].box : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
       )}
-      style={{ animationDelay: `${120 + index * 70}ms` }}
+      style={{ animationDelay: `${index * 20}ms` }}
     >
       {active ? (
         <span

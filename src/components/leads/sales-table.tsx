@@ -1,3 +1,8 @@
+"use client";
+
+// Istemci bileseni: RSC yanitinda hazir satir agaci yerine yalnizca satis verisi
+// gider (bkz. lead-table.tsx ayni aciklama).
+
 import { IntentLink as Link } from "@/components/ui/intent-link";
 import { Phone } from "lucide-react";
 import { formatCurrency, formatDate, getInitials, leadDisplayName } from "@/lib/utils";
@@ -32,7 +37,7 @@ export function SalesTable({ sales }: { sales: SaleListItem[] }) {
             <tr
               key={sale.id}
               className="group animate-slide-up transition-all duration-150 ease-snappy hover:bg-white/[0.05] hover:shadow-[inset_2px_0_0_0_var(--color-success-500)]"
-              style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+              style={{ animationDelay: `${Math.min(index, 12) * 6}ms` }}
             >
               <td className="px-4 py-3.5">
                 {sale.lead ? (

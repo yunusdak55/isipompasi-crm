@@ -24,12 +24,11 @@ const dateTime = new Intl.DateTimeFormat("tr-TR", {
  * kimse duzenleyemez/silemez - bkz. migration 0026). Sadece ajans admini gorur.
  */
 export default async function AdminAuditPage() {
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, events] = await Promise.all([requireProfile(), getAuditLog(200)]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
-
-  const events = await getAuditLog(200);
 
   return (
     <div className="flex flex-col gap-6">

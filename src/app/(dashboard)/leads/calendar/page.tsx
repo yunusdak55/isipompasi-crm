@@ -29,16 +29,15 @@ export default async function LeadsCalendarPage({
   searchParams: Promise<{ y?: string; m?: string }>;
 }) {
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
-  const profile = await requireProfile();
-  if (profile.role === "admin") {
-    redirect("/admin/companies");
-  }
-
   const params = await searchParams;
   const today = partsTR(new Date());
   const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
-  const leads = await getLeadsCalendar(year, month);
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx).
+  const [profile, leads] = await Promise.all([requireProfile(), getLeadsCalendar(year, month)]);
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
 
   const byDay = new Map<number, LeadListItem[]>();
   for (const lead of leads) {

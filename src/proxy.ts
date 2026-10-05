@@ -9,7 +9,7 @@ import { sessionKeyFromCookies, singleFlightSession, type SessionCookie, type Se
  * Her istekte calisir (Next.js 16: eski adiyla middleware):
  *  1) Supabase oturum cookie'sini tazeler (refresh token rotasyonu).
  *  2) Girisi olmayan kullaniciyi korumali sayfalardan /login'e yonlendirir.
- *  3) Girisi olan kullaniciyi /login'den /dashboard'a yonlendirir.
+ *  3) Girisi olan kullaniciyi /login'den ve "/" adresinden kendi ilk sayfasina yonlendirir.
  *  4) Her sayfa yanitina, istek basina rastgele bir NONCE'li Content-Security-Policy
  *     ekler (XSS'e karsi ek katman: nonce'suz/enjekte edilmis script calismaz).
  *
@@ -129,7 +129,7 @@ export async function proxy(request: NextRequest) {
   // TEK UCUS (canli kanit 2026-10-05): ayni oturum cereziyle gelen eszamanli
   // istekler (sayfa + prefetch'ler) tek bir dogrulamayi/yenilemeyi paylasir.
   const claimsStart = Date.now();
-  let user: { sub?: string } | null = null;
+  let user: SessionResult["claims"] = null;
   try {
     const sessionKey = sessionKeyFromCookies(request.cookies.getAll());
     if (sessionKey) {
@@ -165,19 +165,37 @@ export async function proxy(request: NextRequest) {
     return response;
   };
 
-  if (!user && isProtectedRoute) {
+  // Yonlendirme yaniti: bu istekte oturum tazelendiyse yeni cerezler yonlendirmeyle
+  // birlikte tarayiciya gitmeli (yoksa sonraki istek eski, iptal edilmis jetonla gelir).
+  const redirectTo = (targetPath: string) => {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = targetPath;
     url.search = "";
-    return finish(NextResponse.redirect(url));
+    const response = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+    return finish(response);
+  };
+
+  if (!user && isProtectedRoute) {
+    return redirectTo("/login");
   }
 
+  // Girisli kullanicinin ilk sayfasi (admin -> firmalar, digerleri -> dashboard).
+  // PERF (canli olcum 2026-10-05: "/" uzerinden acilis 1902 ms, dogrudan /dashboard
+  // 970 ms): eskiden "/" sayfasi render edilip profil sorgusu bekleniyor, ancak
+  // ondan sonra yonlendiriliyordu. Rol JWT'den (sorgusuz) okunup burada hemen
+  // yonlendirilir. Bu yalnizca bir IPUCU: hedef sayfa rolu profilden yeniden
+  // dogrular ve yanlis yere gelen kullaniciyi kendi alanina gonderir. Rol
+  // JWT'de yoksa eski yol ("/" sayfasi karar verir) aynen calisir.
+  const role = user?.app_metadata?.role;
+  const homePath = role === "admin" ? "/admin/companies" : role === "owner" || role === "sales" ? "/dashboard" : null;
+
   if (user && isAuthRoute) {
-    // "/" rol'e gore dogru ilk sayfaya yonlendirir (admin -> firmalar, digerleri -> dashboard).
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    url.search = "";
-    return finish(NextResponse.redirect(url));
+    return redirectTo(homePath ?? "/");
+  }
+
+  if (user && pathname === "/" && homePath) {
+    return redirectTo(homePath);
   }
 
   supabaseResponse.headers.set(cspHeaderName, csp);

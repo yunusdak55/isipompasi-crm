@@ -20,12 +20,11 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 
 export default async function SalesPage() {
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx).
+  const [profile, stats, salesList] = await Promise.all([requireProfile(), getSalesStats(), getSalesList()]);
   if (profile.role === "admin") {
     redirect("/admin/companies");
   }
-
-  const [stats, salesList] = await Promise.all([getSalesStats(), getSalesList()]);
 
   return (
     <div className="stagger flex flex-col gap-6">

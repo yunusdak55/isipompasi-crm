@@ -118,6 +118,23 @@ n8n workflow'u ("WhatsApp Lead Intake") her gelen mesajda önce `phone` +
 3. Her iki durumda da `public.activities` tablosuna **yeni satır ekler**
    (`type: 'note'`) ve `leads.notes` alanına zaman damgalı ekleme yapar.
 
+> **Telefon tekilliği (migration 0033 — test projesinde doğrulandı, canlıya
+> uygulanması bekliyor, 2026-10-05):** 0033 ile aynı firmada aynı numara
+> (`05…` / `+90…` / boşluklu yazılsa da; numaranın son 10 hanesi) ikinci kez
+> eklenemez. Yukarıdaki "önce ara, yoksa ekle" akışı düz metin eşleştirdiği
+> için, panelde `05…` olarak kayıtlı bir müşteri WhatsApp'tan `+90…` ile
+> yazarsa arama onu bulamaz ve `Create a row` **hata verir** (0033'ten önce
+> ise sessizce ikinci bir lead açardı). Bu yüzden 0033 canlıya uygulandıktan
+> sonra n8n'deki `Get many rows` → `If` → `Create/Update a row` → `Log Activity`
+> adımları **tek bir çağrıya** indirilmelidir:
+> `POST /rest/v1/rpc/agent_upsert_lead` (service_role anahtarıyla; parametreler
+> `p_company_id`, `p_phone`, `p_first_name`, `p_last_name`, `p_city`,
+> `p_district`, `p_area_m2`, `p_product_interest`, `p_note`). Fonksiyon bu
+> bölümdeki kuralları veritabanında uygular: varsa günceller/yoksa ekler, var
+> olan ismi ezmez, notu zaman damgasıyla alta ekler, not varsa `activities`
+> satırını yazar, insan alanlarına dokunmaz ve lead `id`'sini döndürür.
+> Sınama: `npx tsx scripts/verify-lead-phone-unique.mts` (yalnızca test projesi).
+
 Bu sayede konuşma birkaç mesaja yayılsa bile (konut tipi bir mesajda,
 metrekare bir sonrakinde gelebilir), agent her turda öğrendiği yeni bilgiyi
 **aynı lead satırına** işler — DB şeması zaten `property_type`, `area_m2`,

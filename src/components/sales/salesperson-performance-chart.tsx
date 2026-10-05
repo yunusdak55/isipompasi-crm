@@ -30,7 +30,7 @@ export function SalespersonPerformanceChart({ data }: { data: SalespersonPoint[]
           <div
             key={sp.name}
             className="group animate-slide-up flex flex-col gap-2"
-            style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}
+            style={{ animationDelay: `${Math.min(index, 12) * 10}ms` }}
           >
             <div className="flex items-center gap-2.5">
               <span
@@ -56,7 +56,7 @@ export function SalespersonPerformanceChart({ data }: { data: SalespersonPoint[]
                       ? "bg-gradient-to-r from-accent-600 via-accent-500 to-flame-hot shadow-[0_0_16px_-2px_rgba(244,124,32,0.7)]"
                       : "bg-gradient-to-r from-ice-600 to-ice-300")
                   }
-                  style={{ width: `${widthPct}%`, animationDelay: `${Math.min(index, 12) * 40 + 120}ms` }}
+                  style={{ width: `${widthPct}%`, animationDelay: `${Math.min(index, 12) * 10 + 40}ms` }}
                 />
               </div>
               <span className="w-24 shrink-0 text-right text-[11px] tabular-nums text-ink-400">

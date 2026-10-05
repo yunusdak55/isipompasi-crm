@@ -43,7 +43,7 @@ export function DistributionList({
         const muted = MUTED_LABEL.test(item.label);
         const pct = total > 0 ? (item.count / total) * 100 : 0;
         return (
-          <div key={item.label} className="animate-slide-up flex flex-col gap-1.5" style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }}>
+          <div key={item.label} className="animate-slide-up flex flex-col gap-1.5" style={{ animationDelay: `${Math.min(index, 12) * 10}ms` }}>
             <div className="flex items-baseline justify-between gap-3 text-xs">
               <span className={cn("truncate font-medium", muted ? "text-ink-400" : "text-ink-900")}>{item.label}</span>
               <span className="shrink-0 tabular-nums text-ink-600">
@@ -61,7 +61,7 @@ export function DistributionList({
                       ? "bg-gradient-to-r from-accent-600 via-accent-500 to-flame-hot shadow-[0_0_14px_-2px_rgba(244,124,32,0.6)]"
                       : "bg-gradient-to-r from-ice-600 to-ice-300"
                 )}
-                style={{ width: `${(item.count / max) * 100}%`, animationDelay: `${Math.min(index, 12) * 40 + 120}ms` }}
+                style={{ width: `${(item.count / max) * 100}%`, animationDelay: `${Math.min(index, 12) * 10 + 40}ms` }}
               />
             </div>
           </div>

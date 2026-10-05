@@ -14,12 +14,11 @@ import { INTEGRATION_PROVIDER_LABELS } from "@/lib/constants/admin";
  * takibi, gizli anahtar/token TUTMAZ.
  */
 export default async function AdminIntegrationsPage() {
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, grid] = await Promise.all([requireProfile(), getIntegrationsGrid()]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
-
-  const grid = await getIntegrationsGrid();
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,7 +63,7 @@ export default async function AdminIntegrationsPage() {
                     <tr
                       key={row.companyId}
                       className="animate-slide-up transition-colors duration-150 hover:bg-white/[0.03]"
-                      style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+                      style={{ animationDelay: `${Math.min(index, 12) * 6}ms` }}
                     >
                       <td className="px-5 py-3.5 font-medium text-ink-900">{row.companyName}</td>
                       {INTEGRATION_PROVIDERS.map((provider) => (

@@ -130,7 +130,7 @@ export function ProspectCalendarGrid({ cells, monthLabel }: { cells: ProspectCal
                   <div
                     key={p.id}
                     className="animate-slide-up flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 transition-colors duration-150 hover:border-accent-400/40 hover:bg-white/[0.08]"
-                    style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
+                    style={{ animationDelay: `${Math.min(index, 10) * 8}ms` }}
                   >
                     <Link href={`/admin/prospects/${p.id}`} className="flex min-w-0 flex-1 flex-col">
                       <span className="flex items-center gap-1.5">

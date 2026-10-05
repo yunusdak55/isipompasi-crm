@@ -51,7 +51,7 @@ export function ActivityTimeline({ items, emptyText }: { items: TimelineItem[]; 
           <li
             key={item.id}
             className="animate-slide-up flex gap-3 text-sm"
-            style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
+            style={{ animationDelay: `${Math.min(index, 8) * 8}ms` }}
           >
             <span
               className={cn(

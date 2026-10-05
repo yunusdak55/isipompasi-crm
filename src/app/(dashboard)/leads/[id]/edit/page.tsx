@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { requireProfile } from "@/lib/auth/session";
+import { getClaimsCompanyHint, requireProfile } from "@/lib/auth/session";
 import { getLeadById } from "@/lib/data/leads";
 import { LeadForm } from "@/components/leads/lead-form";
 import { getProductCategories } from "@/lib/data/product-categories";
@@ -10,19 +10,31 @@ import { updateLeadAction } from "../../actions";
 
 export default async function EditLeadPage({ params }: { params: Promise<{ id: string }> }) {
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
-  const profile = await requireProfile();
+  //
+  // PERF (olcum 2026-10-05): profil -> lead -> kategoriler ART ARDA (3 ag turu)
+  // bekleniyordu. Ucu de ayni turda baslar; kategoriler JWT'deki firma ipucuyla
+  // istenir (bkz. getClaimsCompanyHint) ve lead'in firmasiyla uyusmuyorsa
+  // dogru firmayla yeniden cekilir.
+  const { id } = await params;
+  const companyHint = await getClaimsCompanyHint();
+  const [profile, lead, hintedCategories] = await Promise.all([
+    requireProfile(),
+    getLeadById(id),
+    companyHint ? getProductCategories(companyHint) : Promise.resolve(null),
+  ]);
   if (profile.role === "admin") {
     redirect("/admin/companies");
   }
-
-  const { id } = await params;
-  const lead = await getLeadById(id);
 
   if (!lead) {
     notFound();
   }
 
-  const categories = lead.company_id ? await getProductCategories(lead.company_id) : [];
+  const categories = !lead.company_id
+    ? []
+    : hintedCategories && companyHint === lead.company_id
+      ? hintedCategories
+      : await getProductCategories(lead.company_id);
   const boundAction = updateLeadAction.bind(null, id);
 
   return (

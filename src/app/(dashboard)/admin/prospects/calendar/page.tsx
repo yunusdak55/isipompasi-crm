@@ -35,16 +35,15 @@ export default async function ProspectsCalendarPage({
 }: {
   searchParams: Promise<{ y?: string; m?: string }>;
 }) {
-  const profile = await requireProfile();
-  if (profile.role !== "admin") {
-    redirect("/dashboard");
-  }
-
   const params = await searchParams;
   const today = partsTR(new Date());
   const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
-  const prospects = await getProspectsCalendar(year, month);
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, prospects] = await Promise.all([requireProfile(), getProspectsCalendar(year, month)]);
+  if (profile.role !== "admin") {
+    redirect("/dashboard");
+  }
 
   const byDay = new Map<number, AgencyProspect[]>();
   for (const p of prospects) {

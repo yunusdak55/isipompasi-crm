@@ -17,18 +17,24 @@ import { getDashboardToday } from "@/lib/data/dashboard";
 export async function GET() {
   const headers = { "Cache-Control": "private, no-store" };
 
-  let profile;
-  try {
-    profile = await getCurrentProfile();
-  } catch {
-    // Oturum dogrulamasi zaman asimina ugradi: istemci eski veriyi gostermeye devam eder.
+  // PERF (olcum 2026-10-05: 2 sirali ag turu, ~200 ms): profil ile veri ayni turda.
+  // Veri RLS'li oturumla okunur ve asagidaki kontroller gecmeden ASLA dondurulmez.
+  const [auth, today] = await Promise.all([
+    getCurrentProfile().then(
+      (profile) => ({ ok: true as const, profile }),
+      // Oturum dogrulamasi zaman asimina ugradi: istemci eski veriyi gostermeye devam eder.
+      () => ({ ok: false as const, profile: null })
+    ),
+    getDashboardToday(),
+  ]);
+  if (!auth.ok) {
     return NextResponse.json({ error: "unavailable" }, { status: 503, headers });
   }
+  const { profile } = auth;
   if (!profile || isProfileBlocked(profile) || profile.role === "admin") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
   }
 
-  const today = await getDashboardToday();
   if (!today.ok) {
     return NextResponse.json({ error: "unavailable" }, { status: 503, headers });
   }

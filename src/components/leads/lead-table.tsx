@@ -1,3 +1,13 @@
+"use client";
+
+// ISTEMCI BILESENI (olcum 2026-10-05, bkz. docs/performans-raporu-2026-10-05.md):
+// bu tablo sunucu bileseniyken her satir (mobil kart + masaustu satiri, uzun sinif
+// adlariyla) RSC yanitina HAZIR ELEMAN AGACI olarak yaziliyordu - 20 lead icin
+// ~139 KB; canlida Leadler diger sayfalardan ~120 ms gec bitiyordu. Istemci
+// bileseni olunca yanitta yalnizca lead verisi (JSON) gider, satirlar tarayicida
+// cizilir. Ilk yuklemede HTML yine sunucuda uretilir (SSR); tarih/para bicimleri
+// lib/utils'te Turkiye saatine sabit oldugu icin sunucu ve tarayici ayni metni uretir.
+
 import { IntentLink as Link } from "@/components/ui/intent-link";
 import { Phone, MapPin } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
@@ -137,7 +147,7 @@ export function LeadTable({ leads }: { leads: LeadListItem[] }) {
       {/* Mobil: dikey kart listesi - yatay kaydirma yok, parmakla dokunmasi kolay. */}
       <div className="flex flex-col gap-2.5 md:hidden">
         {leads.map((lead, index) => (
-          <div key={lead.id} style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}>
+          <div key={lead.id} style={{ animationDelay: `${Math.min(index, 12) * 6}ms` }}>
             <LeadCard lead={lead} />
           </div>
         ))}
@@ -176,7 +186,7 @@ export function LeadTable({ leads }: { leads: LeadListItem[] }) {
                   key={lead.id}
                   className="group animate-slide-up relative transition-all duration-150 ease-snappy hover:bg-white/[0.05]"
                   style={{
-                    animationDelay: `${Math.min(index, 12) * 25}ms`,
+                    animationDelay: `${Math.min(index, 12) * 6}ms`,
                     boxShadow: `inset 3px 0 0 0 ${STATUS_ACCENT[lead.status]}`,
                   }}
                 >

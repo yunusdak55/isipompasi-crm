@@ -6,12 +6,11 @@ import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 
 export default async function OverduePage() {
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx).
+  const [profile, leads] = await Promise.all([requireProfile(), getLeadsOverdue()]);
   if (profile.role === "admin") {
     redirect("/admin/companies");
   }
-
-  const leads = await getLeadsOverdue();
 
   return (
     <div className="animate-fade-in relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 to-brand-950 p-5 shadow-elevated-lg sm:p-6">

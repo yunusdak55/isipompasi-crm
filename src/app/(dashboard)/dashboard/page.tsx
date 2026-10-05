@@ -26,12 +26,16 @@ export default async function DashboardPage() {
   // tanidigi TUM-firmalar erisimi yuzunden TUM MUSTERILERIN karisik toplam
   // rakamini goruyordu - kafa karistirici ve tutarsizdi. Artik settings ile
   // AYNI davranis: admin buraya hic giremez, /admin/companies'e yonlendirilir.
-  const profile = await requireProfile();
+  //
+  // PERF (olcum 2026-10-05, bkz. docs/performans-raporu-2026-10-05.md): profil ile
+  // veri AYNI ag turunda istenir. Eskiden once profil bekleniyor, veri ancak ondan
+  // sonra isteniyordu - her sayfa gecisinde bosuna bir tur (canlida ~70 ms).
+  // Guvenli: veri kullanicinin kendi oturumuyla (RLS) okunur; admin/pasif hesap
+  // icin sorgu bosa calisir ama sonuc asla render edilmez (asagida yonlendirilir).
+  const [profile, today] = await Promise.all([requireProfile(), getDashboardToday()]);
   if (profile.role === "admin") {
     redirect("/admin/companies");
   }
-
-  const today = await getDashboardToday();
 
   if (!today.ok) {
     // Sessizce "0 is var" gostermek yaniltici olurdu (veri okunamadiysa

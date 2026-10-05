@@ -39,7 +39,7 @@ export function DonutRing({
     const before = visible.slice(0, i).reduce((sum, v) => sum + (v.value / total) * circ, 0);
     const arc = (seg.value / total) * circ;
     const len = single ? circ : Math.max(1, arc - gap);
-    return { ...seg, len, offset: -(before + (single ? 0 : gap / 2)), delay: i * 90 };
+    return { ...seg, len, offset: -(before + (single ? 0 : gap / 2)), delay: i * 30 };
   });
 
   return (

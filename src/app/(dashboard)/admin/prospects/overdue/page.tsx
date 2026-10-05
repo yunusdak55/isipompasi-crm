@@ -6,12 +6,11 @@ import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 
 /** "Gecikenler" (spec: "gecikenlere takip tarihi geçen müşterileri koy"). */
 export default async function ProspectsOverduePage() {
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, prospects, lastNotes] = await Promise.all([requireProfile(), getProspectsOverdue(), getLastNotesByProspect()]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
-
-  const [prospects, lastNotes] = await Promise.all([getProspectsOverdue(), getLastNotesByProspect()]);
 
   return (
     <div className="animate-fade-in relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 to-brand-950 p-5 shadow-elevated-lg sm:p-6">

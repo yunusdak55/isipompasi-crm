@@ -15,12 +15,11 @@ import { formatCurrency, formatRate } from "@/lib/utils";
  * tek yerden gormek istiyorum". Sadece "admin" (Ajans Admin) rolu erisir.
  */
 export default async function AdminCompaniesPage() {
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, companies] = await Promise.all([requireProfile(), getAgencyCompanyStats()]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
-
-  const companies = await getAgencyCompanyStats();
 
   const totals = companies.reduce(
     (acc, c) => ({
@@ -86,7 +85,7 @@ export default async function AdminCompaniesPage() {
                     <tr
                       key={c.id}
                       className="animate-slide-up transition-colors duration-150 hover:bg-white/[0.03]"
-                      style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+                      style={{ animationDelay: `${Math.min(index, 12) * 6}ms` }}
                     >
                       <td className="px-5 py-3.5">
                         <EditCompanyNameForm companyId={c.id} name={c.name} city={c.city} />

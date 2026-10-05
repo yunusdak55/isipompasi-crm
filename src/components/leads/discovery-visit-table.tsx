@@ -31,7 +31,7 @@ export function DiscoveryVisitTable({ visits }: { visits: DiscoveryVisitListItem
             <tr
               key={visit.id}
               className="group animate-slide-up transition-all duration-150 ease-snappy hover:bg-white/[0.05] hover:shadow-[inset_2px_0_0_0_var(--color-accent-500)]"
-              style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+              style={{ animationDelay: `${Math.min(index, 12) * 6}ms` }}
             >
               <td className="px-4 py-3.5">
                 {visit.lead ? (

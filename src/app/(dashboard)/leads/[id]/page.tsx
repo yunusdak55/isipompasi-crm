@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { getLeadById, getLeadActivities, getAssignableProfiles, getSaleForLead } from "@/lib/data/leads";
 import { getSalespeople } from "@/lib/data/salespeople";
-import { getCurrentProfile } from "@/lib/auth/session";
+import { getClaimsCompanyHint, getClaimsRoleHint, getCurrentProfile } from "@/lib/auth/session";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { AnimatedStatValue } from "@/components/ui/animated-number";
 import { StatusBadge } from "@/components/ui/badge";
@@ -90,7 +90,22 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   // `id`'ye ihtiyaclari var, yine de eskiden lead COZULENE KADAR
   // baslatilmiyordu (sirali/gecikmis network round-trip'leri). Artik
   // UCU BIRDEN paralel baslatiliyor.
-  const [lead, activities, profile] = await Promise.all([getLeadById(id), getLeadActivities(id), getCurrentProfile()]);
+  //
+  // PERF (olcum 2026-10-05): firma sahibi icin atama listeleri + satis kaydi
+  // IKINCI bir ag turuydu (rol ve firma ancak ilk turdan sonra biliniyordu).
+  // Rol/firma JWT'den (sorgusuz ipucu) okunup ayni turda baslatilir; ipucu
+  // profil/lead ile uyusmazsa asagida eski yoldan yeniden cekilir. Yetki yine
+  // RLS + profil: ipucu yalnizca "neyi erken isteyelim" sorusunu yanitlar.
+  const [roleHint, companyHint] = await Promise.all([getClaimsRoleHint(), getClaimsCompanyHint()]);
+  const ownerCompanyHint = roleHint === "owner" ? companyHint : null;
+  const [lead, activities, profile, early] = await Promise.all([
+    getLeadById(id),
+    getLeadActivities(id),
+    getCurrentProfile(),
+    ownerCompanyHint
+      ? Promise.all([getAssignableProfiles(ownerCompanyHint), getSalespeople(ownerCompanyHint), getSaleForLead(id)])
+      : Promise.resolve(null),
+  ]);
 
   if (!lead) {
     notFound();
@@ -108,11 +123,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   // Ayni sekilde: bu ucu birbirine BAGIMLI degil, sirayla (await...await...await)
   // degil PARALEL cekilir - sales tablosu RLS geregi sadece owner/admin
   // gorebilir ("ciro hassas veri"), sales rolundeyken sorgu bile atilmaz.
-  const [assignableProfiles, salespeople, sale] = await Promise.all([
-    canAssign && lead.company_id ? getAssignableProfiles(lead.company_id) : Promise.resolve([]),
-    canAssign && lead.company_id ? getSalespeople(lead.company_id) : Promise.resolve([]),
-    canAssign ? getSaleForLead(id) : Promise.resolve(null),
-  ]);
+  const [assignableProfiles, salespeople, sale] =
+    early && canAssign && lead.company_id === ownerCompanyHint
+      ? early
+      : await Promise.all([
+          canAssign && lead.company_id ? getAssignableProfiles(lead.company_id) : Promise.resolve([]),
+          canAssign && lead.company_id ? getSalespeople(lead.company_id) : Promise.resolve([]),
+          canAssign ? getSaleForLead(id) : Promise.resolve(null),
+        ]);
 
   const cityLine = [lead.city, lead.district].filter(Boolean).join(" / ");
   const housingText = [

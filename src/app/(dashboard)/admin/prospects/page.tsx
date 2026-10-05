@@ -37,12 +37,11 @@ import { cn, formatDateTime, formatRelativeDays, isProspectOverdue } from "@/lib
  * (aday profili, [id]/page.tsx) - EditProspectForm SADECE orada kaliyor.
  */
 export default async function AdminProspectsPage() {
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, prospects, lastNotes] = await Promise.all([requireProfile(), getProspects(), getLastNotesByProspect()]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
-
-  const [prospects, lastNotes] = await Promise.all([getProspects(), getLastNotesByProspect()]);
 
   const followupCount = prospects.filter((p) => p.status === "followup").length;
   const wonCount = prospects.filter((p) => p.status === "won").length;
@@ -125,7 +124,7 @@ export default async function AdminProspectsPage() {
                       <tr
                         key={p.id}
                         className="animate-slide-up transition-colors duration-150 hover:bg-white/[0.03]"
-                        style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+                        style={{ animationDelay: `${Math.min(index, 12) * 6}ms` }}
                       >
                         <td className="max-w-[280px] px-5 py-3.5 align-top">
                           <div className="flex items-start gap-1.5">

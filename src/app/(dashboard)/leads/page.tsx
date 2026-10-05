@@ -86,21 +86,20 @@ export default async function LeadsPage({
 }) {
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama): admin
   // bu tenant-only sayfaya dogrudan URL ile giremesin diye yonlendirme eklendi.
-  const profile = await requireProfile();
-  if (profile.role === "admin") {
-    redirect("/admin/companies");
-  }
-
   const params = await searchParams;
   const page = Number(params.page) > 0 ? Number(params.page) : 1;
   const status = (params.status as LeadStatus | undefined) || undefined;
 
-  // PERF (jet hizi, oturumun geri kalaniyla ayni desen): ikisi birbirinden
-  // BAGIMSIZ - sirali degil paralel cekiliyor.
-  const [{ leads, count, pageSize }, dashboardStats] = await Promise.all([
+  // PERF (jet hizi, oturumun geri kalaniyla ayni desen): ucu birbirinden
+  // BAGIMSIZ - sirali degil paralel cekiliyor (profil dahil, bkz. dashboard/page.tsx).
+  const [profile, { leads, count, pageSize }, dashboardStats] = await Promise.all([
+    requireProfile(),
     getLeads({ search: params.q, status, page, pageSize: PAGE_SIZE }),
     getDashboardStats(),
   ]);
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
 
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
 

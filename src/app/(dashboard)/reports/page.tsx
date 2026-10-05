@@ -11,13 +11,12 @@ import { formatCurrency, formatRate } from "@/lib/utils";
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx).
+  const { period } = await searchParams;
+  const [profile, data] = await Promise.all([requireProfile(), getReportsData(period ?? "all")]);
   if (profile.role === "admin") {
     redirect("/admin/companies");
   }
-
-  const { period } = await searchParams;
-  const data = await getReportsData(period ?? "all");
   const periodOptions = getReportPeriodOptions();
 
   return (

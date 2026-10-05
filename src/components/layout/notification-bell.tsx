@@ -51,7 +51,7 @@ export function NotificationBell({ items }: { items: DueFollowup[] }) {
           ) : (
             <ul className="flex max-h-80 flex-col gap-0.5 overflow-y-auto">
               {items.map((item, index) => (
-                <li key={item.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index, 8) * 25}ms` }}>
+                <li key={item.id} className="animate-slide-up" style={{ animationDelay: `${Math.min(index, 8) * 6}ms` }}>
                   <Link
                     href={item.href}
                     onClick={() => setOpen(false)}

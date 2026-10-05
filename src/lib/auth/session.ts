@@ -75,6 +75,22 @@ export async function getClaimsRoleHint(): Promise<string | null> {
   }
 }
 
+/**
+ * Oturum JWT'sindeki (app_metadata) firma kimligi - VERITABANI sorgusu atmadan.
+ * getClaimsRoleHint ile AYNI kural: yalnizca "veriyi profili beklemeden baslat"
+ * optimizasyonu icindir; yetki = RLS + requireProfile'daki profil. Ipucu yanlis/
+ * eski olsa bile RLS baska firmanin satirini dondurmez.
+ */
+export async function getClaimsCompanyHint(): Promise<string | null> {
+  try {
+    const { data } = await withTimeout(getClaimsCached(), "getClaimsCompanyHint");
+    const companyId = (data?.claims as { app_metadata?: { company_id?: unknown } } | undefined)?.app_metadata?.company_id;
+    return typeof companyId === "string" ? companyId : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getCurrentProfileInner(): Promise<ProfileWithCompany | null> {
   const supabase = await createClient();
 
@@ -127,4 +143,22 @@ export async function requireProfile(): Promise<ProfileWithCompany> {
     redirect("/auth/inactive");
   }
   return profile;
+}
+
+/**
+ * Profil + firmaya bagli veriyi TEK ag turunda getirir (olcum 2026-10-05: her sayfa
+ * gecisinde once profil sorgusu bekleniyor, veri ANCAK ondan sonra isteniyordu =
+ * tiklama basina bosuna bir tur). `load` profili beklemeden, JWT'deki firma
+ * ipucuyla baslatilir; ipucu profildeki firmayla uyusmazsa (nadir: firma yeni
+ * degismis, JWT eski) dogru firmayla yeniden cekilir. Firmasi olmayan kullanici
+ * (admin) icin `data` null doner.
+ */
+export async function requireProfileWithCompanyData<T>(
+  load: (companyId: string) => Promise<T>
+): Promise<{ profile: ProfileWithCompany; data: T | null }> {
+  const hint = await getClaimsCompanyHint();
+  const [profile, early] = await Promise.all([requireProfile(), hint ? load(hint) : Promise.resolve(null)]);
+  if (!profile.company_id) return { profile, data: null };
+  if (hint === profile.company_id) return { profile, data: early };
+  return { profile, data: await load(profile.company_id) };
 }

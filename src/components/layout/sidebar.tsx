@@ -105,11 +105,10 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 
 /**
  * Tiklama geri bildirimi (bkz. node_modules/next/dist/docs/.../use-link-status.md):
- * hedef sayfanin iskeleti onbellekte DEGILSE (uzun sure bosta kalan sekme, yavas
- * ag) gecis sunucu yanitini bekler; o arada ekranda hicbir sey degismezse
- * kullanici "dondu" sanar. Bu nokta tiklanan linkte ANINDA belirir. Sabit
- * boyutlu, yalnizca opaklik degisir (yerlesim kaymasi yok); iskelet
- * onbellekteyse Next.js pending asamasini atlar ve hic gorunmez.
+ * gecis sunucu yanitini bekler (rotalarda bilerek loading.tsx YOK, bkz.
+ * components/layout/nav-progress.tsx); yanit gecikirse tiklanan linkte bu nokta
+ * belirir. 100 ms gecikmeli: hizli gecislerde hic gorunmez ("Gracefully handling
+ * fast navigation"). Sabit boyutlu, yalnizca opaklik degisir (yerlesim kaymasi yok).
  */
 function NavPendingDot() {
   const { pending } = useLinkStatus();
@@ -118,7 +117,7 @@ function NavPendingDot() {
       aria-hidden
       className={cn(
         "ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent-400 transition-opacity duration-150",
-        pending ? "animate-pulse opacity-100" : "opacity-0"
+        pending ? "animate-pulse opacity-100 delay-100" : "opacity-0"
       )}
     />
   );
@@ -145,10 +144,11 @@ function NavLink({ item, active, nested = false }: { item: NavItem; active: bool
   return (
     <Link
       href={item.href}
-      // PERF (jet hizi): prefetch ACIK - tiklamadan once sayfanin iskeleti (loading.tsx)
-      // arka planda hazirlanir, tiklayinca bos bekleme olmaz. Iskelet istemcide
-      // next.config.mjs -> staleTimes.static (300 sn) kadar gecerlidir; gercek veri
-      // staleTimes.dynamic = 0 sayesinde her tiklamada sunucudan taze gelir.
+      // PERF (olcum 2026-10-05): prefetch KAPALI. Rotalar dinamik ve loading.tsx'siz
+      // oldugu icin onceden cekilecek bir sey yok (Next.js dinamik rotada prefetch'i
+      // atlar); acik birakmak her sayfa acilisinda ~19 bos istek demekti. Veri her
+      // tiklamada sunucudan taze gelir (staleTimes.dynamic = 0).
+      prefetch={false}
       className={cn(
         // Aktif gostergesi (tasarim yukseltmesi): sol kenarda parlayan gradyanli "hap"
         // (pseudo-element) + soldan saga solan turuncu zemin. Border degil, gercek bir

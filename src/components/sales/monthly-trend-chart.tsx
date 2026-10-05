@@ -82,7 +82,7 @@ export function MonthlyTrendChart({ data }: { data: TrendPoint[] }) {
                             ? "bg-gradient-to-t from-accent-600 via-accent-500 to-flame-hot shadow-[0_0_28px_-4px_rgba(244,124,32,0.65)]"
                             : "bg-gradient-to-t from-ice-600 via-ice-500 to-ice-300 shadow-[0_0_22px_-6px_rgba(91,188,248,0.5)]")
                         }
-                        style={{ height: `${heightPct}%`, animationDelay: `${index * 70}ms` }}
+                        style={{ height: `${heightPct}%`, animationDelay: `${index * 15}ms` }}
                       />
                       <div
                         role="tooltip"

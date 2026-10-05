@@ -12,12 +12,11 @@ import { getInitials } from "@/lib/utils";
 
 /** Ajans admin'in tum musteri firmalardaki kullanicilari yonettigi panel. */
 export default async function AdminUsersPage() {
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, users, companies] = await Promise.all([requireProfile(), getAllUsersWithCompany(), getCompaniesForSelect()]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
-
-  const [users, companies] = await Promise.all([getAllUsersWithCompany(), getCompaniesForSelect()]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,7 +25,11 @@ export default async function AdminUsersPage() {
         <div className="relative">
           <h1 className="text-2xl font-semibold tracking-tight text-white">Kullanıcılar</h1>
           <p className="mt-1 text-sm text-white/55">
-            Müşteri firmalarınız için giriş hesabı oluşturun ve mevcut hesapları yönetin.
+            Var olan bir firmaya ek giriş hesabı ekleyin ve hesapları yönetin. Yeni müşteri için{" "}
+            <a href="/admin/companies" className="font-medium text-white underline-offset-2 hover:underline">
+              Firmalar → Yeni Firma Ekle
+            </a>{" "}
+            kullanın.
           </p>
         </div>
       </div>
@@ -76,7 +79,7 @@ export default async function AdminUsersPage() {
                     <tr
                       key={u.id}
                       className="animate-slide-up transition-colors duration-150 hover:bg-white/[0.03]"
-                      style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+                      style={{ animationDelay: `${Math.min(index, 12) * 6}ms` }}
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">

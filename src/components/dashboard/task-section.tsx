@@ -52,7 +52,7 @@ function TaskRow({ item, tone, agenda, index }: { item: TaskItem; tone: SectionT
         TONE[tone].bar,
         agenda && "first:[&_.rail]:top-1/2 last:[&_.rail]:bottom-1/2 only:[&_.rail]:hidden"
       )}
-      style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
+      style={{ animationDelay: `${Math.min(index, 8) * 8}ms` }}
     >
       {agenda ? (
         <>

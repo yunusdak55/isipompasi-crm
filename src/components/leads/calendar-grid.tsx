@@ -132,7 +132,7 @@ export function CalendarGrid({ cells, monthLabel }: { cells: CalendarCell[]; mon
                     key={lead.id}
                     href={`/leads/${lead.id}`}
                     className="animate-slide-up flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 transition-colors duration-150 hover:border-accent-400/40 hover:bg-white/[0.08]"
-                    style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
+                    style={{ animationDelay: `${Math.min(index, 10) * 8}ms` }}
                   >
                     <span className="flex min-w-0 items-center gap-1.5">
                       {overdue ? <OverdueBadge className="shrink-0" /> : null}

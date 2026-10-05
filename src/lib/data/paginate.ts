@@ -48,9 +48,12 @@ export async function fetchAllRows<T>(
     return { data: firstRows, error: null };
   }
 
+  // Ilk paralel grup 5 sayfa (olcum 2026-10-05, 5.000 satir: 1 -> 2 -> 4 sayfalik
+  // UC sirali tur yerine 1 -> 5 ile IKI tur; Raporlar bu yuzden ~0,8 sn suruyordu).
+  // Bos gelen fazladan "yoklama" istekleri paralel ve ucuzdur; sirali tur pahalidir.
   const all = [...firstRows];
   let nextFrom = PAGE_SIZE;
-  let batchPages = 2;
+  let batchPages = 5;
   while (nextFrom < maxRows) {
     const ranges: Array<[number, number]> = [];
     for (let i = 0; i < batchPages && nextFrom < maxRows; i++, nextFrom += PAGE_SIZE) {

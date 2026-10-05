@@ -28,16 +28,15 @@ export default async function DiscoveriesPage({
   searchParams: Promise<{ y?: string; m?: string }>;
 }) {
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
-  const profile = await requireProfile();
-  if (profile.role === "admin") {
-    redirect("/admin/companies");
-  }
-
   const params = await searchParams;
   const today = partsTR(new Date());
   const { year, month } = parseYearMonth(params.y, params.m, { year: today.year, month: today.month });
 
-  const visits = await getDiscoveryVisitsForMonth(year, month);
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx).
+  const [profile, visits] = await Promise.all([requireProfile(), getDiscoveryVisitsForMonth(year, month)]);
+  if (profile.role === "admin") {
+    redirect("/admin/companies");
+  }
 
   const prevMonth = month === 0 ? { y: year - 1, m: 11 } : { y: year, m: month - 1 };
   const nextMonth = month === 11 ? { y: year + 1, m: 0 } : { y: year, m: month + 1 };

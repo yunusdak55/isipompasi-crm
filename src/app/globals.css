@@ -16,9 +16,12 @@
   --color-brand-50: #f1f5fb;
   --color-brand-100: #dce8f5;
   --color-brand-200: #b7cee7;
+  /* (2026-10-05) kodda kullanilan ama tanimsiz oldugu icin sinif uretmeyen ara ton - komsu tonlarin arasi. */
+  --color-brand-400: #5a769b;
   --color-brand-500: #2c4a75;
   --color-brand-600: #17304f;
   --color-brand-700: #0f2645;
+  --color-brand-800: #0d2340;
   --color-brand-900: #0b1f3a;
   --color-brand-950: #071426;
 
@@ -28,6 +31,11 @@
   --color-accent-100: #fce0c2;
   --color-accent-200: #f9c68e;
   --color-accent-300: #ffab5c;
+  /* DUZELTME (2026-10-05): 400 tonu TANIMLI DEGILDI ama 49 yerde kullaniliyordu
+     (text-/bg-/border-accent-400) - Tailwind tanimsiz renge sinif uretmedigi icin
+     bu vurgular (aktif menu ikonu, bekleme noktasi, rozet noktalari) renksiz
+     kaliyordu. 300 ile 500'un ortasi. */
+  --color-accent-400: #fa943e;
   --color-accent-500: #f47c20;
   --color-accent-600: #db6912;
   --color-accent-700: #b3560f;
@@ -47,17 +55,27 @@
 
   --color-success-50: #edf7f1;
   --color-success-100: #d3eedd;
+  --color-success-200: #aad4bc;
+  --color-success-300: #81ba9b;
   --color-success-500: #2f8558;
+  --color-success-600: #27764c;
   --color-success-700: #1f6740;
+  --color-success-900: #144329;
 
   --color-danger-50: #fbeeec;
   --color-danger-100: #f5d6d0;
+  --color-danger-200: #e9b1a8;
+  --color-danger-300: #dd8d7f;
   --color-danger-500: #c4432e;
+  --color-danger-600: #b03b27;
   --color-danger-700: #9b331f;
+  --color-danger-900: #652114;
 
   --color-warning-50: #fcf7e8;
   --color-warning-100: #f7eac0;
+  --color-warning-200: #ecd69c;
   --color-warning-500: #c99a2e;
+  --color-warning-600: #b08625;
   --color-warning-700: #96721c;
 
   /* Notr metin/yuzey olcegi - tam koyu lacivert tema (spec: "koyu laciverti
@@ -68,6 +86,7 @@
   --color-ink-100: #1c3358;
   --color-ink-300: #3a5279;
   --color-ink-400: #8a9ab5;
+  --color-ink-500: #a1afc7;
   --color-ink-600: #b7c3d9;
   --color-ink-900: #f8fafc;
 
@@ -110,8 +129,8 @@
 
   /* Mikro etkilesim animasyonlari - hizli, yumusak, "bounce" yok. Modal/panel
      sureleri kasitli olarak kisa: kullanici "bekliyorum" hissine kapilmamali. */
-  --animate-fade-in: fade-in 140ms var(--ease-premium) both;
-  --animate-slide-up: slide-up 220ms var(--ease-premium) both;
+  --animate-fade-in: fade-in 120ms var(--ease-premium) both;
+  --animate-slide-up: slide-up 150ms var(--ease-premium) both;
   --animate-scale-in: scale-in 130ms var(--ease-premium) both;
   --animate-panel-in: panel-in 170ms var(--ease-premium) both;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
@@ -195,7 +214,7 @@
 }
 .donut-seg {
   stroke-dasharray: var(--len) var(--rest);
-  animation: donut-draw 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: donut-draw 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 /* Ajan rozeti icin yavas, yumusak nefes alan halka - ayni "nabiz" teknigi,
    daha genis ve yavas (surekli acik kalan bir panelde daha rahatsiz etmeyen
@@ -518,23 +537,59 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .grow-y {
   transform-origin: bottom center;
-  animation: grow-y 760ms var(--ease-settle) both;
+  animation: grow-y 320ms var(--ease-settle) both;
 }
 .grow-x {
   transform-origin: left center;
-  animation: grow-x 760ms var(--ease-settle) both;
+  animation: grow-x 320ms var(--ease-settle) both;
 }
 
 /* Sayfa girisi: bir kapsayicinin dogrudan cocuklari sirayla yukari kayarak belirir. */
+/* HIZ (olcum 2026-10-05): eskiden 420 ms + 340 ms'ye varan gecikme = sayfanin son
+   bolumu icerik geldikten 760 ms SONRA tam gorunuyordu ("yarim saniye bekliyor"
+   hissi). Sira etkisi korundu ama tum bolumler ~250 ms icinde gorunur. */
 .stagger > * {
-  animation: slide-up 420ms var(--ease-premium) both;
+  animation: slide-up 180ms var(--ease-premium) both;
 }
-.stagger > *:nth-child(2) { animation-delay: 60ms; }
-.stagger > *:nth-child(3) { animation-delay: 120ms; }
-.stagger > *:nth-child(4) { animation-delay: 180ms; }
-.stagger > *:nth-child(5) { animation-delay: 240ms; }
-.stagger > *:nth-child(6) { animation-delay: 300ms; }
-.stagger > *:nth-child(n + 7) { animation-delay: 340ms; }
+.stagger > *:nth-child(2) { animation-delay: 15ms; }
+.stagger > *:nth-child(3) { animation-delay: 30ms; }
+.stagger > *:nth-child(4) { animation-delay: 45ms; }
+.stagger > *:nth-child(5) { animation-delay: 60ms; }
+.stagger > *:nth-child(6) { animation-delay: 70ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 80ms; }
+
+/* Sayfa gecisi seridi (bkz. components/layout/nav-progress.tsx): yalnizca gecis
+   150 ms'den uzun surerse belirir - hizli gecislerde hic gorunmez. */
+.nav-progress {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 20;
+}
+.nav-progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, var(--color-accent-400), transparent);
+  transform: translateX(-100%);
+}
+.nav-progress.is-pending {
+  animation: nav-progress-in 120ms linear 150ms forwards;
+}
+.nav-progress.is-pending::after {
+  animation: nav-progress-slide 900ms ease-in-out 150ms infinite;
+}
+@keyframes nav-progress-in {
+  to { opacity: 1; }
+}
+@keyframes nav-progress-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(290%); }
+}
 
 /* Sparkline: cizgi bir kez cizilir, alan ve son nokta ardindan belirir. */
 @keyframes spark-draw {
@@ -547,13 +602,13 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 .spark-line {
   stroke-dasharray: 1;
-  animation: spark-draw 1000ms var(--ease-settle) 120ms both;
+  animation: spark-draw 400ms var(--ease-settle) 60ms both;
 }
 .spark-area {
-  animation: spark-fade 700ms ease-out 500ms both;
+  animation: spark-fade 250ms ease-out 200ms both;
 }
 .spark-dot {
-  animation: spark-fade 400ms ease-out 900ms both;
+  animation: spark-fade 200ms ease-out 350ms both;
 }
 
 /* Isi gradyanli metin (basliktaki vurgulu kelime vb.). */

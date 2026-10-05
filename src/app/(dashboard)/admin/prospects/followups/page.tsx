@@ -5,12 +5,11 @@ import { ProspectFollowupTable } from "@/components/admin/prospect-followup-tabl
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 
 export default async function ProspectsFollowupsPage() {
-  const profile = await requireProfile();
+  // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
+  const [profile, prospects, lastNotes] = await Promise.all([requireProfile(), getProspectsFollowup(), getLastNotesByProspect()]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
-
-  const [prospects, lastNotes] = await Promise.all([getProspectsFollowup(), getLastNotesByProspect()]);
 
   return (
     <div className="animate-fade-in relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 to-brand-950 p-5 shadow-elevated-lg sm:p-6">

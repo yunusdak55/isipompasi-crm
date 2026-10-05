@@ -100,16 +100,13 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ["panel.iklimlen.com"],
     },
-    // KOK NEDEN DUZELTMESI (canli olcum 2026-10-05, bkz. docs/performans-raporu-2026-10-05.md):
-    // `static` eskiden 30'du ("istemci onbellegini etkisiz kil" niyetiyle). Ama
-    // bu deger sayfa VERISINI degil, prefetch edilen loading.tsx ISKELETLERININ
-    // omrunu belirler (bkz. node_modules/next/dist/docs/.../staleTimes.md:
-    // "Loading boundaries are considered reusable for the static period").
-    // Sonuc: bir sayfada 30 sn'den fazla kalan kullanici bir linke tikladiginda
-    // iskelet artik gecersizdi ve sunucu yanit verene kadar EKRANDA HICBIR SEY
-    // DEGISMIYORDU (olculdu: 8 ms yerine 497 ms "olu tiklama" = "donuyor" hissi).
-    // 300 = Next.js varsayilani. Iskelette kullaniciya/firmaya ozel VERI YOK;
-    // gercek veri `dynamic: 0` sayesinde her tiklamada sunucudan taze gelir.
+    // `dynamic: 0`: sayfa verisi istemcide onbelleklenmez, her tiklamada sunucudan
+    // taze gelir. `static` (Next.js varsayilani 300): prefetch edilen loading.tsx
+    // iskeletlerinin ve tam prefetch'lerin omru. Bu uygulamada artik ikisi de
+    // yok (rotalarda loading.tsx bilerek kaldirildi, linkler prefetch={false} -
+    // bkz. components/layout/nav-progress.tsx ve docs/performans-raporu-2026-10-05.md),
+    // yani pratikte etkisiz; ileride loading.tsx geri eklenirse DUSURME: 30 iken
+    // sayfada 30 sn duran kullanicinin tiklamasi ~0,5 sn tepkisiz kaliyordu.
     staleTimes: {
       dynamic: 0,
       static: 300,

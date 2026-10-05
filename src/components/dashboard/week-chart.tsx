@@ -67,7 +67,7 @@ export function WeekChart({ days }: { days: WeekDay[] }) {
                           ? "rounded-t-xl rounded-b-[5px] bg-gradient-to-t from-ice-600/30 to-ice-400/40"
                           : "rounded-t-xl rounded-b-[5px] bg-gradient-to-t from-ice-600/70 via-ice-500/70 to-ice-300/90 shadow-[0_0_20px_-6px_rgba(91,188,248,0.45)]"
                   )}
-                  style={{ height: barPx, animationDelay: `${i * 55}ms` }}
+                  style={{ height: barPx, animationDelay: `${i * 15}ms` }}
                 />
               </li>
             );

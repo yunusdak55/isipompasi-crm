@@ -98,7 +98,7 @@ export function AgentChat({ insights, companyName }: { insights: AgentInsight[];
                   "animate-slide-up flex items-start gap-2.5 rounded-2xl border px-3.5 py-2.5",
                   TONE_CLASSES[m.tone]
                 )}
-                style={{ animationDelay: `${i * 60}ms` }}
+                style={{ animationDelay: `${i * 15}ms` }}
               >
                 <Icon className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
                 <p className="text-sm leading-relaxed">{m.text}</p>

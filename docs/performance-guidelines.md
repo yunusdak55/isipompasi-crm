@@ -25,14 +25,26 @@ birbirine bağlı olmayanları **aynı turda** çalıştırmak.
    yerelde HİÇ görünmez. `Intl.DateTimeFormat`'a daima `timeZone: "Europe/Istanbul"` ver.
 5. **Server action'larda** bağımsız yazmaları paralel yap veya tek `insert([...])` ile birleştir
    (örnek: `logMeetingOutcomeAction`).
-6. Her yeni sayfaya bir `loading.tsx` ekle; sidebar bağlantıları prefetch'lidir, iskelet anında gelir.
-   `next.config.mjs` → `staleTimes.dynamic = 0`: veri hep taze gelir. `staleTimes.static = 300`: bu, verinin değil
-   prefetch edilen **iskeletin** ömrüdür — **düşürme** (30 iken, sayfada 30 sn duran kullanıcının tıklaması ~0,5 sn
-   tepkisiz kalıyordu; bkz. docs/performans-raporu-2026-10-05.md).
-8. **Liste/tablo satırı linklerinde `IntentLink` kullan** (`src/components/ui/intent-link.tsx`), düz `<Link>` değil:
-   düz `<Link>` ekrana giren her satır için 2 prefetch isteği atar.
-9. **Periyodik/otomatik veri yenilemede `router.refresh()` kullanma.** Layout'u yeniden render eder ve tüm linkleri
-   yeniden prefetch ettirir. Hafif bir Route Handler + `fetch` kullan (örnek: `/api/dashboard-today`, `DashboardLive`).
+6. **Rotalara `loading.tsx` EKLEME** (2026-10-05'te hepsi kaldırıldı). İskelet tıklamada anında geliyordu ama React, bir
+   Suspense yedeği gösterildikten sonra asıl içeriği **en az 300 ms** bekletir (`FALLBACK_THROTTLE_MS`): sunucu 100 ms'de yanıt
+   verse de içerik 307–311 ms'den önce görünmüyordu. Şimdi geçiş sunucu yanıtı gelir gelmez tamamlanır; 150 ms'den uzun sürerse
+   `NavProgress` şeridi (`src/components/layout/nav-progress.tsx`) görünür. Bir sayfa gerçekten yavaşsa (>1 sn) çözüm iskelet
+   değil, sorgu turlarını azaltmaktır.
+8. **Linklerde prefetch kapalı** (`prefetch={false}`; satırlarda `IntentLink`). Rotalar dinamik ve `loading.tsx`'siz olduğu
+   için önceden çekilecek bir şey yok; açık bırakmak sayfa açılışında onlarca boş istek demekti.
+9. **Periyodik/otomatik veri yenilemede `router.refresh()` kullanma.** Hafif bir Route Handler + `fetch` kullan
+   (örnek: `/api/dashboard-today`, `DashboardLive`).
+10. **Profili beklemeden veriyi başlat.** `const [profile, data] = await Promise.all([requireProfile(), getData()])`.
+    Eskiden her sayfa önce profili bekliyor, veriyi ancak ondan sonra istiyordu = tıklama başına boşuna bir tur. Veri kullanıcının
+    oturumuyla (RLS) okunduğu için güvenli; yönlendirme kontrolü `Promise.all`'dan hemen sonra yapılır. Veri firma kimliğine
+    bağlıysa `requireProfileWithCompanyData` (JWT ipucu) kullan. **Service-role istemcisiyle okunan veriyi asla böyle başlatma.**
+11. **Server action'da ilk okumaları birlikte yap:** `requireProfile()` + mevcut kaydı okuma + yardımcı aramalar tek
+    `Promise.all`. Yazmalar bunlar dönüp kontroller geçmeden başlamaz.
+12. **Satır ağırlıklı tabloları istemci bileşeni yap** (`"use client"`, veri prop'u). Sunucu bileşeni olarak 20 satırlık Leadler
+    tablosu RSC yanıtına 139 KB hazır eleman ağacı yazıyordu; veri olarak 30 KB. Tarih/para biçimleri `lib/utils`'te Türkiye
+    saatine sabit olduğu sürece sunucu ve tarayıcı aynı metni üretir (`TZ=UTC` ile sunucuyu çalıştırıp konsolu kontrol et).
+13. **Giriş animasyonları içeriği bekletmesin.** `from { opacity: 0 }` + gecikme = o süre boyunca veri GÖRÜNMEZ. Satır
+    gecikmesi en çok ~70 ms, süre ~150 ms; bölüm sıralaması (`.stagger`) toplam ~250 ms'yi geçmesin.
 
 ## Veritabanı (migration) yazarken
 - RLS politikalarında **her zaman** `(select auth.uid())`, `(select private.current_user_role())`,
