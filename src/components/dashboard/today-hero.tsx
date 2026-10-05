@@ -140,17 +140,19 @@ export function TodayHero({
   dateLabel,
   today,
   week,
-  renderedAt,
   timeLabel,
+  refreshing,
+  onRefresh,
 }: {
   greeting: string;
   firstName: string | null;
   dateLabel: string;
   today: DashboardToday;
   week: WeekDay[];
-  /** Sunucunun bu ciktiyi urettigi an (ms) ve saat yazisi - bkz. LiveStamp. */
-  renderedAt: number;
+  /** Verinin sunucuda okundugu saat yazisi + yenileme durumu - bkz. LiveStamp / DashboardLive. */
   timeLabel: string;
+  refreshing: boolean;
+  onRefresh: () => void;
 }) {
   const { due, overdue, fresh, dueCarry } = today.counts;
   const weekTotal = week.reduce((sum, d) => sum + d.count, 0);
@@ -180,7 +182,7 @@ export function TodayHero({
               <CalendarDays className="h-3.5 w-3.5" />
               {dateLabel}
             </p>
-            <LiveStamp renderedAt={renderedAt} timeLabel={timeLabel} />
+            <LiveStamp timeLabel={timeLabel} pending={refreshing} onRefresh={onRefresh} />
           </div>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-[2.6rem] sm:leading-[1.1]">
             <span className="text-white/75">{greeting}</span>

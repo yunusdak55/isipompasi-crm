@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useRef, useState } from "react";
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import {
   DndContext,
   DragOverlay,

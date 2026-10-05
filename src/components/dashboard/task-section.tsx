@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import { ArrowRight, Check, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn, getInitials } from "@/lib/utils";

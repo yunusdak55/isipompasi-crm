@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import { TriangleAlert } from "lucide-react";
 import { leadDisplayName } from "@/lib/utils";
 import type { UndatedFollowupLead } from "@/lib/data/leads";

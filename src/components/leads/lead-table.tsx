@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import { Phone, MapPin } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
 import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";

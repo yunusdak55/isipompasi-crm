@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import { StatusBadge } from "@/components/ui/badge";
 import { NewLeadBadge, OverdueBadge, TodayCallBadge } from "@/components/leads/lead-indicators";
 import { formatCurrency, formatRelativeDays, formatRelativeTimeAgo, isLeadNew, isLeadOverdue, leadContactPerson, leadDisplayName } from "@/lib/utils";

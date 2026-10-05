@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import { Phone } from "lucide-react";
 import { formatCurrency, formatDate, getInitials, leadDisplayName } from "@/lib/utils";
 import type { SaleListItem } from "@/lib/data/sales";

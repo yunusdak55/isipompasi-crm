@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import { MapPin, Phone } from "lucide-react";
 import { formatDate, leadDisplayName } from "@/lib/utils";
 import type { DiscoveryVisitListItem } from "@/lib/data/discovery-visits";

@@ -26,7 +26,13 @@ birbirine bağlı olmayanları **aynı turda** çalıştırmak.
 5. **Server action'larda** bağımsız yazmaları paralel yap veya tek `insert([...])` ile birleştir
    (örnek: `logMeetingOutcomeAction`).
 6. Her yeni sayfaya bir `loading.tsx` ekle; sidebar bağlantıları prefetch'lidir, iskelet anında gelir.
-   İstemci önbelleği `next.config.mjs` → `staleTimes.dynamic = 0` ile kapalıdır, veri hep taze gelir.
+   `next.config.mjs` → `staleTimes.dynamic = 0`: veri hep taze gelir. `staleTimes.static = 300`: bu, verinin değil
+   prefetch edilen **iskeletin** ömrüdür — **düşürme** (30 iken, sayfada 30 sn duran kullanıcının tıklaması ~0,5 sn
+   tepkisiz kalıyordu; bkz. docs/performans-raporu-2026-10-05.md).
+8. **Liste/tablo satırı linklerinde `IntentLink` kullan** (`src/components/ui/intent-link.tsx`), düz `<Link>` değil:
+   düz `<Link>` ekrana giren her satır için 2 prefetch isteği atar.
+9. **Periyodik/otomatik veri yenilemede `router.refresh()` kullanma.** Layout'u yeniden render eder ve tüm linkleri
+   yeniden prefetch ettirir. Hafif bir Route Handler + `fetch` kullan (örnek: `/api/dashboard-today`, `DashboardLive`).
 
 ## Veritabanı (migration) yazarken
 - RLS politikalarında **her zaman** `(select auth.uid())`, `(select private.current_user_role())`,

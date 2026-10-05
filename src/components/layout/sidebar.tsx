@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -103,6 +103,27 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Tiklama geri bildirimi (bkz. node_modules/next/dist/docs/.../use-link-status.md):
+ * hedef sayfanin iskeleti onbellekte DEGILSE (uzun sure bosta kalan sekme, yavas
+ * ag) gecis sunucu yanitini bekler; o arada ekranda hicbir sey degismezse
+ * kullanici "dondu" sanar. Bu nokta tiklanan linkte ANINDA belirir. Sabit
+ * boyutlu, yalnizca opaklik degisir (yerlesim kaymasi yok); iskelet
+ * onbellekteyse Next.js pending asamasini atlar ve hic gorunmez.
+ */
+function NavPendingDot() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-accent-400 transition-opacity duration-150",
+        pending ? "animate-pulse opacity-100" : "opacity-0"
+      )}
+    />
+  );
+}
+
 function NavLink({ item, active, nested = false }: { item: NavItem; active: boolean; nested?: boolean }) {
   const Icon = item.icon;
 
@@ -125,11 +146,9 @@ function NavLink({ item, active, nested = false }: { item: NavItem; active: bool
     <Link
       href={item.href}
       // PERF (jet hizi): prefetch ACIK - tiklamadan once sayfanin iskeleti (loading.tsx)
-      // arka planda hazirlanir, tiklayinca bos bekleme olmaz. Eskiden bu link
-      // prefetch={false}'tu cunku prefetch edilen (eksik) veri istemci
-      // onbellegine 5 dakikaligina yaziliyordu; artik next.config.mjs'teki
-      // staleTimes.dynamic = 0 sayesinde SADECE iskelet onbelleklenir, gercek
-      // veri her tiklamada sunucudan taze gelir.
+      // arka planda hazirlanir, tiklayinca bos bekleme olmaz. Iskelet istemcide
+      // next.config.mjs -> staleTimes.static (300 sn) kadar gecerlidir; gercek veri
+      // staleTimes.dynamic = 0 sayesinde her tiklamada sunucudan taze gelir.
       className={cn(
         // Aktif gostergesi (tasarim yukseltmesi): sol kenarda parlayan gradyanli "hap"
         // (pseudo-element) + soldan saga solan turuncu zemin. Border degil, gercek bir
@@ -143,6 +162,7 @@ function NavLink({ item, active, nested = false }: { item: NavItem; active: bool
     >
       <Icon className={cn(nested ? "h-3.5 w-3.5" : "h-4 w-4", active && "text-accent-400")} />
       {item.label}
+      <NavPendingDot />
     </Link>
   );
 }

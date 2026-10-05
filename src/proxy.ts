@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { buildInstrumentedFetch } from "@/lib/supabase/fetch-with-timeout";
 import { withTimeout, SessionCheckTimeoutError } from "@/lib/supabase/with-timeout";
 import { logPerf, newRequestId } from "@/lib/perf-log";
+import { sessionKeyFromCookies, singleFlightSession, type SessionCookie, type SessionResult } from "@/lib/supabase/session-single-flight";
 
 /**
  * Her istekte calisir (Next.js 16: eski adiyla middleware):
@@ -71,10 +72,24 @@ export async function proxy(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
+  // Tazelenen oturum cerezlerini hem sayfa render'ina (istek) hem tarayiciya (yanit) yazar.
+  const applySessionCookies = (cookiesToSet: SessionCookie[]) => {
+    if (cookiesToSet.length === 0) return;
+    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+    // Tazelenen oturum cookie'leri sayfa render'ina da ulassin (nonce/CSP basliklariyla birlikte).
+    requestHeaders.set("cookie", request.headers.get("cookie") ?? "");
+    supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
+    cookiesToSet.forEach(({ name, value, options }) =>
+      supabaseResponse.cookies.set(name, value, { ...options, httpOnly: true, secure: isHttps, sameSite: "lax" })
+    );
+  };
+
+  // Bu istegin oturumunu dogrular (gerekirse yeniler). Yenilenen cerezler hem
+  // bu istege uygulanir hem de ayni eski cerezle gelen diger isteklerle
+  // paylasilmak uzere dondurulur (bkz. lib/supabase/session-single-flight.ts).
+  const verifySession = async (): Promise<SessionResult> => {
+    const refreshed: SessionCookie[] = [];
+    const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
       // PERF (donma duzeltmesi, bkz. lib/supabase/fetch-with-timeout.ts): bu
       // istemci HER istekte calisir (middleware) - zaman asimi olmadan burada
       // askida kalan bir istek TUM SITEYI donma noktasi haline getirirdi.
@@ -87,17 +102,14 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          // Tazelenen oturum cookie'leri sayfa render'ina da ulassin (nonce/CSP basliklariyla birlikte).
-          requestHeaders.set("cookie", request.headers.get("cookie") ?? "");
-          supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, { ...options, httpOnly: true, secure: isHttps, sameSite: "lax" })
-          );
+          refreshed.push(...cookiesToSet);
+          applySessionCookies(cookiesToSet);
         },
       },
-    }
-  );
+    });
+    const { data: claimsData } = await supabase.auth.getClaims();
+    return { claims: claimsData?.claims ?? null, cookiesToSet: refreshed };
+  };
 
   // PERF (jet hizi): getUser() HER istekte Supabase Auth sunucusuna gercek bir
   // ag turu (~80-200ms) yapiyordu. getClaims() JWT'nin IMZASINI asimetrik
@@ -114,12 +126,21 @@ export async function proxy(request: NextRequest) {
   // bunu KENDI ICINDE gorunmez sekilde ~30sn'ye kadar tekrar deniyor - bu
   // sarmalayici olmadan Hostinger<->Supabase arasi gecici bir tikaniklikta
   // TUM SITE (her istek burdan gecer) dakikalarca "donmus" gorunebiliyordu.
+  // TEK UCUS (canli kanit 2026-10-05): ayni oturum cereziyle gelen eszamanli
+  // istekler (sayfa + prefetch'ler) tek bir dogrulamayi/yenilemeyi paylasir.
   const claimsStart = Date.now();
   let user: { sub?: string } | null = null;
   try {
-    const { data: claimsData } = await withTimeout(supabase.auth.getClaims(), "middleware:getClaims");
+    const sessionKey = sessionKeyFromCookies(request.cookies.getAll());
+    if (sessionKey) {
+      const flight = singleFlightSession(sessionKey, verifySession);
+      const session = await withTimeout(flight.promise, "middleware:getClaims");
+      // Lider cerezleri setAll icinde zaten uyguladi; takipciler paylasilan sonucu uygular.
+      if (!flight.leader) applySessionCookies(session.cookiesToSet);
+      user = session.claims;
+    }
+    // Oturum cerezi hic yoksa dogrulanacak bir sey de yok: girisli degil.
     logPerf({ requestId, layer: "middleware", op: "getClaims", durationMs: Date.now() - claimsStart, result: "success" });
-    user = claimsData?.claims ?? null;
   } catch (e) {
     const isTimeout = e instanceof SessionCheckTimeoutError;
     logPerf({ requestId, layer: "middleware", op: "getClaims", durationMs: Date.now() - claimsStart, result: isTimeout ? "timeout" : "error" });

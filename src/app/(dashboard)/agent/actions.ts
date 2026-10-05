@@ -101,6 +101,9 @@ export async function askAgentAction(message: string, history: AgentChatTurn[]):
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      // Zaman asimi: OpenAI askida kalirsa server action (ve istemcideki sirali
+      // action kuyrugu) sonsuza kadar beklemesin - 30 sn'de catch'e duser.
+      signal: AbortSignal.timeout(30_000),
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-5.6-luna",

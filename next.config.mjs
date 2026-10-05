@@ -100,13 +100,19 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ["panel.iklimlen.com"],
     },
-    // DUZELTME (next dev başlangıç uyarısı: "Number must be greater than or
-    // equal to 30 at experimental.staleTimes.static") - bu Next.js sürümü artık
-    // 0'a izin vermiyor, izin verilen en düşük değer (30s) buraya alındı; niyet
-    // (client router cache'i pratikte etkisiz kılmak) korunuyor.
+    // KOK NEDEN DUZELTMESI (canli olcum 2026-10-05, bkz. docs/performans-raporu-2026-10-05.md):
+    // `static` eskiden 30'du ("istemci onbellegini etkisiz kil" niyetiyle). Ama
+    // bu deger sayfa VERISINI degil, prefetch edilen loading.tsx ISKELETLERININ
+    // omrunu belirler (bkz. node_modules/next/dist/docs/.../staleTimes.md:
+    // "Loading boundaries are considered reusable for the static period").
+    // Sonuc: bir sayfada 30 sn'den fazla kalan kullanici bir linke tikladiginda
+    // iskelet artik gecersizdi ve sunucu yanit verene kadar EKRANDA HICBIR SEY
+    // DEGISMIYORDU (olculdu: 8 ms yerine 497 ms "olu tiklama" = "donuyor" hissi).
+    // 300 = Next.js varsayilani. Iskelette kullaniciya/firmaya ozel VERI YOK;
+    // gercek veri `dynamic: 0` sayesinde her tiklamada sunucudan taze gelir.
     staleTimes: {
       dynamic: 0,
-      static: 30,
+      static: 300,
     },
   },
 

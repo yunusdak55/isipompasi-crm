@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import { OverdueBadge, TodayCallBadge } from "@/components/leads/lead-indicators";
 import { ProspectStatusBadge } from "@/components/ui/badge";
 import { formatDateTime, formatRelativeDays, formatRelativeTimeAgo, isProspectOverdue } from "@/lib/utils";

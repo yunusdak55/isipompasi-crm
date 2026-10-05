@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { IntentLink as Link } from "@/components/ui/intent-link";
 import { PhoneCall, CalendarClock, CalendarDays, AlertTriangle, Users, ArrowRight, Headset } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { getLastNotesByProspect, getProspects } from "@/lib/data/prospects";
