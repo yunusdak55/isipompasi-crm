@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth/session";
 import { getLastNotesByProspect, getProspectsFollowup } from "@/lib/data/prospects";
-import { ProspectFollowupTable } from "@/components/admin/prospect-followup-table";
+import { ProspectFollowupSegments } from "@/components/admin/prospect-followup-segments";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 
 export default async function ProspectsFollowupsPage() {
@@ -18,11 +18,11 @@ export default async function ProspectsFollowupsPage() {
         <div>
           <h1 className="text-xl font-semibold text-white">Takipte</h1>
           <p className="text-sm text-white/55">
-            Takip tarihi verdiğiniz {prospects.length} aday — önce bugün aranacaklar, sonra gecikenler (en az geciken önce), sonra gelecek takipler.
+            Takip tarihi verdiğiniz {prospects.length} aday. Yaklaşanlar en yakın tarihten, gecikenler en az gecikenden başlar.
           </p>
         </div>
 
-        <ProspectFollowupTable prospects={prospects} lastNotes={lastNotes} />
+        <ProspectFollowupSegments prospects={prospects} lastNotes={lastNotes} />
       </div>
     </div>
   );

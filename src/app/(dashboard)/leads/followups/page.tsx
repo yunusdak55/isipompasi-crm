@@ -20,7 +20,7 @@ export default async function FollowupsPage() {
         <div>
           <h1 className="text-xl font-semibold text-white">Takipte</h1>
           <p className="text-sm text-white/55">
-            Takip tarihi belirlenmiş {leads.length} lead — önce bugünkü takipler, sonra gecikenler (en az geciken önce), sonra gelecek takipler.
+            Takip tarihi belirlenmiş {leads.length} lead. Yaklaşanlar en yakın tarihten, gecikenler en az gecikenden başlar.
           </p>
         </div>
 

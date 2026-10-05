@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { NewLeadBadge, OverdueBadge, TodayCallBadge } from "@/components/leads/lead-indicators";
 import { formatCurrency, formatRelativeDays, formatRelativeTimeAgo, isLeadNew, isLeadOverdue, leadContactPerson, leadDisplayName } from "@/lib/utils";
 import { ListSearchInput } from "@/components/leads/list-search-input";
+import { SegmentChips } from "@/components/ui/segment-chips";
 import type { LeadListItem } from "@/lib/data/leads";
 
 // DUZELTME (performans denetimi 2026-10-01, canli kanit: izole test ortaminda
@@ -16,15 +17,42 @@ import type { LeadListItem } from "@/lib/data/leads";
 const RENDER_LIMIT = 150;
 const REVEAL_STEP = 300;
 
-/** "Takipte" ekrani (spec md.4): satiscinin takip isini tek yerde toplar. */
+type Segment = "upcoming" | "overdue";
+
+/** Gecikmis mi? Rozet, Gecikenler sayfasi ve Dashboard ile AYNI kural (isLeadOverdue). */
+function isOverdue(lead: LeadListItem) {
+  return isLeadOverdue({
+    status: lead.status,
+    lastContactAt: lead.last_contact_at,
+    createdAt: lead.created_at,
+    nextFollowupAt: lead.next_followup_at,
+    lastActivityAt: lead.last_activity_at,
+  });
+}
+
+/**
+ * "Takipte" ekrani (spec md.4): satiscinin takip isini tek yerde toplar.
+ *
+ * AYIRMA (spec 2026-10-05): liste iki sekmeye bolunur - "Yaklaşan Takipler" (bugun
+ * ve sonrasi; gun icinde saati gecmis ama henuz gecikmis sayilmayanlar dahil) ve
+ * "Geciken Takipler" (24 saati asmis). Eskiden ikisi tek listede karisikti. Sunucudan
+ * gelen sira korunur: yaklasanlar en yakin tarihten, gecikenler en az gecikenden baslar.
+ */
 export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
   const [revealCount, setRevealCount] = useState(RENDER_LIMIT);
   const [query, setQuery] = useState("");
-  // Arama TUM listeyi suzer (yalnizca gorunen 150 satiri degil), sonra gosterim siniri uygulanir.
+  const [segment, setSegment] = useState<Segment>("upcoming");
+
+  const overdueLeads = leads.filter(isOverdue);
+  const upcomingLeads = leads.filter((lead) => !isOverdue(lead));
+  const segmentLeads = segment === "overdue" ? overdueLeads : upcomingLeads;
+
+  // Arama, secili sekmenin TUM listesini suzer (yalnizca gorunen 150 satiri degil), sonra gosterim siniri uygulanir.
   const needle = query.trim().toLocaleLowerCase("tr");
-  const filtered = needle
-    ? leads.filter((lead) => leadDisplayName(lead).toLocaleLowerCase("tr").includes(needle) || lead.phone.includes(needle))
-    : leads;
+  const matches = (lead: LeadListItem) => leadDisplayName(lead).toLocaleLowerCase("tr").includes(needle) || lead.phone.includes(needle);
+  const filtered = needle ? segmentLeads.filter(matches) : segmentLeads;
+  // Aranan kisi diger sekmedeyse "yok" sanilmasin.
+  const otherMatches = needle ? (segment === "overdue" ? upcomingLeads : overdueLeads).filter(matches).length : 0;
   const visibleLeads = filtered.slice(0, revealCount);
   const remaining = filtered.length - visibleLeads.length;
 
@@ -39,7 +67,19 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <ListSearchInput value={query} onChange={setQuery} resultCount={filtered.length} total={leads.length} />
+      <SegmentChips
+        label="Takip listesi"
+        value={segment}
+        onChange={(next) => {
+          setSegment(next);
+          setRevealCount(RENDER_LIMIT);
+        }}
+        options={[
+          { value: "upcoming", label: "Yaklaşan Takipler", count: upcomingLeads.length },
+          { value: "overdue", label: "Geciken Takipler", count: overdueLeads.length, tone: "danger" },
+        ]}
+      />
+      <ListSearchInput value={query} onChange={setQuery} resultCount={filtered.length} total={segmentLeads.length} />
     <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.06]">
       <table className="w-full min-w-[820px] text-left text-sm">
         <thead className="border-b border-white/10 bg-white/[0.03] text-xs font-medium uppercase tracking-wide text-white/45">
@@ -58,15 +98,14 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
             const followupOverdue = Boolean(followupLabel?.includes("gecikti"));
             const followupToday = followupLabel === "Bugün";
             const lastContactLabel = formatRelativeTimeAgo(lead.last_contact_at);
-            const overdueInput = {
+            const showOverdue = isOverdue(lead);
+            const showNew = isLeadNew({
               status: lead.status,
               lastContactAt: lead.last_contact_at,
               createdAt: lead.created_at,
               nextFollowupAt: lead.next_followup_at,
               lastActivityAt: lead.last_activity_at,
-            };
-            const showOverdue = isLeadOverdue(overdueInput);
-            const showNew = isLeadNew(overdueInput);
+            });
 
             return (
               <tr
@@ -107,7 +146,15 @@ export function FollowupTable({ leads }: { leads: LeadListItem[] }) {
         </tbody>
       </table>
       {filtered.length === 0 ? (
-        <p className="border-t border-white/10 p-6 text-center text-sm text-white/50">Aramanızla eşleşen lead yok.</p>
+        <p className="border-t border-white/10 p-6 text-center text-sm text-white/50">
+          {needle
+            ? otherMatches > 0
+              ? `Bu sekmede eşleşen yok — ${otherMatches} eşleşme "${segment === "overdue" ? "Yaklaşan Takipler" : "Geciken Takipler"}" sekmesinde.`
+              : "Aramanızla eşleşen lead yok."
+            : segment === "overdue"
+              ? "Geciken takip yok."
+              : "Yaklaşan takip yok."}
+        </p>
       ) : null}
       {remaining > 0 ? (
         <div className="border-t border-white/10 p-3 text-center">
