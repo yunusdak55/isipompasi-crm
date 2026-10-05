@@ -421,15 +421,12 @@ export async function logLeadOutcomeAction(
   // bekleniyordu - "Kaydet"e basinca bosuna 2 ag turu. Ucu de yalnizca OKUMA ve
   // birbirinden bagimsiz: ayni turda. Hicbir yazma, hepsi donup yetki/varlik
   // kontrolleri gecmeden baslamaz (requireProfile reddederse Promise.all da reddeder).
-  const [profile, { data: current, error: fetchError }, openFollowupId] = await Promise.all([
+  const [, { data: current, error: fetchError }, openFollowupId] = await Promise.all([
     requireProfile(),
     supabase.from("leads").select("status, company_id, next_followup_at").eq("id", leadId).single(),
     outcome === "followup" ? findOpenFollowupId(supabase, leadId) : Promise.resolve(undefined),
   ]);
 
-  if (outcome === "won" && profile.role === "sales") {
-    return { error: "Satış kaydı için yetkiniz yok — firma sahibine bildirin." };
-  }
   if (fetchError || !current) return { error: "Lead bulunamadı." };
 
   const nowIso = new Date().toISOString();
@@ -844,14 +841,14 @@ export async function upsertSaleAction(
 
   // PERF (olcum 2026-10-05): oturum, lead ve mevcut satis kaydi ART ARDA (3 ag turu)
   // okunuyordu; ucu de yalnizca okuma - ayni turda. Yazmalar bunlar donmeden baslamaz.
-  const [profile, { data: lead, error: leadFetchError }, { data: existing }] = await Promise.all([
+  // YETKI (spec 2026-10-05, migration 0034): satisi firma sahibi de satis personeli de
+  // kaydeder; sinir VERITABANINDA (RLS): satis personeli yalnizca kendisine atanmis
+  // leadin satisini yazabilir, yetkisi yoksa asagidaki yazma 42501 ile reddedilir.
+  const [, { data: lead, error: leadFetchError }, { data: existing }] = await Promise.all([
     requireProfile(),
     supabase.from("leads").select("company_id, status, assigned_salesperson").eq("id", leadId).single(),
     supabase.from("sales").select("id, sale_amount, notes").eq("lead_id", leadId).limit(1).maybeSingle(),
   ]);
-  if (profile.role === "sales") {
-    return { error: "Bu işlem için yetkiniz yok." };
-  }
   if (!amountRaw || Number.isNaN(amount) || amount < 0) {
     return { error: "Geçerli bir satış tutarı girin." };
   }

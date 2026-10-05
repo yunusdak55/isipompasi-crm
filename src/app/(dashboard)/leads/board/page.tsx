@@ -12,10 +12,10 @@ export default async function LeadsBoardPage() {
   if (profile.role === "admin") {
     redirect("/admin/companies");
   }
-  // "sales" rolu ciro/tutar giremiyor (RLS: ciro hassas veri) - bu yuzden
-  // "Satış"a tasirken tutar modali sadece owner/admin'e gosterilir, sales
-  // icin eskisi gibi duz durum degisikligi yapilir (bkz. KanbanBoard).
-  const canRecordSale = profile.role !== "sales";
+  // Satisi firma sahibi de satis personeli de kaydeder (spec 2026-10-05, migration
+  // 0034): karti "Satış"a tasiyinca tutar penceresi ikisine de acilir. Eskiden satis
+  // personeline pencere acilmiyor, tasima sunucuda reddedilip hata gosteriliyordu.
+  const canRecordSale = profile.role === "owner" || profile.role === "sales";
 
   return (
     <div className="animate-fade-in relative flex h-full flex-col gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-brand-900 to-brand-950 p-5 shadow-elevated-lg sm:p-6">

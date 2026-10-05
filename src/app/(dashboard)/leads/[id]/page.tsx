@@ -94,12 +94,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   // RLS + profil: ipucu yalnizca "neyi erken isteyelim" sorusunu yanitlar.
   const [roleHint, companyHint] = await Promise.all([getClaimsRoleHint(), getClaimsCompanyHint()]);
   const ownerCompanyHint = roleHint === "owner" ? companyHint : null;
-  const [lead, activities, profile, early] = await Promise.all([
+  const [lead, activities, profile, sale, early] = await Promise.all([
     getLeadById(id),
     getLeadActivities(id),
     getCurrentProfile(),
+    // Satis kaydi yalnizca id ister; RLS geregi firma sahibi ve satis personeli gorur (0022).
+    getSaleForLead(id),
     ownerCompanyHint
-      ? Promise.all([getAssignableProfiles(ownerCompanyHint), getSalespeople(ownerCompanyHint), getSaleForLead(id)])
+      ? Promise.all([getAssignableProfiles(ownerCompanyHint), getSalespeople(ownerCompanyHint)])
       : Promise.resolve(null),
   ]);
 
@@ -116,16 +118,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   // Admin buraya hic ulasamiyor artik (yukarida yonlendiriliyor), kalan tek "atayabilen" rol owner.
   const canAssign = profile?.role === "owner";
-  // Ayni sekilde: bu ucu birbirine BAGIMLI degil, sirayla (await...await...await)
-  // degil PARALEL cekilir - sales tablosu RLS geregi sadece owner/admin
-  // gorebilir ("ciro hassas veri"), sales rolundeyken sorgu bile atilmaz.
-  const [assignableProfiles, salespeople, sale] =
+  // Satis kaydedebilen roller: firma sahibi + satis personeli (spec 2026-10-05,
+  // migration 0034). Veritabani satis personelini KENDISINE ATANMIS leadlerle sinirlar;
+  // bu sayfayi zaten yalnizca gorebildigi (atanmis) lead icin acabilir.
+  const canRecordSale = profile?.role === "owner" || profile?.role === "sales";
+  // Atama listeleri yalnizca firma sahibine gerekir; ipucu tutmadiysa eski yoldan cekilir.
+  const [assignableProfiles, salespeople] =
     early && canAssign && lead.company_id === ownerCompanyHint
       ? early
       : await Promise.all([
           canAssign && lead.company_id ? getAssignableProfiles(lead.company_id) : Promise.resolve([]),
           canAssign && lead.company_id ? getSalespeople(lead.company_id) : Promise.resolve([]),
-          canAssign ? getSaleForLead(id) : Promise.resolve(null),
         ]);
 
   const cityLine = [lead.city, lead.district].filter(Boolean).join(" / ");
@@ -270,8 +273,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </Card>
 
           {/* SATIŞ - Gorusme Sonucu'ndan AYRI, sade bolum (spec 2026-10-05): tutar +
-              istege bagli not. Sadece owner gorur/kaydeder (RLS: ciro hassas veri). */}
-          {canAssign ? (
+              istege bagli not. Firma sahibi ve satis personeli kaydeder (0034). */}
+          {canRecordSale ? (
             <SaleSection
               leadId={id}
               sale={sale ? { amount: Number(sale.sale_amount), saleDate: sale.sale_date, note: sale.notes } : null}
