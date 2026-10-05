@@ -4,11 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
-import { LEAD_STATUS_LABELS } from "@/lib/constants/lead";
+import { LEAD_STATUS_LABELS, SALE_NOTE_PREFIX } from "@/lib/constants/lead";
 import { sanitizeSearchTerm } from "@/lib/data/leads";
 import type { LeadStatus } from "@/lib/types/domain";
 import type { Database } from "@/lib/types/database.types";
-import { friendlyDbError } from "@/lib/errors";
+import { friendlyDbError, TEXT_LIMITS } from "@/lib/errors";
 import { TR_TZ, followupDateTR } from "@/lib/time";
 import { MAX_FOLLOWUP_DAYS, formatFollowupDate, parseFollowupDays, resolveFollowupAt } from "@/lib/followup";
 
@@ -433,6 +433,7 @@ export async function logLeadOutcomeAction(
   if (fetchError || !current) return { error: "Lead bulunamadı." };
 
   const nowIso = new Date().toISOString();
+  const saleNote = outcome === "won" ? String(formData.get("sale_note") ?? "").trim().slice(0, TEXT_LIMITS.note) : "";
 
   // SATIS: tutar + sales kaydi + durum gecisi mevcut tek yolda (upsertSaleAction)
   // yapilir; basarisizsa HIC not yazilmaz (kullanicinin yazdigi form korunur).
@@ -503,6 +504,16 @@ export async function logLeadOutcomeAction(
     // Durum + satis aktivitesi upsertSaleAction'da yazildi; takip artik gecersiz.
     leadUpdate.next_followup_at = null;
     leadUpdate.next_followup_note = null;
+    // Satis sorulurken yazilan (opsiyonel) satis notu: cizelgeye satis ikonuyla duser.
+    if (saleNote) {
+      rows.push({
+        lead_id: leadId,
+        company_id: current.company_id,
+        type: "note",
+        description: `${SALE_NOTE_PREFIX}${saleNote}`,
+        created_at: new Date(t0 + 1).toISOString(),
+      });
+    }
   }
 
   const { error: leadUpdateError } = await supabase.from("leads").update(leadUpdate).eq("id", leadId);
@@ -524,6 +535,7 @@ export async function logLeadOutcomeAction(
       : outcome === "lost" || outcome === "won"
         ? closeOpenFollowups(supabase, leadId, nowIso)
         : Promise.resolve(null),
+    saleNote ? supabase.from("sales").update({ notes: saleNote }).eq("lead_id", leadId) : Promise.resolve(null),
   ]);
 
   if (activityResult.error) {
@@ -875,7 +887,9 @@ export async function upsertSaleAction(
       leadId,
       companyId: lead.company_id,
       type: "system",
-      description: `Satış tutarı kaydedildi: ${formatCurrencyTR(amount)}`,
+      // Zaman Cizelgesi "Satış" ile baslayan satirlari satis ikonuyla, belirgin gosterir
+      // (bkz. components/ui/activity-timeline.tsx).
+      description: `${existing ? "Satış tutarı güncellendi" : "Satış yapıldı"}: ${formatCurrencyTR(amount)}`,
     }),
     lead.status !== "won"
       ? supabase.from("leads").update({ status: "won", last_contact_at: new Date().toISOString() }).eq("id", leadId)
@@ -937,6 +951,40 @@ export async function updateAgentNoteAction(
   }
 
   await logActivity(supabase, { leadId, companyId: lead.company_id, type: "system", description: "Ajan görüşü güncellendi." });
+
+  revalidateLead(leadId);
+  return { error: null };
+}
+
+// ----------------------------------------------------------------------------
+// SATIS NOTU (spec 2026-10-05): "Yapılan Satış" kartindaki not - odeme sekli,
+// taksit, teslim, satilan urun/miktar. `sales.notes` kolonuna yazilir ve Zaman
+// Cizelgesi'ne "Satış notu: ..." satiri olarak (satis ikonuyla) duser.
+// ----------------------------------------------------------------------------
+
+export type SaleNoteState = { error: string | null };
+
+export async function saveSaleNoteAction(leadId: string, prevState: SaleNoteState, formData: FormData): Promise<SaleNoteState> {
+  const note = String(formData.get("sale_note") ?? "").trim().slice(0, TEXT_LIMITS.note);
+  if (!note) return { error: "Satış notunu yazın." };
+
+  const supabase = await createClient();
+  const [profile, { data: sale }] = await Promise.all([
+    requireProfile(),
+    supabase.from("sales").select("id, company_id, notes").eq("lead_id", leadId).limit(1).maybeSingle(),
+  ]);
+  if (profile.role === "sales") return { error: "Bu işlem için yetkiniz yok." };
+  if (!sale) return { error: "Önce satışı kaydedin." };
+  // Ayni not yeniden kaydedilirse Zaman Cizelgesi'ne ikinci satir yazilmaz.
+  if (sale.notes === note) return { error: null };
+
+  const { error } = await supabase.from("sales").update({ notes: note }).eq("id", sale.id);
+  if (error) {
+    console.error("saveSaleNoteAction error:", error.message);
+    return { error: `Not kaydedilemedi: ${friendlyDbError(error)}` };
+  }
+
+  await logActivity(supabase, { leadId, companyId: sale.company_id, type: "note", description: `${SALE_NOTE_PREFIX}${note}` });
 
   revalidateLead(leadId);
   return { error: null };

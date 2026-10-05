@@ -13,7 +13,7 @@ import { Phone, MapPin } from "lucide-react";
 import { StatusBadge } from "@/components/ui/badge";
 import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
 import { PROPERTY_TYPE_LABELS } from "@/lib/constants/lead";
-import { formatCurrency, formatRelativeDays, getInitials, isLeadNew, isLeadOverdue, leadContactPerson, leadDisplayName } from "@/lib/utils";
+import { formatCurrency, formatDate, formatRelativeDays, getInitials, isLeadNew, isLeadOverdue, leadContactPerson, leadDisplayName } from "@/lib/utils";
 import type { LeadListItem } from "@/lib/data/leads";
 import type { LeadStatus, PropertyType } from "@/lib/types/domain";
 
@@ -125,6 +125,7 @@ function LeadCard({ lead }: { lead: LeadListItem }) {
           {followupLabel ? (
             <span className={followupOverdue ? "font-medium text-[#ffb4a3]" : "text-white/55"}>{followupLabel}</span>
           ) : null}
+          <span className="tabular-nums text-white/35">{formatDate(lead.created_at)}</span>
         </div>
       </div>
     </Link>
@@ -155,7 +156,7 @@ export function LeadTable({ leads }: { leads: LeadListItem[] }) {
 
       {/* Masaustu: yoğun bilgi tablosu. */}
       <div className="hidden overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.06] md:block">
-        <table className="w-full min-w-[920px] text-left text-sm">
+        <table className="w-full min-w-[1010px] text-left text-sm">
           <thead className="border-b border-white/10 bg-white/[0.03] text-xs font-medium uppercase tracking-wide text-white/45">
             <tr>
               <th className="px-4 py-3 font-medium">Müşteri</th>
@@ -165,6 +166,8 @@ export function LeadTable({ leads }: { leads: LeadListItem[] }) {
               <th className="px-4 py-3 font-medium">Görüşen Kişi</th>
               <th className="px-4 py-3 font-medium">Durum</th>
               <th className="px-4 py-3 font-medium">Takip</th>
+              {/* Siralama kurali gorunur olsun: liste bu tarihe gore, en yeni en ustte. */}
+              <th className="px-4 py-3 font-medium">Eklenme ↓</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.06]">
@@ -228,6 +231,7 @@ export function LeadTable({ leads }: { leads: LeadListItem[] }) {
                   <td className={`px-4 py-3.5 ${followupOverdue ? "font-medium text-[#ffb4a3]" : "text-white/70"}`}>
                     {followupLabel ?? "—"}
                   </td>
+                  <td className="whitespace-nowrap px-4 py-3.5 tabular-nums text-white/50">{formatDate(lead.created_at)}</td>
                 </tr>
               );
             })}

@@ -111,3 +111,10 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   owner: "Firma Sahibi",
   sales: "Satış Personeli",
 };
+
+/**
+ * Zaman Cizelgesi'ndeki satis notu satirlarinin on eki. Not `sales.notes`'ta tutulur;
+ * ayni metin aktivite olarak bu on ekle yazilir ki cizelge onu satis ikonuyla gosterebilsin
+ * (aktivite tiplerinde ayri bir "satis" tipi yok - bkz. components/ui/activity-timeline.tsx).
+ */
+export const SALE_NOTE_PREFIX = "Satış notu: ";

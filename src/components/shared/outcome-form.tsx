@@ -54,6 +54,7 @@ export function OutcomeForm({
   const [days, setDays] = useState("");
   const [saleOpen, setSaleOpen] = useState(false);
   const [saleAmount, setSaleAmount] = useState("");
+  const [saleNote, setSaleNote] = useState("");
 
   useEffect(() => {
     if (justSaved) {
@@ -61,6 +62,7 @@ export function OutcomeForm({
       setDays("");
       setSaleOpen(false);
       setSaleAmount("");
+      setSaleNote("");
     }
   }, [justSaved]);
 
@@ -237,6 +239,19 @@ export function OutcomeForm({
               placeholder="ör. 425000"
               autoFocus
               className={cn(fieldClass, "w-full")}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-ink-600">
+              Satış notu <span className="font-normal text-ink-500">(isteğe bağlı)</span>
+            </span>
+            <textarea
+              name="sale_note"
+              rows={2}
+              value={saleNote}
+              onChange={(e) => setSaleNote(e.target.value)}
+              placeholder="ör. 3 taksit, ilk ödeme peşin; 12 kW ısı pompası, montaj dahil."
+              className={cn(fieldClass, "w-full resize-none")}
             />
           </label>
           <button

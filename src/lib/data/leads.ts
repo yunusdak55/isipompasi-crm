@@ -53,7 +53,11 @@ export async function getLeads(params: { search?: string; status?: LeadStatus; p
   let query = supabase
     .from("leads")
     .select(LEAD_LIST_COLUMNS, { count: "exact" })
+    // KURAL (spec 2026-10-05): eklenme tarihine gore EN YENI en ustte. Ayni anda
+    // eklenen (toplu aktarim) kayitlarin sirasi sayfadan sayfaya oynamasin diye
+    // ikinci anahtar `id` - yoksa liste "karisik" gorunur ve sayfalar arasi kayar.
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .range(from, to);
 
   if (params.status) {
@@ -139,7 +143,7 @@ export async function getSaleForLead(leadId: string) {
 
   const { data, error } = await supabase
     .from("sales")
-    .select("id, sale_amount, sale_date")
+    .select("id, sale_amount, sale_date, notes")
     .eq("lead_id", leadId)
     .limit(1)
     .maybeSingle();

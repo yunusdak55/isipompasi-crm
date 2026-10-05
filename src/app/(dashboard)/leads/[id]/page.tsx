@@ -13,13 +13,11 @@ import {
   Flame,
   Waves,
   Heater,
-  CircleDollarSign,
 } from "lucide-react";
 import { getLeadById, getLeadActivities, getAssignableProfiles, getSaleForLead } from "@/lib/data/leads";
 import { getSalespeople } from "@/lib/data/salespeople";
 import { getClaimsCompanyHint, getClaimsRoleHint, getCurrentProfile } from "@/lib/auth/session";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
-import { AnimatedStatValue } from "@/components/ui/animated-number";
 import { StatusBadge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
 import { NewLeadBadge, OverdueBadge } from "@/components/leads/lead-indicators";
@@ -31,12 +29,11 @@ import {
 } from "@/lib/constants/lead";
 import { formatCurrency, formatDate, isLeadNew, isLeadOverdue, leadContactPerson, leadDisplayName } from "@/lib/utils";
 import { OutcomeForm } from "@/components/shared/outcome-form";
-import { FollowupStatusCard } from "@/components/shared/followup-status-card";
 import { ActivityTimeline } from "@/components/ui/activity-timeline";
 import { ContactPersonPanel, type ContactPersonOption } from "@/components/leads/contact-person-panel";
-import { clearLeadFollowupAction, logLeadOutcomeAction, snoozeLeadFollowupAction } from "@/app/(dashboard)/leads/actions";
-import { describeFollowup } from "@/lib/followup";
-import { SalePanel } from "@/components/leads/sale-panel";
+import { logLeadOutcomeAction } from "@/app/(dashboard)/leads/actions";
+import { SaleShowcase } from "@/components/leads/sale-showcase";
+import { DAY_MS, startOfDayTR } from "@/lib/time";
 import { AgentNotePanel } from "@/components/leads/agent-note-panel";
 import type { PropertyType, BuildingStatus, HeatingType, PurchaseTimeline } from "@/lib/types/domain";
 
@@ -159,7 +156,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   };
   const showOverdue = isLeadOverdue(overdueInput);
   const showNew = isLeadNew(overdueInput);
-  const followupSummary = describeFollowup(lead.next_followup_at, showOverdue);
   const contactOptions = buildContactOptions(salespeople, assignableProfiles, {
     contactedById: lead.contacted_by,
     contactedName: lead.contacted_by_person?.full_name ?? null,
@@ -260,18 +256,15 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <div className="flex flex-col gap-5 lg:col-span-2">
           {/* GÖRÜŞME SONUCU - ajans admin panelindeki ile AYNI form (spec
               2026-10-02): "görüşmede ne oldu" notu zaman çizelgesine düşer;
-              takip (gün sayısı + not + erteleme/kaldırma), satış ve kayıp
-              tek yerden. Eski ayrı "Takip" ve "Durum" girişleri buraya taşındı. */}
+              takip (gün sayısı), satış ve kayıp tek yerden. Ayrı "Sonraki
+              takip" kutusu kaldırıldı (spec 2026-10-05: "kaç gün sonra takip
+              edilsin" zaten var, ikinci kutu karışıklık yaratıyordu); planlanan
+              tarih Zaman Çizelgesi'nde ve Takipte listesinde görünür. */}
           <Card hoverable className="animate-slide-up">
             <CardHeader>
               <CardTitle>Görüşme Sonucu</CardTitle>
             </CardHeader>
             <CardBody className="flex flex-col gap-4">
-              <FollowupStatusCard
-                summary={followupSummary}
-                snoozeAction={snoozeLeadFollowupAction.bind(null, id)}
-                clearAction={clearLeadFollowupAction.bind(null, id)}
-              />
               <OutcomeForm
                 action={logLeadOutcomeAction.bind(null, id)}
                 askSaleAmount
@@ -280,27 +273,22 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </CardBody>
           </Card>
 
-          {/* YAPILAN SATIŞ - gercek satis tutari, "sales" tablosuna kaydedilir.
-              Sadece owner/admin gorur/kaydeder (RLS: ciro hassas veri). */}
-          {canAssign ? (
-            <Card hoverable className="animate-slide-up border-success-500/25 bg-gradient-to-br from-success-500/[0.12] to-transparent">
-              <CardBody className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-success-500 text-white shadow-elevated">
-                    <CircleDollarSign className="h-5 w-5" strokeWidth={2} />
-                  </span>
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-success-700">Yapılan Satış</p>
-                    <p className="mt-0.5 text-2xl font-semibold tabular-nums tracking-tight text-ink-900">
-                      {sale ? <AnimatedStatValue value={formatCurrency(sale.sale_amount)} /> : "—"}
-                    </p>
-                  </div>
-                </div>
-                <div className="sm:w-56">
-                  <SalePanel leadId={id} currentSaleAmount={sale?.sale_amount ?? null} />
-                </div>
-              </CardBody>
-            </Card>
+          {/* YAPILAN SATIŞ - yalnizca satis KAYDI VARSA (spec 2026-10-05: satis yokken
+              bos tutar formu gosterilmez; tutar "Görüşme Sonucu -> Satış" adiminda
+              girilir). Sadece owner gorur (RLS: ciro hassas veri). */}
+          {canAssign && sale ? (
+            <SaleShowcase
+              leadId={id}
+              amount={Number(sale.sale_amount)}
+              saleDate={sale.sale_date}
+              note={sale.notes}
+              offeredAmount={lead.offered_amount}
+              leadCreatedAt={lead.created_at}
+              daysToClose={Math.round(
+                (startOfDayTR(new Date(sale.sale_date)).getTime() - startOfDayTR(new Date(lead.created_at)).getTime()) / DAY_MS
+              )}
+              contactName={leadContactPerson(lead)}
+            />
           ) : null}
 
           {/* ZAMAN ÇİZELGESİ - notlar, takip planlamalari ve durum degisiklikleri

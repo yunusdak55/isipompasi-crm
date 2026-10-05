@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarClock, CalendarDays, Sparkles } from "lucide-react";
+import { AlertTriangle, CalendarClock, MoonStar, Sparkles, Sun, Sunrise, Sunset, type LucideIcon } from "lucide-react";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { AnimatedStatValue } from "@/components/ui/animated-number";
 import { WeekChart } from "@/components/dashboard/week-chart";
@@ -89,6 +89,14 @@ function PriorityTile({
   );
 }
 
+/** Selamlamaya gore gunun vakti ikonu (greetingFor ile ayni dort dilim). */
+const GREETING_ICON: Record<string, LucideIcon> = {
+  Günaydın: Sunrise,
+  "İyi günler": Sun,
+  "İyi akşamlar": Sunset,
+  "İyi geceler": MoonStar,
+};
+
 function Bold({ children }: { children: React.ReactNode }) {
   return <strong className="font-semibold text-white">{children}</strong>;
 }
@@ -156,6 +164,7 @@ export function TodayHero({
 }) {
   const { due, overdue, fresh, dueCarry } = today.counts;
   const weekTotal = week.reduce((sum, d) => sum + d.count, 0);
+  const DayIcon = GREETING_ICON[greeting] ?? Sun;
 
   return (
     <section
@@ -178,22 +187,56 @@ export function TodayHero({
       <div className="relative grid gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-9">
         <div className="flex min-w-0 flex-col">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-accent-300">
-              <CalendarDays className="h-3.5 w-3.5" />
+            <p className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-accent-300">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-500/15 text-accent-300 shadow-[0_0_18px_rgba(244,124,32,0.35)] ring-1 ring-inset ring-accent-400/40">
+                <DayIcon className="h-3.5 w-3.5" strokeWidth={2} />
+              </span>
               {dateLabel}
             </p>
             <LiveStamp timeLabel={timeLabel} pending={refreshing} onRefresh={onRefresh} />
           </div>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-[2.6rem] sm:leading-[1.1]">
-            <span className="text-white/75">{greeting}</span>
+
+          {/* SELAMLAMA (spec 2026-10-05: "premium, özel font"): editoryal serif; selam duz,
+              isim italik + sicak gradyan. Kelimeler bir kez netleserek yukselir, isimden
+              bir kez isik gecer, alt cizgi bir kez cizilir (bkz. globals.css .hero-*). */}
+          <h1 className="mt-5 font-display text-[2.7rem] font-normal leading-[1.02] tracking-[-0.01em] text-white sm:text-[3.6rem] lg:text-[4.1rem]">
+            <span className="hero-rise inline-block text-white/90">
+              {greeting}
+              {firstName ? "," : ""}
+            </span>
             {firstName ? (
               <>
-                <span className="text-white/40">, </span>
-                <span className="bg-gradient-to-r from-white via-white to-accent-200 bg-clip-text text-transparent">{firstName}</span>
+                {" "}
+                <span className="relative inline-block">
+                  <span className="hero-name inline-block capitalize italic">{firstName}</span>
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 180 10"
+                    preserveAspectRatio="none"
+                    className="hero-underline pointer-events-none absolute -bottom-0.5 left-0 h-2.5 w-full"
+                  >
+                    <defs>
+                      <linearGradient id="hero-underline-gradient" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#f47c20" stopOpacity="0" />
+                        <stop offset="35%" stopColor="#ffab5c" />
+                        <stop offset="100%" stopColor="#ffe9d2" stopOpacity="0.9" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M2 7 C 38 1.5, 96 10.5, 178 3.5"
+                      pathLength={1}
+                      fill="none"
+                      stroke="url(#hero-underline-gradient)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </svg>
+                </span>
               </>
             ) : null}
           </h1>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/60 sm:text-base">
+          <p className="hero-rise mt-4 max-w-xl text-[15px] leading-relaxed text-white/65 sm:text-base" style={{ animationDelay: "160ms" }}>
             <Summary today={today} weekTotal={weekTotal} />
           </p>
 

@@ -111,7 +111,9 @@ export default async function LeadsPage({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-white">Leadler</h1>
-            <p className="text-sm text-white/55">{count} lead bulundu</p>
+            <p className="text-sm text-white/55">
+              {count} lead bulundu <span className="text-white/35">· eklenme tarihine göre, en yeni en üstte</span>
+            </p>
           </div>
           <div className="flex gap-2">
             <LinkButton href="/leads/board" variant="secondary">

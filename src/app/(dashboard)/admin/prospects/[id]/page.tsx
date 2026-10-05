@@ -6,14 +6,8 @@ import { getProspectById, getProspectActivities } from "@/lib/data/prospects";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { ProspectStatusBadge } from "@/components/ui/badge";
 import { OutcomeForm } from "@/components/shared/outcome-form";
-import { FollowupStatusCard } from "@/components/shared/followup-status-card";
 import { ActivityTimeline } from "@/components/ui/activity-timeline";
-import {
-  clearProspectFollowupAction,
-  logProspectOutcomeAction,
-  snoozeProspectFollowupAction,
-} from "@/app/(dashboard)/admin/prospects/actions";
-import { describeFollowup } from "@/lib/followup";
+import { logProspectOutcomeAction } from "@/app/(dashboard)/admin/prospects/actions";
 import { EditProspectForm } from "@/components/admin/edit-prospect-form";
 import { OverdueBadge } from "@/components/leads/lead-indicators";
 import { isProspectOverdue } from "@/lib/utils";
@@ -51,7 +45,6 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
     nextFollowupAt: prospect.next_followup_at,
   });
 
-  const followupSummary = describeFollowup(prospect.next_followup_at, overdue);
 
   return (
     <div className="flex flex-col gap-5">
@@ -103,11 +96,6 @@ export default async function ProspectDetailPage({ params }: { params: Promise<{
               <CardTitle>Görüşme Sonucu</CardTitle>
             </CardHeader>
             <CardBody className="flex flex-col gap-4">
-              <FollowupStatusCard
-                summary={followupSummary}
-                snoozeAction={snoozeProspectFollowupAction.bind(null, prospect.id)}
-                clearAction={clearProspectFollowupAction.bind(null, prospect.id)}
-              />
               <OutcomeForm action={logProspectOutcomeAction.bind(null, prospect.id)} />
             </CardBody>
           </Card>
