@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { AgentChat } from "@/components/agent/agent-chat";
-import { getAgentDigest, buildAgentInsights } from "@/lib/data/agent-digest";
 import { requireProfile } from "@/lib/auth/session";
 
 /**
@@ -9,18 +8,23 @@ import { requireProfile } from "@/lib/auth/session";
  * kendi icinde zaten bir baslik (kucuk avatar + isim + rozet) var, iki
  * ayri baslik ustuste durmasin diye (spec: "chat kısmını büyüt"). Sayfa
  * artik SADECE tek, buyuk, tum yuksekligi kaplayan sohbet paneli.
+ *
+ * UYARILAR KALDIRILDI (spec 2026-10-06: "uyarıları sil, sorunca söyler zaten"):
+ * eskiden sohbet, sistemin kendi tespit ettigi 5-8 uyari kartiyla doluyordu ve
+ * bunun icin sayfa acilisinda 14 sorguluk ozet cekiliyordu. Artik sohbet bos
+ * acilir; ozet yalnizca soru sorulunca, cevabin arka planinda hesaplanir
+ * (bkz. agent/actions.ts askAgentAction).
  */
 export default async function AgentOverviewPage() {
-  const [profile, digest] = await Promise.all([requireProfile(), getAgentDigest()]);
+  const profile = await requireProfile();
   // DUZELTME (denetim bulgusu, bkz. dashboard/page.tsx ayni aciklama).
   if (profile.role === "admin") {
     redirect("/admin/companies");
   }
-  const insights = buildAgentInsights(digest);
 
   return (
     <div className="flex h-full min-h-[calc(100vh-6rem)] flex-col">
-      <AgentChat insights={insights} companyName={profile.company?.name ?? null} />
+      <AgentChat companyName={profile.company?.name ?? null} />
     </div>
   );
 }

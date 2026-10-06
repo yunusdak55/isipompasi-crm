@@ -41,7 +41,7 @@ Bu doküman: (1) neyin nasıl korunduğunu, (2) yeni özellik eklerken uyulacak 
 ## Test etme
 
 ```bash
-npm run security:check   # canlı DB'ye karşı 41 saldırı denemesi (izole geçici firma/kullanıcı; sonunda siler)
+npm run security:check   # canlı DB'ye karşı 43 saldırı denemesi (izole geçici firma/kullanıcı; sonunda siler)
 npm run check            # tip kontrolü + lint + npm audit + güvenlik testi
 npm run backup           # CANLI projenin tüm tablolarını backups/<tarih>/ altına JSON olarak yedekler (git dışı) + özel "db-backups" Storage kovasına kopyalar
 ```

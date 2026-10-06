@@ -1,10 +1,9 @@
 -- ============================================================================
--- 0033_lead_phone_unique_and_agent_upsert.sql        *** ONERI - UYGULANMADI ***
+-- 0033_lead_phone_unique_and_agent_upsert.sql
 --
--- Bu dosya BILEREK supabase/migrations/ DISINDA duruyor: canli veritabanina
--- henuz uygulanmadi. Onaylanirsa: (1) `npm run backup`, (2) Supabase SQL
--- Editor'de calistir, (3) dosyayi supabase/migrations/ altina tasi,
--- (4) `npm run security:check`. Ayrinti: docs/performans-raporu-2026-10-05.md.
+-- UYGULANDI: test projesi 2026-10-05 (scripts/verify-lead-phone-unique.mts 23/23),
+-- CANLI 2026-10-06 (kullanici Supabase SQL Editor'den calistirdi; oncesinde yedek
+-- alindi, canlida 0 cift numara dogrulandi). Ayrinti: docs/performans-raporu-2026-10-05.md.
 --
 -- SORUN (veri butunlugu): leads tablosunda (company_id, phone) icin UNIQUE
 -- kisit yok. n8n akisi "once ara, yoksa ekle" yapiyor; ayni musteriden art

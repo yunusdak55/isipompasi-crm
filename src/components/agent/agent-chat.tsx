@@ -1,28 +1,13 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
-import { Send, ShieldCheck, AlertTriangle, TriangleAlert, CheckCircle2, Info } from "lucide-react";
+import { Send, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AgentFigure } from "@/components/agent/agent-figure";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { askAgentAction, type AgentChatTurn } from "@/app/(dashboard)/agent/actions";
-import type { AgentInsight } from "@/lib/data/agent-digest";
 
-type ChatMessage = { role: "user" | "agent"; text: string; tone?: AgentInsight["tone"] };
-
-const TONE_ICON: Record<AgentInsight["tone"], typeof AlertTriangle> = {
-  danger: TriangleAlert,
-  warning: AlertTriangle,
-  success: CheckCircle2,
-  info: Info,
-};
-
-const TONE_CLASSES: Record<AgentInsight["tone"], string> = {
-  danger: "border-danger-500/30 bg-danger-500/[0.08] text-danger-200",
-  warning: "border-warning-500/30 bg-warning-500/[0.08] text-warning-200",
-  success: "border-success-500/30 bg-success-500/[0.08] text-success-200",
-  info: "border-accent-500/30 bg-accent-500/[0.08] text-accent-200",
-};
+type ChatMessage = { role: "user" | "agent"; text: string };
 
 /**
  * Dijital Ajan'in TEK bolumu (spec 2026-09-28/30). GORSEL REVIZYON
@@ -37,10 +22,9 @@ const TONE_CLASSES: Record<AgentInsight["tone"], string> = {
  *    hissettiren duz koyu zemin yerine markanin geri kalaniyla tutarli,
  *    hareketli bir zemin.
  */
-export function AgentChat({ insights, companyName }: { insights: AgentInsight[]; companyName: string | null }) {
-  const [messages, setMessages] = useState<ChatMessage[]>(
-    insights.map((i) => ({ role: "agent", text: i.text, tone: i.tone }))
-  );
+export function AgentChat({ companyName }: { companyName: string | null }) {
+  // Sohbet BOS baslar (spec 2026-10-06): hazir uyari kartlari yok, ajan sorulunca konusur.
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isPending, startTransition] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -88,23 +72,15 @@ export function AgentChat({ insights, companyName }: { insights: AgentInsight[];
       </div>
 
       <div ref={scrollRef} className="scrollbar-kanban relative flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-5">
+        {messages.length === 0 && !isPending ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+            <p className="text-sm font-medium text-white/80">İşletmeniz hakkında bir soru sorun</p>
+            <p className="max-w-sm text-xs text-white/45">
+              Lead, takip, satış ve raporlardaki gerçek verilerinize bakarak cevaplarım. Aşağıdaki örneklerden birine de dokunabilirsiniz.
+            </p>
+          </div>
+        ) : null}
         {messages.map((m, i) => {
-          if (m.role === "agent" && m.tone) {
-            const Icon = TONE_ICON[m.tone];
-            return (
-              <div
-                key={i}
-                className={cn(
-                  "animate-slide-up flex items-start gap-2.5 rounded-2xl border px-3.5 py-2.5",
-                  TONE_CLASSES[m.tone]
-                )}
-                style={{ animationDelay: `${i * 15}ms` }}
-              >
-                <Icon className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.25} />
-                <p className="text-sm leading-relaxed">{m.text}</p>
-              </div>
-            );
-          }
           return (
             <div key={i} className={cn("animate-slide-up flex", m.role === "user" ? "justify-end" : "justify-start")}>
               {m.role === "user" ? (

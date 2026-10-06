@@ -250,8 +250,17 @@ async function main() {
     record("INFO", "Satis personeli kendine atanmis lead'i gorebilir (mesru islev)", !noEffect(r2));
     const w1 = await cSalesA.from("leads").update({ assigned_salesperson: ownerA.id }).eq("id", leadA1.id).select("id");
     record("MEDIUM", "Satis personeli lead'i baskasina devredemez/yeniden atayamaz", noEffect(w1));
-    const w2 = await cSalesA.from("sales").insert({ lead_id: leadA1.id, company_id: coA.id, sale_amount: 1 }).select("id");
-    record("HIGH", "Satis personeli satis (ciro) kaydi olusturamaz", noEffect(w2));
+    // Migration 0034 (2026-10-05): satis personeli YALNIZCA kendisine atanmis leadin
+    // satisini kaydedebilir; atanmamis/baskasinin leadine yazamaz, silemez.
+    const w2 = await cSalesA.from("sales").insert({ lead_id: leadA2.id, company_id: coA.id, sale_amount: 1 }).select("id");
+    record("HIGH", "Satis personeli kendisine atanmamis lead'e satis kaydi olusturamaz", noEffect(w2), w2.error?.message ?? "EKLENDI");
+    const w2b = await cSalesA.from("sales").insert({ lead_id: leadA1.id, company_id: coA.id, sale_amount: 1 }).select("id");
+    record("INFO", "Satis personeli kendi lead'ine satis kaydi olusturabilir (mesru islev, 0034)", !noEffect(w2b), w2b.error?.message ?? "");
+    if (w2b.data?.[0]) {
+      const w2c = await cSalesA.from("sales").delete().eq("id", w2b.data[0].id).select("id");
+      record("MEDIUM", "Satis personeli satis kaydini silemez", noEffect(w2c));
+      await admin.from("sales").delete().eq("id", w2b.data[0].id);
+    }
     const w3 = await cSalesA.from("leads").delete().eq("id", leadA1.id).select("id");
     record("MEDIUM", "Satis personeli lead silemez", noEffect(w3));
     const w4 = await cSalesA.from("companies").update({ name: "HACK" }).eq("id", coA.id).select("id");

@@ -118,8 +118,7 @@ n8n workflow'u ("WhatsApp Lead Intake") her gelen mesajda önce `phone` +
 3. Her iki durumda da `public.activities` tablosuna **yeni satır ekler**
    (`type: 'note'`) ve `leads.notes` alanına zaman damgalı ekleme yapar.
 
-> **Telefon tekilliği (migration 0033 — test projesinde doğrulandı, canlıya
-> uygulanması bekliyor, 2026-10-05):** 0033 ile aynı firmada aynı numara
+> **Telefon tekilliği (migration 0033 — canlıda, 2026-10-06):** 0033 ile aynı firmada aynı numara
 > (`05…` / `+90…` / boşluklu yazılsa da; numaranın son 10 hanesi) ikinci kez
 > eklenemez. Yukarıdaki "önce ara, yoksa ekle" akışı düz metin eşleştirdiği
 > için, panelde `05…` olarak kayıtlı bir müşteri WhatsApp'tan `+90…` ile
