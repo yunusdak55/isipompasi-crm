@@ -1,5 +1,4 @@
 import { DAY_MS, TR_TZ, followupDateTR, startOfDayTR } from "@/lib/time";
-import { formatRelativeDays } from "@/lib/utils";
 
 /** Takip icin en fazla 10 yil sonrasi (gecersiz tarih/asiri deger koruması). */
 export const MAX_FOLLOWUP_DAYS = 3650;
@@ -64,43 +63,4 @@ const followupDateFormatter = new Intl.DateTimeFormat("tr-TR", {
 
 export function formatFollowupDate(value: string | Date): string {
   return followupDateFormatter.format(typeof value === "string" ? new Date(value) : value);
-}
-
-export type FollowupTone = "none" | "today" | "upcoming" | "grace" | "overdue";
-
-export type FollowupSummary = {
-  tone: FollowupTone;
-  /** "Salı 6 Ekim 10:00" */
-  dateText: string | null;
-  /** "3 gün sonra" / "Bugün" / "5 saat gecikti" ... */
-  relativeText: string | null;
-};
-
-/**
- * Takip durumunun SUNUCUDA hesaplanan ozeti (istemci Date.now() ile
- * hidrasyon uyumsuzlugu olmasin diye metinler sayfada uretilip karta prop
- * olarak gecirilir). `overdue`, isLeadOverdue/isProspectOverdue sonucudur
- * (24 saat kurali) - "grace": takip zamani gecti ama 24 saat dolmadi.
- */
-export function describeFollowup(
-  nextFollowupAt: string | null,
-  overdue: boolean,
-  now: Date = new Date()
-): FollowupSummary {
-  if (!nextFollowupAt) return { tone: "none", dateText: null, relativeText: null };
-
-  const at = new Date(nextFollowupAt);
-  const diffMs = at.getTime() - now.getTime();
-  const dateText = formatFollowupDate(at);
-
-  if (overdue) {
-    const hoursLate = Math.max(1, Math.floor(-diffMs / (60 * 60 * 1000)));
-    const relativeText = hoursLate < 48 ? `${hoursLate} saattir gecikmiş` : `${Math.floor(hoursLate / 24)} gündür gecikmiş`;
-    return { tone: "overdue", dateText, relativeText };
-  }
-  if (diffMs <= 0) {
-    return { tone: "grace", dateText, relativeText: "Takip zamanı geçti — 24 saat içinde dönüş yapın" };
-  }
-  const rel = formatRelativeDays(nextFollowupAt);
-  return { tone: rel === "Bugün" ? "today" : "upcoming", dateText, relativeText: rel };
 }
