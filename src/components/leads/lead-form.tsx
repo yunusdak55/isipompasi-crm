@@ -10,7 +10,7 @@ import {
 } from "@/lib/constants/lead";
 import type { Lead, ProductCategory } from "@/lib/types/domain";
 
-export type LeadFormState = { error: string | null };
+export type LeadFormState = { error: string | null; values?: Record<string, string> };
 
 const inputClass =
   "w-full rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.03] [&>option]:text-[#111827]";
@@ -48,33 +48,40 @@ export function LeadForm({
   categories: ProductCategory[];
 }) {
   const [state, formAction, isPending] = useActionState(action, { error: null });
+  // Hata sonrasi sunucudan geri donen girdiler (React 19 formu sifirlar; degerler
+  // buradan defaultValue olarak geri verilir, kullanici bastan yazmaz).
+  const v = state.values;
+
+  // Hata sonrasi form YENIDEN kurulur (key): metin alanlari defaultValue ile geri gelir ama
+  // <select> React'in otomatik form sifirlamasinda bos kaliyordu (olculdu 2026-10-17).
+  const formKey = v ? JSON.stringify(v) : "initial";
 
   return (
-    <form action={formAction} className="flex flex-col gap-5">
+    <form key={formKey} action={formAction} className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Ad Soyad *">
           <input
             name="full_name"
             required
             placeholder="Ahmet Yılmaz"
-            defaultValue={combineFullName(defaultValues)}
+            defaultValue={v?.full_name ?? combineFullName(defaultValues)}
             className={inputClass}
           />
         </Field>
         <Field label="Telefon *">
-          <input name="phone" required defaultValue={defaultValues?.phone ?? ""} className={inputClass} />
+          <input name="phone" required defaultValue={v?.phone ?? defaultValues?.phone ?? ""} className={inputClass} />
         </Field>
 
         <Field label="Şehir / İlçe">
           <input
             name="location"
             placeholder="Sakarya / Sapanca"
-            defaultValue={combineLocation(defaultValues)}
+            defaultValue={v?.location ?? combineLocation(defaultValues)}
             className={inputClass}
           />
         </Field>
         <Field label="Konut Tipi">
-          <select name="property_type" defaultValue={defaultValues?.property_type ?? ""} className={inputClass}>
+          <select name="property_type" defaultValue={v?.property_type ?? defaultValues?.property_type ?? ""} className={inputClass}>
             <option value="">Seçiniz</option>
             {Object.entries(PROPERTY_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -90,12 +97,12 @@ export function LeadForm({
             type="number"
             min="0"
             step="0.01"
-            defaultValue={defaultValues?.area_m2 ?? ""}
+            defaultValue={v?.area_m2 ?? defaultValues?.area_m2 ?? ""}
             className={inputClass}
           />
         </Field>
         <Field label="Bina Durumu">
-          <select name="building_status" defaultValue={defaultValues?.building_status ?? ""} className={inputClass}>
+          <select name="building_status" defaultValue={v?.building_status ?? defaultValues?.building_status ?? ""} className={inputClass}>
             <option value="">Seçiniz</option>
             {Object.entries(BUILDING_STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -106,7 +113,7 @@ export function LeadForm({
         </Field>
 
         <Field label="Mevcut Isıtma">
-          <select name="heating_type" defaultValue={defaultValues?.heating_type ?? ""} className={inputClass}>
+          <select name="heating_type" defaultValue={v?.heating_type ?? defaultValues?.heating_type ?? ""} className={inputClass}>
             <option value="">Seçiniz</option>
             {Object.entries(HEATING_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -116,7 +123,7 @@ export function LeadForm({
           </select>
         </Field>
         <Field label="Satın Alma Zamanı">
-          <select name="purchase_timeline" defaultValue={defaultValues?.purchase_timeline ?? ""} className={inputClass}>
+          <select name="purchase_timeline" defaultValue={v?.purchase_timeline ?? defaultValues?.purchase_timeline ?? ""} className={inputClass}>
             <option value="">Seçiniz</option>
             {Object.entries(PURCHASE_TIMELINE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -127,7 +134,7 @@ export function LeadForm({
         </Field>
 
         <Field label="Ürün İlgisi">
-          <select name="product_category_id" defaultValue={defaultValues?.product_category_id ?? ""} className={inputClass}>
+          <select name="product_category_id" defaultValue={v?.product_category_id ?? defaultValues?.product_category_id ?? ""} className={inputClass}>
             <option value="">Seçiniz</option>
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
@@ -144,7 +151,7 @@ export function LeadForm({
             min="0"
             step="1"
             placeholder="ör. 150000"
-            defaultValue={defaultValues?.offered_amount ?? ""}
+            defaultValue={v?.offered_amount ?? defaultValues?.offered_amount ?? ""}
             className={inputClass}
           />
         </Field>
@@ -156,7 +163,7 @@ export function LeadForm({
           <input
             type="checkbox"
             name="underfloor_heating"
-            defaultChecked={defaultValues?.underfloor_heating ?? false}
+            defaultChecked={v ? v.underfloor_heating === "on" : (defaultValues?.underfloor_heating ?? false)}
             className="h-4 w-4 rounded border-line transition-colors duration-150 accent-brand-600"
           />
           Yerden Isıtma Var
@@ -165,7 +172,7 @@ export function LeadForm({
           <input
             type="checkbox"
             name="radiator"
-            defaultChecked={defaultValues?.radiator ?? false}
+            defaultChecked={v ? v.radiator === "on" : (defaultValues?.radiator ?? false)}
             className="h-4 w-4 rounded border-line transition-colors duration-150 accent-brand-600"
           />
           Radyatör Var

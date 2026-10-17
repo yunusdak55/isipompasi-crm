@@ -193,9 +193,19 @@ if (isProd && process.env.BACKUP_SKIP_OFFSITE !== "1") {
     const { data: bucket } = await supabase.storage.getBucket(OFFSITE_BUCKET);
     if (bucket?.public) throw new Error(`"${OFFSITE_BUCKET}" kovasi PUBLIC - kisisel veri yuklenmedi. Kovayi ozel yapin.`);
 
-    const { error: uploadError } = await withRetry("storage.upload", () =>
-      supabase.storage.from(OFFSITE_BUCKET).upload(name, body, { contentType: "application/gzip", upsert: false })
-    );
+    // DUZELTME (16-17 Ekim 2026): ilk deneme ag hatasiyla ("fetch failed") dustugunde
+    // dosya sunucuya ASLINDA ulasmis oluyordu; tekrar denemeler "The resource already
+    // exists" ile reddedilip yedek HATALI sayiliyor, her gece bildirim cikiyordu.
+    // Artik "zaten var" yaniti, sunucudaki dosyanin boyutu yerel arsivle ayniysa basari sayilir.
+    const { error: uploadError } = await withRetry("storage.upload", async () => {
+      const result = await supabase.storage.from(OFFSITE_BUCKET).upload(name, body, { contentType: "application/gzip", upsert: false });
+      if (result.error && /already exists/i.test(result.error.message)) {
+        const { data: listed } = await supabase.storage.from(OFFSITE_BUCKET).list("", { search: name, limit: 5 });
+        const remote = (listed ?? []).find((o) => o.name === name);
+        if (remote && Number(remote.metadata?.size) === body.length) return { error: null };
+      }
+      return result;
+    });
     if (uploadError) throw new Error(uploadError.message);
     console.log(`Ikinci kopya yuklendi: Storage/${OFFSITE_BUCKET}/${name}  (${(body.length / 1024).toFixed(0)} KB)`);
   } catch (e) {

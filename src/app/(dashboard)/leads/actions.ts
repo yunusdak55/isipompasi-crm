@@ -97,7 +97,28 @@ function revalidateLead(leadId: string) {
 // Musteri bilgileri formu (olusturma + duzenleme ortak)
 // ----------------------------------------------------------------------------
 
-export type LeadFormState = { error: string | null };
+/**
+ * `values`: hata durumunda formdaki girilenler aynen geri doner. React 19, bir form
+ * action'i bitince kontrolsuz alanlari SIFIRLAR; degerler buradan `defaultValue`
+ * olarak geri verilmezse kullanici tek bir hata icin her seyi bastan yaziyordu
+ * (gozlem 2026-10-05: "cift telefon" hatasinda form bosaldi).
+ */
+export type LeadFormState = { error: string | null; values?: Record<string, string> };
+
+const LEAD_FORM_FIELDS = [
+  "full_name", "phone", "location", "property_type", "area_m2", "building_status", "heating_type",
+  "purchase_timeline", "product_category_id", "offered_amount", "underfloor_heating", "radiator",
+] as const;
+
+/** Formdaki alanlari (hata mesajiyla birlikte geri vermek icin) duz metin olarak toplar. */
+function leadFormValues(formData: FormData): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const key of LEAD_FORM_FIELDS) {
+    const raw = formData.get(key);
+    if (raw !== null) values[key] = String(raw);
+  }
+  return values;
+}
 
 /**
  * Lead ekleme/duzenleme hatasi. 23505 = firma basina telefon tekilligi
@@ -218,7 +239,7 @@ export async function createLeadAction(prevState: LeadFormState, formData: FormD
   }
 
   const parsed = parseLeadForm(formData);
-  if ("error" in parsed) return { error: parsed.error };
+  if ("error" in parsed) return { error: parsed.error, values: leadFormValues(formData) };
 
   const assignedSalesperson = profile.role === "sales" ? profile.id : null;
 
@@ -236,7 +257,7 @@ export async function createLeadAction(prevState: LeadFormState, formData: FormD
 
   if (error || !data) {
     console.error("createLeadAction error:", error?.message);
-    return { error: `Lead oluşturulamadı: ${leadDbError(error)}` };
+    return { error: `Lead oluşturulamadı: ${leadDbError(error)}`, values: leadFormValues(formData) };
   }
 
   await logActivity(supabase, { leadId: data.id, companyId: data.company_id, type: "system", description: "Lead oluşturuldu." });
@@ -250,7 +271,7 @@ export async function createLeadAction(prevState: LeadFormState, formData: FormD
 /** Item 2: Lead musteri bilgilerini duzenleme (durum/atama/not bu action'a dahil degil). */
 export async function updateLeadAction(leadId: string, prevState: LeadFormState, formData: FormData): Promise<LeadFormState> {
   const parsed = parseLeadForm(formData);
-  if ("error" in parsed) return { error: parsed.error };
+  if ("error" in parsed) return { error: parsed.error, values: leadFormValues(formData) };
 
   const supabase = await createClient();
 
@@ -263,7 +284,7 @@ export async function updateLeadAction(leadId: string, prevState: LeadFormState,
 
   if (error || !data) {
     console.error("updateLeadAction error:", error?.message);
-    return { error: `Kaydedilemedi: ${leadDbError(error)}` };
+    return { error: `Kaydedilemedi: ${leadDbError(error)}`, values: leadFormValues(formData) };
   }
 
   await logActivity(supabase, { leadId, companyId: data.company_id, type: "system", description: "Müşteri bilgileri güncellendi." });
@@ -297,14 +318,20 @@ export async function updateLeadStatusAction(leadId: string, payload: StatusPayl
 
   const supabase = await createClient();
 
-  const { data: current, error: fetchError } = await supabase
-    .from("leads")
-    .select("status, priority, company_id")
-    .eq("id", leadId)
-    .single();
+  const [{ data: current, error: fetchError }, { data: sale }] = await Promise.all([
+    supabase.from("leads").select("status, priority, company_id").eq("id", leadId).single(),
+    supabase.from("sales").select("sale_amount").eq("lead_id", leadId).limit(1).maybeSingle(),
+  ]);
 
   if (fetchError || !current) {
     return { error: "Lead bulunamadı." };
+  }
+  // VERI BUTUNLUGU (canli bulgu 2026-10-17: satisi ₺125.000 olan bir lead Kanban'da
+  // "Keşif/Teklif"e geri cekilmisti; satis ciroda sayilmaya devam ederken lead
+  // "satilmamis" gorunuyordu). Satis kaydi varken "Satış"tan cikis yalnizca satisi
+  // iptal ederek olur (bkz. cancelSaleAction) - sessiz tutarsizlik yerine acik mesaj.
+  if (current.status === "won" && sale) {
+    return { error: `${SALE_LOCK_MESSAGE} (${formatCurrencyTR(Number(sale.sale_amount))})` };
   }
 
   const updatePayload: Database["public"]["Tables"]["leads"]["Update"] = { status: payload.status };
@@ -421,13 +448,18 @@ export async function logLeadOutcomeAction(
   // bekleniyordu - "Kaydet"e basinca bosuna 2 ag turu. Ucu de yalnizca OKUMA ve
   // birbirinden bagimsiz: ayni turda. Hicbir yazma, hepsi donup yetki/varlik
   // kontrolleri gecmeden baslamaz (requireProfile reddederse Promise.all da reddeder).
-  const [, { data: current, error: fetchError }, openFollowupId] = await Promise.all([
+  const [, { data: current, error: fetchError }, openFollowupId, { data: existingSale }] = await Promise.all([
     requireProfile(),
     supabase.from("leads").select("status, company_id, next_followup_at").eq("id", leadId).single(),
     outcome === "followup" ? findOpenFollowupId(supabase, leadId) : Promise.resolve(undefined),
+    supabase.from("sales").select("sale_amount").eq("lead_id", leadId).limit(1).maybeSingle(),
   ]);
 
   if (fetchError || !current) return { error: "Lead bulunamadı." };
+  // Satisi olan lead "Kayıp"a / "Takip"e alinamaz - bkz. updateLeadStatusAction'daki ayni koruma.
+  if (current.status === "won" && (outcome === "lost" || outcome === "followup") && existingSale) {
+    return { error: `${SALE_LOCK_MESSAGE} (${formatCurrencyTR(Number(existingSale.sale_amount))})` };
+  }
 
   const nowIso = new Date().toISOString();
   const saleNote = outcome === "won" ? String(formData.get("sale_note") ?? "").trim().slice(0, TEXT_LIMITS.note) : "";
@@ -900,6 +932,77 @@ export async function updateAgentNoteAction(
   }
 
   await logActivity(supabase, { leadId, companyId: lead.company_id, type: "system", description: "Ajan görüşü güncellendi." });
+
+  revalidateLead(leadId);
+  return { error: null };
+}
+
+const SALE_LOCK_MESSAGE =
+  "Bu müşterinin kayıtlı satışı var. Durumu değiştirmek için önce lead sayfasındaki Satış bölümünden satışı iptal edin";
+
+// ----------------------------------------------------------------------------
+// SATIS IPTALI (2026-10-17): satis kaydini siler, lead'i satistan ONCEKI durumuna
+// (son "→ Satış" gecisinin kaynagi; bulunamazsa Takip) geri alir, zaman cizelgesine
+// yazar. Yalnizca firma sahibi (RLS: sales_delete owner/admin).
+// ----------------------------------------------------------------------------
+
+export type CancelSaleState = { error: string | null };
+
+export async function cancelSaleAction(leadId: string): Promise<CancelSaleState> {
+  const supabase = await createClient();
+  const [profile, { data: lead, error: leadError }, { data: sale }, { data: lastWon }] = await Promise.all([
+    requireProfile(),
+    supabase.from("leads").select("company_id, status").eq("id", leadId).single(),
+    supabase.from("sales").select("id, sale_amount").eq("lead_id", leadId).limit(1).maybeSingle(),
+    supabase
+      .from("activities")
+      .select("from_status")
+      .eq("lead_id", leadId)
+      .eq("type", "status_change")
+      .eq("to_status", "won")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (profile.role !== "owner") return { error: "Satışı yalnızca firma sahibi iptal edebilir." };
+  if (leadError || !lead) return { error: "Lead bulunamadı." };
+  if (!sale) return { error: "İptal edilecek satış kaydı yok." };
+
+  const { error: deleteError } = await supabase.from("sales").delete().eq("id", sale.id);
+  if (deleteError) {
+    console.error("cancelSaleAction delete error:", deleteError.message);
+    return { error: `Satış iptal edilemedi: ${friendlyDbError(deleteError)}` };
+  }
+
+  const previous = (lastWon?.from_status as LeadStatus | null) ?? "followup";
+  const revert = lead.status === "won" && previous !== "won";
+  const nowMs = Date.now();
+  const rows: Database["public"]["Tables"]["activities"]["Insert"][] = [
+    {
+      lead_id: leadId,
+      company_id: lead.company_id,
+      type: "system",
+      description: `Satış iptal edildi: ${formatCurrencyTR(Number(sale.sale_amount))}`,
+      created_at: new Date(nowMs).toISOString(),
+    },
+  ];
+  if (revert) {
+    rows.push({
+      lead_id: leadId,
+      company_id: lead.company_id,
+      type: "status_change",
+      description: `Durum değişti: ${LEAD_STATUS_LABELS.won} → ${LEAD_STATUS_LABELS[previous]}`,
+      from_status: "won",
+      to_status: previous,
+      created_at: new Date(nowMs + 1).toISOString(),
+    });
+  }
+  const [statusResult, activityResult] = await Promise.all([
+    revert ? supabase.from("leads").update({ status: previous }).eq("id", leadId) : Promise.resolve(null),
+    supabase.from("activities").insert(rows),
+  ]);
+  if (statusResult?.error) console.error("cancelSaleAction status error:", statusResult.error.message);
+  if (activityResult.error) console.error("cancelSaleAction activity error:", activityResult.error.message);
 
   revalidateLead(leadId);
   return { error: null };

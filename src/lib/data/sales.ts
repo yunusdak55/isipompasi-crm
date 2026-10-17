@@ -31,6 +31,8 @@ export type SalesStats = {
    * eklenmis kayitlar) ve ciro/donusum bu leadleri SAYMAZ.
    */
   wonWithoutSale: number;
+  /** Satis kaydi olan ama durumu "Satış" OLMAYAN lead sayisi (ters tutarsizlik; 0 olmali). */
+  saleWithoutWon: number;
 };
 
 /**
@@ -79,6 +81,7 @@ export async function getSalesStats(raw?: { allLeads: RawLeadRow[] | null; allSa
         bySalesperson: [],
         hasAnySale: false,
         wonWithoutSale: 0,
+        saleWithoutWon: 0,
       };
     }
     if (salesRes.error) {
@@ -140,6 +143,10 @@ export async function getSalesStats(raw?: { allLeads: RawLeadRow[] | null; allSa
     wonWithoutSale: (() => {
       const soldLeadIds = new Set(sales.map((s) => s.lead_id));
       return leads.filter((l) => l.status === "won" && !soldLeadIds.has(l.id)).length;
+    })(),
+    saleWithoutWon: (() => {
+      const statusById = new Map(leads.map((l) => [l.id, l.status]));
+      return sales.filter((s) => statusById.has(s.lead_id) && statusById.get(s.lead_id) !== "won").length;
     })(),
   };
 }

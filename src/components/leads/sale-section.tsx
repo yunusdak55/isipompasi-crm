@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { CalendarCheck, Check, HandCoins, Pencil, Quote } from "lucide-react";
-import { upsertSaleAction, type SaleActionState } from "@/app/(dashboard)/leads/actions";
+import { useActionState, useState, useTransition } from "react";
+import { CalendarCheck, Check, HandCoins, Pencil, Quote, Undo2 } from "lucide-react";
+import { cancelSaleAction, upsertSaleAction, type SaleActionState } from "@/app/(dashboard)/leads/actions";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 
 const initialState: SaleActionState = { error: null };
@@ -22,8 +22,20 @@ type Sale = { amount: number; saleDate: string; note: string | null };
  * gore oran" halkasi ve lead -> satis cizgisi kaldirildi: istenmeyen, turetilmis
  * gostergelerdi.)
  */
-export function SaleSection({ leadId, sale }: { leadId: string; sale: Sale | null }) {
+export function SaleSection({ leadId, sale, canCancel = false }: { leadId: string; sale: Sale | null; canCancel?: boolean }) {
   const [state, formAction, isPending] = useActionState(upsertSaleAction.bind(null, leadId), initialState);
+  // Satis iptali (yalnizca firma sahibi): iki adimli onay, sonra cancelSaleAction.
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelPending, startCancel] = useTransition();
+  function runCancel() {
+    setCancelError(null);
+    startCancel(async () => {
+      const result = await cancelSaleAction(leadId);
+      if (result.error) setCancelError(result.error);
+      setConfirmCancel(false);
+    });
+  }
 
   // Form, o an KAYITLI olan satis icin acilir: kayit basarili olup sunucudan yeni
   // deger gelince (anahtar degisir) okuma gorunumune kendiliginden donulur.
@@ -85,7 +97,39 @@ export function SaleSection({ leadId, sale }: { leadId: string; sale: Sale | nul
                 <Pencil className="h-3 w-3" />
                 Düzenle
               </button>
+              {canCancel ? (
+                confirmCancel ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px]">
+                    <span className="text-white/60">Satış silinsin, müşteri önceki aşamaya dönsün mü?</span>
+                    <button
+                      type="button"
+                      disabled={cancelPending}
+                      onClick={runCancel}
+                      className="rounded-full bg-danger-500/25 px-2.5 py-1 font-medium text-[#ffb4a3] transition-colors hover:bg-danger-500/35 disabled:opacity-50"
+                    >
+                      {cancelPending ? "İptal ediliyor…" : "Evet, iptal et"}
+                    </button>
+                    <button type="button" onClick={() => setConfirmCancel(false)} className="text-white/50 hover:text-white">
+                      Vazgeç
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmCancel(true)}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-[11px] font-medium text-white/45 transition-colors duration-150 hover:border-danger-500/40 hover:text-[#ffb4a3]"
+                  >
+                    <Undo2 className="h-3 w-3" />
+                    Satışı iptal et
+                  </button>
+                )
+              ) : null}
             </div>
+            {cancelError ? (
+              <p role="alert" className="mt-2 text-xs text-[#ffb4a3]">
+                {cancelError}
+              </p>
+            ) : null}
 
             <p className="sale-amount mt-4 text-[2.75rem] font-semibold leading-none tracking-tight tabular-nums sm:text-[3.5rem]">
               {formatCurrency(sale.amount)}

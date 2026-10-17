@@ -278,6 +278,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <SaleSection
               leadId={id}
               sale={sale ? { amount: Number(sale.sale_amount), saleDate: sale.sale_date, note: sale.notes } : null}
+              canCancel={canAssign}
             />
           ) : null}
 

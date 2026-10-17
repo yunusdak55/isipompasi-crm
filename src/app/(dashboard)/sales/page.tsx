@@ -58,6 +58,18 @@ export default async function SalesPage() {
         </div>
       ) : null}
 
+      {profile.role === "owner" && stats.saleWithoutWon > 0 ? (
+        <div role="note" className="animate-fade-in flex items-start gap-3 rounded-xl border border-warning-500/40 bg-warning-500/[0.10] px-4 py-3">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-500" />
+          <p className="text-sm text-ink-900">
+            <span className="font-semibold">{stats.saleWithoutWon.toLocaleString("tr-TR")} satış kaydının lead&apos;i artık “Satış” aşamasında değil.</span>{" "}
+            <span className="text-ink-600">
+              Tutar ciroda sayılmaya devam ediyor. Satış gerçekten iptal olduysa lead sayfasındaki Satış bölümünden “Satışı iptal et”; olmadıysa lead&apos;i yeniden “Satış”a alın.
+            </span>
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-4">
         <StatCard label="Toplam Satış" value={stats.totalSales} tone="success" sparkline={stats.monthlyTrend.map((m) => m.count)} />
         <StatCard label="Ortalama Satış Değeri" value={formatCurrency(stats.avgSaleValue)} tone="accent" />
