@@ -33,7 +33,16 @@ type Snapshot = { today: DashboardToday; now: number };
  * Simdi veri /api/dashboard-today'den TEK istekle okunur; router'a dokunulmaz.
  * Damgadaki saat SUNUCUDA uretilir: "bu rakamlar su saatte veritabanindan okundu".
  */
-export function DashboardLive({ initial, firstName }: { initial: Snapshot; firstName: string | null }) {
+export function DashboardLive({
+  initial,
+  firstName,
+  live = true,
+}: {
+  initial: Snapshot;
+  firstName: string | null;
+  /** false: yalniz yerel gorsel onizleme (app/dev-onizleme) - sunucudan yenileme yapilmaz. */
+  live?: boolean;
+}) {
   const [snapshot, setSnapshot] = useState(initial);
   const [pending, setPending] = useState(false);
   const lastRefreshRef = useRef(0);
@@ -66,6 +75,7 @@ export function DashboardLive({ initial, firstName }: { initial: Snapshot; first
 
   // Mount: onbellekten geri yukleme tespiti + olay/aralik dinleyicileri.
   useEffect(() => {
+    if (!live) return;
     lastRefreshRef.current = Date.now();
 
     try {
@@ -97,14 +107,14 @@ export function DashboardLive({ initial, firstName }: { initial: Snapshot; first
     };
     // initial.now YALNIZCA mount aninda kiyaslanir.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh]);
+  }, [refresh, live]);
 
   const { today } = snapshot;
   const now = useMemo(() => new Date(snapshot.now), [snapshot.now]);
   const view = useMemo(() => buildTodayView(today, now), [today, now]);
 
   return (
-    <div className="stagger flex flex-col gap-6">
+    <div className="rise-kids flex flex-col gap-6">
       <TodayHero
         greeting={greetingFor(now)}
         firstName={firstName}
@@ -116,6 +126,9 @@ export function DashboardLive({ initial, firstName }: { initial: Snapshot; first
         onRefresh={refresh}
       />
 
+      {/* Iki sutun: solda bugunun akisi, sagda geciken + yeni gelenler ust uste
+          (eskiden yeni gelenler tam genislikte alttaydi ve sag sutunda bos alan kaliyordu).
+          Mobilde sira ayni: bugun, geciken, yeni. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
         <TaskSection
           id="bugun"
@@ -132,37 +145,39 @@ export function DashboardLive({ initial, firstName }: { initial: Snapshot; first
           emptyBody="Bir müşteriye takip tarihi verdiğinizde, saat sırasıyla burada görünür."
         />
 
-        <TaskSection
-          id="geciken"
-          title="Geciken Takipler"
-          icon={<AlertTriangle className="h-4 w-4" />}
-          tone="danger"
-          count={today.counts.overdue}
-          countLabel="en az geciken önce"
-          items={view.overdue}
-          moreHref="/leads/overdue"
-          remaining={today.counts.overdue - view.overdue.length}
-          emptyTitle="Geciken takip yok"
-          emptyBody="Takibe aldığınız hiçbir müşterinin tarihi 24 saatten fazla geçmemiş."
-        />
-      </div>
+        <div className="flex min-w-0 flex-col gap-6">
+          <TaskSection
+            id="geciken"
+            title="Geciken Takipler"
+            icon={<AlertTriangle className="h-4 w-4" />}
+            tone="danger"
+            count={today.counts.overdue}
+            countLabel="en az geciken önce"
+            items={view.overdue}
+            moreHref="/leads/overdue"
+            remaining={today.counts.overdue - view.overdue.length}
+            emptyTitle="Geciken takip yok"
+            emptyBody="Takibe aldığınız hiçbir müşterinin tarihi 24 saatten fazla geçmemiş."
+          />
 
-      {/* Yeni gelen yoksa kart hic gosterilmez (ustteki "Yeni lead: 0" zaten soyluyor). */}
-      {today.counts.fresh > 0 ? (
-        <TaskSection
-          id="yeni"
-          title="Yeni Gelenler"
-          icon={<Sparkles className="h-4 w-4" />}
-          tone="success"
-          count={today.counts.fresh}
-          countLabel="son 24 saat"
-          items={view.fresh}
-          moreHref="/leads"
-          remaining={today.counts.fresh - view.fresh.length}
-          emptyTitle="Yeni lead yok"
-          emptyBody="Son 24 saatte yeni bir müşteri gelmedi."
-        />
-      ) : null}
+          {/* Yeni gelen yoksa kart hic gosterilmez (ustteki "Yeni lead: 0" zaten soyluyor). */}
+          {today.counts.fresh > 0 ? (
+            <TaskSection
+              id="yeni"
+              title="Yeni Gelenler"
+              icon={<Sparkles className="h-4 w-4" />}
+              tone="success"
+              count={today.counts.fresh}
+              countLabel="son 24 saat"
+              items={view.fresh}
+              moreHref="/leads"
+              remaining={today.counts.fresh - view.fresh.length}
+              emptyTitle="Yeni lead yok"
+              emptyBody="Son 24 saatte yeni bir müşteri gelmedi."
+            />
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

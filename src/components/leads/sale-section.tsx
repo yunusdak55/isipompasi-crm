@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { CalendarCheck, Check, HandCoins, Pencil, Quote, Undo2 } from "lucide-react";
 import { cancelSaleAction, upsertSaleAction, type SaleActionState } from "@/app/(dashboard)/leads/actions";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { celebrateHeat } from "@/lib/fx";
 
 const initialState: SaleActionState = { error: null };
 
@@ -51,6 +52,14 @@ export function SaleSection({ leadId, sale, canCancel = false }: { leadId: strin
     setNote(sale?.note ?? "");
     setOpenFor(saleKey);
   }
+
+  // Kazanc ani: bu ekranda YENI bir satis kaydedilince (yok -> var) kisa isi dalgasi.
+  // Tutar/not duzeltmesinde, sayfa ilk acilisinda ve iptalde oynamaz.
+  const hadSale = useRef(sale !== null);
+  useEffect(() => {
+    if (sale && !hadSale.current) celebrateHeat();
+    hadSale.current = sale !== null;
+  }, [sale]);
 
   const unchanged = sale !== null && Number(amount) === sale.amount && note.trim() === (sale.note ?? "");
 

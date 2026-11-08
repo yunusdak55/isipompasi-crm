@@ -155,7 +155,9 @@ export async function proxy(request: NextRequest) {
   const isAuthRoute = pathname.startsWith("/login");
   // /auth/* (callback, inactive): oturum acmamis kullanicinin da ulasabilmesi gerekir.
   const isOpenRoute =
-    pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.startsWith("/auth/") || pathname === "/robots.txt";
+    pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.startsWith("/auth/") || pathname === "/robots.txt" ||
+    // yalniz yerel gelistirme: ornek veriyle gorsel onizleme (bkz. app/dev-onizleme)
+    (process.env.NODE_ENV === "development" && pathname === "/dev-onizleme");
   const isProtectedRoute = !isAuthRoute && !isOpenRoute && pathname !== "/";
 
   // GOZLEMLENEBILIRLIK: middleware'in TOPLAM suresi - hangi cikis yolundan

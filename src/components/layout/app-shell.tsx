@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { NavProgress } from "@/components/layout/nav-progress";
+import { Ambient } from "@/components/decor/ambient";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types/domain";
 import type { DueFollowup } from "@/lib/data/leads";
@@ -33,19 +34,35 @@ export function AppShell({
     setSidebarOpen(false);
   }, [pathname]);
 
+  // Girisin hemen ardindan (login/page.tsx isaret birakir) tek seferlik "acilis"
+  // koreografisi: zemin acilir, menu soldan, ust cubuk yukaridan gelir.
+  const [arriving, setArriving] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem("ik:arrive") !== "1") return;
+      window.sessionStorage.removeItem("ik:arrive");
+    } catch {
+      return;
+    }
+    queueMicrotask(() => setArriving(true));
+    const t = window.setTimeout(() => setArriving(false), 1700);
+    return () => window.clearTimeout(t);
+  }, []);
+
   return (
-    <div className="flex h-screen">
+    <div className={cn("flex h-screen", arriving && "is-arriving")}>
+      <Ambient />
       {sidebarOpen ? (
         <div
           aria-hidden
           onClick={() => setSidebarOpen(false)}
-          className="animate-fade-in fixed inset-0 z-30 bg-brand-950/70 lg:hidden"
+          className="animate-fade-in fixed inset-0 z-30 bg-[rgba(3,9,20,0.7)] backdrop-blur-[4px] lg:hidden [.fx-lite_&]:backdrop-blur-none"
         />
       ) : null}
 
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-premium lg:static lg:translate-x-0",
+          "ik-rail-wrap fixed inset-y-0 left-0 z-40 transition-transform duration-300 ease-premium lg:static lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -60,7 +77,12 @@ export function AppShell({
             <NavProgress />
           </Suspense>
         </div>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:px-8 lg:pt-7">
+          {/* Sayfa gecisi: her yeni sayfa bulaniktan netlesir (anahtar = yol). */}
+          <div key={pathname} className="view-enter mx-auto w-full max-w-[1320px]">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );

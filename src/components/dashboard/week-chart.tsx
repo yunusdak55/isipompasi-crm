@@ -1,3 +1,4 @@
+import { RiseNumber } from "@/components/ui/rise-number";
 import { cn } from "@/lib/utils";
 import type { WeekDay } from "@/components/dashboard/view-model";
 
@@ -13,23 +14,25 @@ export function WeekChart({ days }: { days: WeekDay[] }) {
   const total = days.reduce((sum, d) => sum + d.count, 0);
 
   return (
-    <div className="relative flex flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+    <div className="rise relative flex flex-col rounded-2xl border border-[var(--card-line)] bg-[var(--card-bg-2)] p-4 shadow-[inset_0_1px_0_rgba(214,232,255,0.06)] sm:p-5" style={{ "--i": 3 } as React.CSSProperties}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">Önümüzdeki 7 gün</p>
+          <p className="ik-eyebrow">Önümüzdeki 7 gün</p>
           <p className="mt-1.5 flex items-baseline gap-1.5">
-            <span className="text-2xl font-semibold tabular-nums leading-none tracking-tight text-white">{total}</span>
-            <span className="text-xs text-white/50">planlı takip</span>
+            <span className="font-display text-2xl font-semibold tabular-nums leading-none tracking-[-0.03em] text-[var(--text)]">
+              <RiseNumber value={total} delayMs={420} />
+            </span>
+            <span className="text-xs text-[var(--text-3)]">planlı takip</span>
           </p>
         </div>
       </div>
 
       <div className="relative mt-5" style={{ height: BAR_AREA + 24 }}>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col justify-between" style={{ height: BAR_AREA + 24 }} aria-hidden="true">
-          <span className="border-t border-dashed border-white/[0.07]" />
-          <span className="border-t border-dashed border-white/[0.07]" />
-          <span className="border-t border-dashed border-white/[0.07]" />
-          <span className="border-t border-white/[0.14]" />
+          <span className="border-t border-dashed border-[var(--line-soft)]" />
+          <span className="border-t border-dashed border-[var(--line-soft)]" />
+          <span className="border-t border-dashed border-[var(--line-soft)]" />
+          <span className="border-t border-[var(--line-strong)]" />
         </div>
 
         <ul className="relative flex h-full items-end gap-2 sm:gap-3">
@@ -38,31 +41,35 @@ export function WeekChart({ days }: { days: WeekDay[] }) {
             return (
               <li
                 key={i}
-                className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+                className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5"
                 title={`${d.full}: ${d.count} takip${d.carry > 0 ? ` (${d.carry} tanesi dünden kaldı)` : ""}`}
                 aria-label={`${d.full}: ${d.count} takip${d.carry > 0 ? ` (${d.carry} tanesi dünden kaldı)` : ""}`}
               >
                 <span
                   className={cn(
                     "text-xs font-semibold tabular-nums transition-transform duration-200 ease-premium group-hover:-translate-y-0.5",
-                    d.isToday ? "text-accent-300" : d.count === 0 ? "text-white/25" : "text-white/80"
+                    d.isToday ? "text-[var(--accent-text)]" : d.count === 0 ? "text-[var(--text-4)]" : "text-[var(--text-2)]"
                   )}
                 >
                   {d.count}
                 </span>
+                {/* Cubuk alttan buyur. "Bugun" once buz mavisi buyur, sonra turuncuya ISINIR
+                    (ustteki sicak katmanin opakligi acilir) - isi pompasi fikri, yalniz opacity. */}
                 <span
                   className={cn(
-                    "grow-y w-full max-w-[38px] transition-[filter] duration-200 group-hover:brightness-125",
+                    "bar-grow relative w-full max-w-[38px] transition-[filter] duration-200 group-hover:brightness-125",
                     d.count === 0
-                      ? "rounded-full bg-white/[0.12]"
-                      : d.isToday
-                        ? "rounded-t-xl rounded-b-[5px] bg-gradient-to-t from-accent-600 via-accent-500 to-accent-300 shadow-[0_0_26px_-2px_rgba(244,124,32,0.6)]"
-                        : d.weekend
-                          ? "rounded-t-xl rounded-b-[5px] bg-gradient-to-t from-ice-600/30 to-ice-400/40"
-                          : "rounded-t-xl rounded-b-[5px] bg-gradient-to-t from-ice-600/70 via-ice-500/70 to-ice-300/90 shadow-[0_0_20px_-6px_rgba(91,188,248,0.45)]"
+                      ? "rounded-full bg-[var(--line-strong)]"
+                      : d.weekend && !d.isToday
+                        ? "rounded-t-xl rounded-b-[5px] bg-[linear-gradient(0deg,rgba(31,127,192,0.3),rgba(91,188,248,0.4))]"
+                        : "rounded-t-xl rounded-b-[5px] bg-[linear-gradient(0deg,rgba(31,127,192,0.75),rgba(47,158,230,0.72)_50%,rgba(143,211,255,0.92))] shadow-[0_0_20px_-6px_rgba(91,188,248,0.45)]"
                   )}
-                  style={{ height: barPx, animationDelay: `${i * 15}ms` }}
-                />
+                  style={{ height: barPx, "--d": i } as React.CSSProperties}
+                >
+                  {d.isToday && d.count > 0 ? (
+                    <span aria-hidden="true" className="bar-warm bg-[linear-gradient(0deg,var(--accent-lo),var(--accent)_45%,var(--accent-hi))] shadow-[0_0_26px_-2px_rgba(244,124,32,0.6)]" />
+                  ) : null}
+                </span>
               </li>
             );
           })}
@@ -71,20 +78,20 @@ export function WeekChart({ days }: { days: WeekDay[] }) {
 
       <ul className="mt-2.5 flex gap-2 sm:gap-3" aria-hidden="true">
         {days.map((d, i) => (
-          <li key={i} className="flex flex-1 flex-col items-center gap-0.5">
+          <li key={i} className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[11px] font-semibold leading-tight",
+                "rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-tight sm:px-2",
                 d.isToday
-                  ? "bg-accent-500/20 text-accent-300 ring-1 ring-inset ring-accent-500/30"
+                  ? "border border-[var(--accent-line)] bg-[var(--accent-soft)] text-[var(--accent-text)]"
                   : d.weekend
-                    ? "text-white/35"
-                    : "text-white/60"
+                    ? "text-[var(--text-4)]"
+                    : "text-[var(--text-3)]"
               )}
             >
               {d.label}
             </span>
-            <span className={cn("text-[10px] tabular-nums", d.isToday ? "text-accent-300/70" : "text-white/30")}>{d.dayNumber}</span>
+            <span className={cn("text-[10px] tabular-nums", d.isToday ? "text-[var(--accent-text)] opacity-70" : "text-[var(--text-4)]")}>{d.dayNumber}</span>
           </li>
         ))}
       </ul>

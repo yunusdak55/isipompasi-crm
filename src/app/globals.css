@@ -9,6 +9,8 @@
    ============================================================================ */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Basliklar ve buyuk sayilar: Sora (iklimlen.com'un baslik fontu) - bkz. app/iklim.css */
+  --font-display: var(--font-sora), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   /* Marka rengi: derin lacivert. 900 = ana marka rengi (#0B1F3A, sidebar/hero
      yuzeyleri); 50-200 = acik yuzeylerde rozet/vurgu icin cok acik mavi tonlar
@@ -265,22 +267,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* ZEMIN ATMOSFERI (tasarim yukseltmesi): duz bir renk yerine, sabit duran TEK bir
-   katman uzerinde uc yumusak radyal gradyan - sag ustte ince "isi" (turuncu),
-   sol altta ince "soguk" (buz mavisi), altta lacivert vinyet. position:fixed +
-   pointer-events:none: kaydirmada yeniden boyanmaz (kendi kompozit katmani),
-   filtre/blur YOK - ucuz. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(900px 520px at 88% -8%, rgba(244, 124, 32, 0.09), transparent 62%),
-    radial-gradient(820px 620px at -8% 106%, rgba(47, 158, 230, 0.09), transparent 64%),
-    radial-gradient(1300px 760px at 50% 125%, rgba(11, 31, 58, 0.6), transparent 70%);
-}
+/* Zemin atmosferi artik app/iklim.css (.amb, termal akis) + components/decor/ambient.tsx. */
 
 ::selection {
   background: rgba(244, 124, 32, 0.38);

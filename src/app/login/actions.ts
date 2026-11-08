@@ -1,7 +1,6 @@
 "use server";
 
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { clearFailures, clientIp, isRateLimited, recordFailure } from "@/lib/security/rate-limit";
 
@@ -10,7 +9,8 @@ const WINDOW_MS = 10 * 60 * 1000;
 const EMAIL_LIMIT = 8;
 const IP_LIMIT = 30;
 
-export type LoginState = { error: string | null };
+/** next: giris basarili - istemci kisa "sahne cekilir" animasyonunu oynatip bu adrese gider. */
+export type LoginState = { error: string | null; next?: string };
 
 export async function signInAction(_prevState: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim();
@@ -62,5 +62,8 @@ export async function signInAction(_prevState: LoginState, formData: FormData): 
   // Ajans admin'in kendine ait bir firmasi yok - /dashboard tum firmalarin
   // karisik/filtresiz verisini gosterir, admin icin anlamli olan tek yer
   // Firmalar paneli (bkz. src/app/page.tsx'teki ayni mantik).
-  redirect(profile.role === "admin" ? "/admin/companies" : "/dashboard");
+  // Oturum cerezleri bu yanitla birlikte yazildi. Yonlendirmeyi istemci yapar
+  // (login/page.tsx): once 0,65 sn'lik cikis animasyonu, sonra router.replace.
+  // Hedef sayfa rolu yine profilden dogrular (proxy + requireProfile).
+  return { error: null, next: profile.role === "admin" ? "/admin/companies" : "/dashboard" };
 }

@@ -16,15 +16,13 @@ export function LiveStamp({ timeLabel, pending, onRefresh }: { timeLabel: string
       onClick={onRefresh}
       disabled={pending}
       title={`Rakamlar veritabanından ${timeLabel} itibarıyla okundu. Sayfa açıkken dakikada bir kendiliğinden yenilenir; tıklayarak şimdi yenileyebilirsiniz.`}
-      className="group inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-white/60 transition-colors duration-150 hover:border-white/25 hover:bg-white/10 hover:text-white disabled:cursor-default"
+      className="group inline-flex items-center gap-1.5 rounded-full border border-[var(--card-line-2)] bg-[var(--card-bg-2)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-3)] transition-colors duration-150 hover:border-[var(--accent-line)] hover:text-[var(--text)] disabled:cursor-default"
     >
-      <span className="relative flex h-1.5 w-1.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-500/60 opacity-75" />
-        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success-500" />
-      </span>
+      {/* sabit isik (nabiz yok: surekli yanip sonen hicbir sey yok) */}
+      <span className="ik-live-dot" aria-hidden="true" />
       <span className="tabular-nums">{timeLabel}</span>
       <span className="hidden sm:inline">itibarıyla güncel</span>
-      <RefreshCw className={cn("h-3 w-3 text-white/40 transition-colors group-hover:text-white/80", pending && "animate-spin")} />
+      <RefreshCw className={cn("h-3 w-3 text-[var(--text-4)] transition-colors group-hover:text-[var(--accent-text)]", pending && "animate-spin")} />
     </button>
   );
 }

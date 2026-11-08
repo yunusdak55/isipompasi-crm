@@ -1,5 +1,6 @@
 import { WeekChart } from "@/components/dashboard/week-chart";
 import { LiveStamp } from "@/components/dashboard/live-stamp";
+import { RiseNumber } from "@/components/ui/rise-number";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { DashboardToday } from "@/lib/data/dashboard";
 import type { WeekDay } from "@/components/dashboard/view-model";
@@ -8,22 +9,35 @@ type Tone = "accent" | "danger" | "success";
 
 /** Sayi rengi + sol kenar cizgisi; deger 0 ise kutu notr kalir (dikkat cekmez). */
 const TONE: Record<Tone, { value: string; bar: string }> = {
-  accent: { value: "text-accent-300", bar: "bg-accent-500" },
-  danger: { value: "text-[#ff9f8a]", bar: "bg-danger-500" },
-  success: { value: "text-[#8ef0b8]", bar: "bg-success-500" },
+  accent: { value: "text-[var(--accent-text)]", bar: "bg-[linear-gradient(180deg,var(--accent-hi),var(--accent-lo))] shadow-[0_0_12px_rgba(255,171,92,0.7)]" },
+  danger: { value: "text-[var(--danger)]", bar: "bg-[var(--danger-solid)] shadow-[0_0_12px_rgba(217,85,63,0.6)]" },
+  success: { value: "text-[var(--ok)]", bar: "bg-[var(--ok-solid)] shadow-[0_0_12px_rgba(52,165,107,0.6)]" },
 };
 
+/**
+ * Kartin gok tonu, verinin okundugu saate gore (timeLabel "13:42"): safak,
+ * gunduz, aksam, gece. Selamlamayla ayni ritim; yeni veri yok.
+ */
+function skyFor(timeLabel: string): "dawn" | "day" | "dusk" | "night" {
+  const h = Number(/(\d{1,2}):\d{2}/.exec(timeLabel)?.[1] ?? 12);
+  if (h >= 5 && h < 9) return "dawn";
+  if (h >= 9 && h < 17) return "day";
+  if (h >= 17 && h < 20) return "dusk";
+  return "night";
+}
+
 /** Tek bir ozet sayisi. Bilerek link DEGIL: ilgili listenin tek girisi, asagidaki kartin "Tümünü gör"udur. */
-function Stat({ label, value, caption, tone }: { label: string; value: React.ReactNode; caption: string; tone: Tone }) {
+function Stat({ label, value, caption, tone, index }: { label: string; value: number; caption: string; tone: Tone; index: number }) {
   const active = value !== 0;
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 sm:px-5 sm:py-4">
+    <div className="rise relative overflow-hidden rounded-2xl border border-[var(--card-line)] bg-[var(--card-bg-2)] px-4 py-3.5 shadow-[inset_0_1px_0_rgba(214,232,255,0.06)] sm:px-5 sm:py-4" style={{ "--i": index + 2 } as React.CSSProperties}>
       {active ? <span aria-hidden="true" className={cn("absolute inset-y-3 left-0 w-[3px] rounded-r-full", TONE[tone].bar)} /> : null}
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className={cn("mt-2 text-[2rem] font-semibold tabular-nums leading-none tracking-tight sm:text-[2.5rem]", active ? TONE[tone].value : "text-white/30")}>
-        {value}
+      <p className="ik-eyebrow !text-[10.5px] !tracking-[0.14em]">{label}</p>
+      {active && tone === "danger" ? <span aria-hidden="true" className="ik-alert-pulse" /> : null}
+      <p className={cn("relative mt-2 font-display text-[2rem] font-semibold tabular-nums leading-none tracking-[-0.03em] sm:text-[2.6rem]", active ? TONE[tone].value : "text-[var(--text-4)]")}>
+        <RiseNumber value={value} delayMs={260 + index * 90} />
       </p>
-      <p className="mt-2 text-xs text-white/45">{caption}</p>
+      <p className="mt-2 text-xs text-[var(--text-3)]">{caption}</p>
     </div>
   );
 }
@@ -60,25 +74,21 @@ export function TodayHero({
   const { month, stats } = today;
 
   return (
-    <section
-      className="animate-fade-in relative isolate overflow-hidden rounded-3xl ring-1 ring-inset ring-white/10"
-      style={{ background: "linear-gradient(140deg, #123057 0%, #0c2140 48%, #081729 100%)" }}
-    >
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-40 -top-56 h-[460px] w-[460px] rounded-full"
-        style={{ background: "radial-gradient(closest-side, rgba(244,124,32,0.13), transparent)" }}
-      />
-      <span aria-hidden="true" className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+    <section className="ik-card ik-hero rise relative isolate overflow-hidden !rounded-[26px]" data-sky={skyFor(timeLabel)}>
+      {/* giris ekranindaki evin bulanik bir dilimi: giristen panele sureklilik */}
+      <span aria-hidden="true" className="ik-hero-scene" />
+      {/* sicak (sag ust) ve soguk (sol alt) iki isik: kartin icinde de ayni termal hikaye */}
+      <span aria-hidden="true" className="ik-hero-warm" />
+      <span aria-hidden="true" className="ik-hero-cool" />
 
-      <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8">
+      <div className="relative grid grid-cols-1 gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-8">
         <div className="flex min-w-0 flex-col">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">{dateLabel}</p>
+            <p className="ik-eyebrow !tracking-[0.2em]">{dateLabel}</p>
             <LiveStamp timeLabel={timeLabel} pending={refreshing} onRefresh={onRefresh} />
           </div>
 
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-[2.5rem] sm:leading-[1.1]">
+          <h1 className="mt-3 font-display text-3xl font-semibold tracking-[-0.035em] text-[var(--text)] sm:text-[2.6rem] sm:leading-[1.1]">
             {greeting}
             {firstName ? (
               <>
@@ -93,25 +103,28 @@ export function TodayHero({
               value={due}
               caption={due === 0 ? "planlı takip yok" : dueCarry === 0 ? "bugün için planlı" : dueCarry === due ? "hepsi dünden kaldı" : `${dueCarry} tanesi dünden kaldı`}
               tone="accent"
+              index={0}
             />
-            <Stat label="Geciken" value={overdue} caption={overdue > 0 ? "takibi 24 saati aştı" : "geciken yok"} tone="danger" />
-            <Stat label="Yeni lead" value={fresh} caption={fresh > 0 ? "son 24 saatte geldi" : "yeni gelen yok"} tone="success" />
+            <Stat label="Geciken" value={overdue} caption={overdue > 0 ? "takibi 24 saati aştı" : "geciken yok"} tone="danger" index={1} />
+            <Stat label="Yeni lead" value={fresh} caption={fresh > 0 ? "son 24 saatte geldi" : "yeni gelen yok"} tone="success" index={2} />
           </div>
 
           {/* Bu ayin iki para rakami - eskiden ayri, kalabalik "Satış Hattı" kartindaydi. */}
           <dl className="mt-auto grid grid-cols-2 gap-x-6 gap-y-1 pt-6 text-sm">
             <div>
-              <dt className="text-xs text-white/45">Bu ay satış</dt>
-              <dd className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight text-[#8ef0b8]">
-                {formatCurrency(month.revenue)}
-                <span className="ml-2 text-xs font-normal text-white/45">
+              <dt className="text-xs text-[var(--text-3)]">Bu ay satış</dt>
+              <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums tracking-[-0.02em] text-[var(--ok)]">
+                <RiseNumber value={formatCurrency(month.revenue)} delayMs={520} />
+                <span className="ml-2 font-sans text-xs font-normal text-[var(--text-3)]">
                   {month.salesCount > 0 ? `${month.salesCount.toLocaleString("tr-TR")} satış` : "henüz satış yok"}
                 </span>
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-white/45">Açık tekliflerin toplamı</dt>
-              <dd className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight text-white">{formatCurrency(stats.pipelineValue)}</dd>
+              <dt className="text-xs text-[var(--text-3)]">Açık tekliflerin toplamı</dt>
+              <dd className="mt-0.5 font-display text-lg font-semibold tabular-nums tracking-[-0.02em] text-[var(--text)]">
+                <RiseNumber value={formatCurrency(stats.pipelineValue)} delayMs={600} />
+              </dd>
             </div>
           </dl>
         </div>

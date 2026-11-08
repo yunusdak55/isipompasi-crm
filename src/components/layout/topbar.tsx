@@ -20,7 +20,7 @@ export function Topbar({
   const displayName = profile.full_name ?? profile.email ?? "Kullanıcı";
 
   return (
-    <header className="relative flex h-16 shrink-0 items-center justify-between border-b border-white/[0.07] bg-brand-900 px-4 sm:px-6">
+    <header className="ik-topbar z-20 flex h-16 shrink-0 items-center justify-between px-4 sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -30,7 +30,7 @@ export function Topbar({
         >
           <Menu className="h-5 w-5 transition-transform duration-150 ease-snappy group-hover:scale-110" />
         </button>
-        <p className="truncate text-sm font-medium text-white/90">
+        <p className="truncate font-display text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]">
           {companyName ?? (profile.role === "admin" ? "Ajans Admin Paneli" : "—")}
         </p>
       </div>
@@ -43,7 +43,7 @@ export function Topbar({
           <p className="text-xs leading-tight text-white/50">{USER_ROLE_LABELS[profile.role]}</p>
         </div>
 
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-accent-500/30 to-accent-500/10 text-sm font-semibold text-accent-200 ring-1 ring-inset ring-accent-500/30 shadow-[0_0_18px_-4px_rgba(244,124,32,0.5)] transition-transform duration-150 ease-snappy hover:scale-105">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--accent-line)] bg-[linear-gradient(135deg,rgba(255,171,92,0.24),rgba(244,124,32,0.06))] font-display text-[13px] font-semibold text-[var(--accent-text)] shadow-[inset_0_1px_0_rgba(255,240,220,0.12)]">
           {getInitials(displayName)}
         </div>
 

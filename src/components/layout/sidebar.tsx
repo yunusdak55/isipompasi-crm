@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
+import { FxSwitch } from "@/components/layout/fx-controller";
 import type { UserRole } from "@/lib/types/domain";
 
 type NavItem = {
@@ -97,9 +99,7 @@ function isActiveHref(pathname: string, href: string) {
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-1.5 mt-6 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/30 first:mt-0">
-      {children}
-    </p>
+    <p className="ik-nav-label first:pt-2">{children}</p>
   );
 }
 
@@ -129,11 +129,13 @@ function NavLink({ item, active, nested = false }: { item: NavItem; active: bool
   if (!item.enabled) {
     return (
       <div
-        className="flex cursor-not-allowed items-center justify-between rounded-lg border-l-2 border-transparent py-2 pl-[10px] pr-3 text-sm text-white/30"
+        className="ik-nav-item cursor-not-allowed justify-between opacity-45"
         title="Yakında"
       >
-        <span className="flex items-center gap-2.5">
-          <Icon className="h-4 w-4" />
+        <span className="flex items-center gap-3">
+          <span className="ik-nav-ic">
+            <Icon className="h-[17px] w-[17px]" />
+          </span>
           {item.label}
         </span>
         <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/35">Yakında</span>
@@ -149,47 +151,63 @@ function NavLink({ item, active, nested = false }: { item: NavItem; active: bool
       // atlar); acik birakmak her sayfa acilisinda ~19 bos istek demekti. Veri her
       // tiklamada sunucudan taze gelir (staleTimes.dynamic = 0).
       prefetch={false}
-      className={cn(
-        // Aktif gostergesi (tasarim yukseltmesi): sol kenarda parlayan gradyanli "hap"
-        // (pseudo-element) + soldan saga solan turuncu zemin. Border degil, gercek bir
-        // isaret - hover'da gecis sadece renk/opaklik (boyama hafif).
-        "relative flex items-center gap-2.5 rounded-lg py-2 pl-3 pr-3 font-medium transition-colors duration-150 ease-premium",
-        nested ? "text-[13px]" : "text-sm",
-        active
-          ? "bg-gradient-to-r from-accent-500/[0.20] via-accent-500/[0.07] to-transparent text-white before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-flame-hot before:to-accent-600 before:shadow-[0_0_12px_rgba(244,124,32,0.75)] before:content-['']"
-          : "text-white/65 hover:bg-white/[0.06] hover:text-white"
-      )}
+      aria-current={active ? "page" : undefined}
+      // Aktif isaret (kayan isik) Sidebar'da tek parca cizilir; burada yalniz ikon kutusu degisir.
+      className={cn("ik-nav-item", nested && "is-nested")}
     >
-      <Icon className={cn(nested ? "h-3.5 w-3.5" : "h-4 w-4", active && "text-accent-400")} />
+      <span className="ik-nav-ic">
+        <Icon className={nested ? "h-3.5 w-3.5" : "h-[17px] w-[17px]"} />
+      </span>
       {item.label}
       <NavPendingDot />
     </Link>
   );
 }
 
+/**
+ * Aktif sayfa isareti: TEK bir isik, sayfalar arasinda kayarak gider (her linkte
+ * ayri isaret yerine). Konumu aktif linkin yerinden olculur; yalniz transform.
+ */
+function useNavGlow(pathname: string) {
+  const navRef = useRef<HTMLElement>(null);
+  const [glow, setGlow] = useState<{ y: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    const measure = () => {
+      const el = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!nav || !el) return setGlow(null);
+      const navBox = nav.getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      setGlow({ y: box.top - navBox.top + nav.scrollTop, h: box.height });
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [pathname]);
+  return { navRef, glow };
+}
+
 export function Sidebar({ role }: { role: UserRole }) {
-  const pathname = usePathname();
+  const realPath = usePathname();
+  // yerel gorsel onizleme (app/dev-onizleme) Dashboard'u gosterir: menude de o aktif gorunsun
+  const pathname = realPath === "/dev-onizleme" ? "/dashboard" : realPath;
+  const { navRef, glow } = useNavGlow(pathname);
 
   return (
-    <aside className="relative flex h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-white/[0.06] bg-brand-900">
-      {/* Cok dusuk kontrastli teknik atmosfer - sidebar'in tamamini degil,
-          sadece zemini hafifce "canlandirir". */}
-      {/* Zemin atmosferi: ESKISINDE iki buyuk katman blur-[90px]/[100px] filtreliydi; ayni
-          gorunum filtresiz radyal gradyanla uretiliyor (GPU maliyeti dusuk). */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        aria-hidden
-        style={{
-          background:
-            "radial-gradient(420px 380px at -12% -4%, rgba(44,74,117,0.42), transparent 70%), radial-gradient(380px 340px at 112% 84%, rgba(244,124,32,0.08), transparent 70%)",
-        }}
-      />
+    <aside className="ik-rail flex h-screen w-64 shrink-0 flex-col overflow-hidden">
+      {/* Menu, zeminin "penceresi": izoterm cizgileri burada biraz daha secik, cok yavas kayar. */}
+      <span className="ik-rail-photo" aria-hidden="true" />
 
-      <div className="relative flex h-16 shrink-0 items-center border-b border-white/10 px-5">
+      <div className="ik-rail-brand flex h-16 shrink-0 items-center px-5">
         <Logo className="h-6" />
       </div>
 
-      <nav className="relative flex flex-1 flex-col overflow-y-auto p-3">
+      <nav ref={navRef} className="ik-nav flex flex-1 flex-col overflow-y-auto px-3 pb-4 pt-1 [scrollbar-width:none]">
+        <span
+          aria-hidden="true"
+          className={cn("ik-nav-glow", glow && "is-on")}
+          style={glow ? { transform: `translate3d(12px, ${glow.y}px, 0)`, height: glow.h, right: 24 } : undefined}
+        />
         {/* Ajans admin'in kendine ait bir firmasi yok (company_id = null) -
             Leadler/Kanban/Takip/Satislar/Raporlar gibi gunluk operasyon
             ekranlari admin icin anlamsiz (RLS geregi TUM firmalarin verisini
@@ -199,19 +217,19 @@ export function Sidebar({ role }: { role: UserRole }) {
         {role !== "admin" ? (
           <>
             <GroupLabel>Satış</GroupLabel>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               {SALES_NAV_ITEMS.map((item) => (
                 <NavLink key={item.href} item={item} active={isActiveHref(pathname, item.href)} />
               ))}
             </div>
 
             <GroupLabel>Analiz</GroupLabel>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               {ANALYSIS_NAV_ITEMS.map((item) => (
                 <div key={item.href} className="flex flex-col gap-1">
                   <NavLink item={item} active={isActiveHref(pathname, item.href)} />
                   {item.children ? (
-                    <div className="ml-[19px] flex flex-col gap-1 border-l border-white/10 pl-2">
+                    <div className="ml-[21px] flex flex-col gap-0.5 border-l border-[var(--line)] pl-2">
                       {item.children.map((child) => (
                         <NavLink key={child.href} item={child} active={isActiveHref(pathname, child.href)} nested />
                       ))}
@@ -222,7 +240,7 @@ export function Sidebar({ role }: { role: UserRole }) {
             </div>
 
             <GroupLabel>Ayarlar</GroupLabel>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               {SETTINGS_NAV_ITEMS.map((item) => (
                 <NavLink key={item.href} item={item} active={isActiveHref(pathname, item.href)} />
               ))}
@@ -233,12 +251,12 @@ export function Sidebar({ role }: { role: UserRole }) {
         {role === "admin" ? (
           <>
             <GroupLabel>Ajans Admin</GroupLabel>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               {ADMIN_NAV_ITEMS.map((item) => (
                 <div key={item.href} className="flex flex-col gap-1">
                   <NavLink item={item} active={isActiveHref(pathname, item.href)} />
                   {item.children ? (
-                    <div className="ml-[19px] flex flex-col gap-1 border-l border-white/10 pl-2">
+                    <div className="ml-[21px] flex flex-col gap-0.5 border-l border-[var(--line)] pl-2">
                       {item.children.map((child) => (
                         <NavLink key={child.href} item={child} active={isActiveHref(pathname, child.href)} nested />
                       ))}
@@ -250,6 +268,8 @@ export function Sidebar({ role }: { role: UserRole }) {
           </>
         ) : null}
       </nav>
+
+      <FxSwitch className="relative shrink-0 border-t border-[var(--line-soft)] px-4 py-3" />
     </aside>
   );
 }

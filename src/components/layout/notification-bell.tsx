@@ -44,7 +44,7 @@ export function NotificationBell({ items }: { items: DueFollowup[] }) {
       </button>
 
       {open ? (
-        <div className="animate-panel-in absolute right-0 top-11 z-50 w-72 rounded-xl border border-line bg-surface p-2 shadow-elevated-lg">
+        <div className="ik-menu absolute right-0 top-11 z-50 w-72 p-2">
           <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink-600">Takip Hatırlatmaları</p>
           {items.length === 0 ? (
             <p className="px-2 py-3 text-sm text-ink-600">Bekleyen takip yok.</p>
@@ -55,7 +55,7 @@ export function NotificationBell({ items }: { items: DueFollowup[] }) {
                   <Link
                     href={item.href}
                     onClick={() => setOpen(false)}
-                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm transition-colors duration-150 hover:bg-white/[0.05] hover:translate-x-0.5"
+                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm transition-colors duration-150 hover:bg-[var(--accent-soft)]"
                   >
                     <span className="truncate text-ink-900">{item.name}</span>
                     <span className={cn("shrink-0 text-xs font-medium", item.overdue ? "text-danger-500" : "text-ink-600")}>

@@ -19,11 +19,11 @@ export function Card({
     <div
       id={id}
       className={cn(
-        // YUZEY DERINLIGI (tasarim yukseltmesi): ustte yumusak isik "sheen" gradyani,
-        // ince ic hairline + asagida yayilmis koyu golge (shadow-card). Hover'da
-        // yalnizca transform/kenar/golge degisir (animasyonlu blur/filtre yok).
-        "rounded-2xl border border-line bg-surface bg-gradient-to-b from-white/[0.055] via-white/[0.012] to-transparent shadow-card transition-[transform,border-color,box-shadow] duration-200 ease-premium",
-        hoverable && "hover:-translate-y-0.5 hover:border-white/[0.18] hover:shadow-card-hover",
+        // Cam kart (app/iklim.css .ik-card): yari saydam dolgu, ince cizgi, ustte soguktan
+        // sicaga gecen termal isik, alttan derin golge. Tiklanabilir kart (.is-lift)
+        // 2 px yukselir ve uzerinden bir kez sicak isik gecer. Yalniz transform/opacity.
+        "ik-card",
+        hoverable && "is-lift",
         className
       )}
     >
@@ -33,11 +33,11 @@ export function Card({
 }
 
 export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("flex items-center justify-between border-b border-line px-5 py-4", className)}>{children}</div>;
+  return <div className={cn("flex items-center justify-between border-b border-[var(--line-soft)] px-5 py-4", className)}>{children}</div>;
 }
 
 export function CardTitle({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <h3 className={cn("text-sm font-semibold tracking-tight text-ink-900", className)}>{children}</h3>;
+  return <h3 className={cn("font-display text-[15px] font-semibold tracking-[-0.01em] text-[var(--text)]", className)}>{children}</h3>;
 }
 
 export function CardBody({ children, className }: { children: React.ReactNode; className?: string }) {

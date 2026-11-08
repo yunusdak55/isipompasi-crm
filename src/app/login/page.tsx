@@ -1,64 +1,114 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
-import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/ui/logo";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { FlowLogo, LoginScene } from "@/components/decor/login-scene";
+import { fxIsLite, reduceMotion } from "@/lib/fx";
+import { cn } from "@/lib/utils";
 import { signInAction, type LoginState } from "./actions";
 
 const initialState: LoginState = { error: null };
 
 /**
- * Giris karti, imlecin konumuna gore ÇOK hafif bir 3D egim (tilt) alir -
- * spotlight/isik takibi DEGIL (bu daha once acikca kaldirilmisti), sadece
- * kartin kendisi imlece dogru hafifce "donuyor" hissi - premium SaaS
- * giris ekranlarinda yaygin, sade ve zarif bir dokunus. HvacBackdrop'taki
- * ayni RAF/lerp yumusatma deseniyle tutarli, React state kullanmadan
- * dogrudan DOM transform mutasyonu (performans, re-render yok).
+ * Derinlik: imlec hareket edince sahne katmanlari farkli hizda kayar, kart
+ * imlece dogru COK hafif egilir (isik takibi/spotlight YOK - daha once
+ * kaldirilmisti). RAF dongusu yalnizca hedefe yaklasana kadar calisir, sonra
+ * durur (eskiden sayfa acik kaldikca saniyede 60 kez donuyordu). Dokunmatik
+ * cihazda, hafif modda ve "hareketi azalt" acikken hic calismaz.
  */
-function useCardTilt() {
+function useDepth() {
   const cardRef = useRef<HTMLDivElement>(null);
-  const target = useRef({ x: 0, y: 0 });
-  const current = useRef({ x: 0, y: 0 });
-  const rafId = useRef<number | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handlePointerMove(e: PointerEvent) {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      target.current.x = (e.clientX / vw - 0.5) * 2;
-      target.current.y = (e.clientY / vh - 0.5) * 2;
-    }
-    function handlePointerLeave() {
-      target.current.x = 0;
-      target.current.y = 0;
-    }
+    if (reduceMotion() || !window.matchMedia("(pointer: fine)").matches) return;
+    const target = { x: 0, y: 0 };
+    const cur = { x: 0, y: 0 };
+    let raf: number | null = null;
 
-    function tick() {
-      current.current.x += (target.current.x - current.current.x) * 0.06;
-      current.current.y += (target.current.y - current.current.y) * 0.06;
+    const layers = () => Array.from(rootRef.current?.querySelectorAll<HTMLElement>("[data-depth]") ?? []);
 
-      if (cardRef.current) {
-        const rotateY = current.current.x * 3.5;
-        const rotateX = current.current.y * -3.5;
-        cardRef.current.style.transform = `perspective(900px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+    const tick = () => {
+      cur.x += (target.x - cur.x) * 0.06;
+      cur.y += (target.y - cur.y) * 0.06;
+      for (const el of layers()) {
+        const d = Number(el.dataset.depth);
+        el.style.transform = `translate3d(${(cur.x * -14 * d).toFixed(2)}px, ${(cur.y * -10 * d).toFixed(2)}px, 0)`;
       }
-
-      rafId.current = requestAnimationFrame(tick);
-    }
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerleave", handlePointerLeave);
-    rafId.current = requestAnimationFrame(tick);
+      if (cardRef.current) {
+        cardRef.current.style.transform = `perspective(900px) rotateX(${(cur.y * -3).toFixed(2)}deg) rotateY(${(cur.x * 3).toFixed(2)}deg)`;
+      }
+      const settled = Math.abs(target.x - cur.x) < 0.001 && Math.abs(target.y - cur.y) < 0.001;
+      raf = settled ? null : requestAnimationFrame(tick);
+    };
+    const kick = () => {
+      if (raf === null && !fxIsLite()) raf = requestAnimationFrame(tick);
+    };
+    const onMove = (e: PointerEvent) => {
+      target.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      target.y = (e.clientY / window.innerHeight - 0.5) * 2;
+      kick();
+    };
+    const onLeave = () => {
+      target.x = 0;
+      target.y = 0;
+      kick();
+    };
+    window.addEventListener("pointermove", onMove);
+    document.documentElement.addEventListener("pointerleave", onLeave);
     return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerleave", handlePointerLeave);
-      if (rafId.current) cancelAnimationFrame(rafId.current);
+      window.removeEventListener("pointermove", onMove);
+      document.documentElement.removeEventListener("pointerleave", onLeave);
+      if (raf !== null) cancelAnimationFrame(raf);
     };
   }, []);
 
-  return cardRef;
+  return { cardRef, rootRef };
+}
+
+/**
+ * Pervane hizi = sayfanin "nabzi". CSS dongusunun hizini Web Animations
+ * playbackRate ile yumusakca degistirir (konum ziplamaz, yalniz transform):
+ * yazarken hizlanir, giris denenirken tam devire cikar, hatada yavaslar.
+ * Pervane hafif modda da doner (tek, ucuz bir transform); hiz oyunu ise
+ * hafif modda ve "hareketi azalt" acikken calismaz.
+ */
+type FanMode = "idle" | "typing" | "busy" | "error" | "done";
+const FAN_RATE: Record<FanMode, number> = { idle: 1, typing: 2.4, busy: 5.5, error: 0.45, done: 9 };
+
+function useFanDrive(rootRef: React.RefObject<HTMLDivElement | null>, mode: FanMode) {
+  const state = useRef({ cur: 1, target: 1, raf: null as number | null });
+
+  useEffect(() => {
+    if (reduceMotion() || fxIsLite()) return;
+    const s = state.current;
+    s.target = FAN_RATE[mode];
+    const rotor = rootRef.current?.querySelector<HTMLElement>(".hp-rotor");
+    const anim = rotor?.getAnimations()[0];
+    const sharp = rotor?.querySelector<HTMLElement>(".rs");
+    const blur = rotor?.querySelector<HTMLElement>(".rb");
+    if (!anim) return;
+    const tick = () => {
+      s.cur += (s.target - s.cur) * 0.045;
+      if (Math.abs(s.target - s.cur) < 0.01) s.cur = s.target;
+      anim.playbackRate = s.cur;
+      // hiz arttikca kanatlar gercek fan gibi bulaniklasir
+      const m = Math.min(1, Math.max(0, (s.cur - 1) / 4));
+      if (blur) blur.style.opacity = (0.18 + m * 0.82).toFixed(3);
+      if (sharp) sharp.style.opacity = (1 - m * 0.85).toFixed(3);
+      s.raf = s.cur === s.target ? null : requestAnimationFrame(tick);
+    };
+    if (s.raf === null) s.raf = requestAnimationFrame(tick);
+  }, [mode, rootRef]);
+
+  useEffect(() => {
+    const s = state.current;
+    return () => {
+      if (s.raf !== null) cancelAnimationFrame(s.raf);
+      s.raf = null; // StrictMode yeniden baglarken dongu tekrar kurulabilsin
+    };
+  }, []);
 }
 
 const NOTICES: Record<string, string> = {
@@ -70,77 +120,124 @@ const NOTICES: Record<string, string> = {
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(signInAction, initialState);
   const notice = NOTICES[useSearchParams().get("error") ?? ""] ?? null;
-  const cardRef = useCardTilt();
+  const router = useRouter();
+  const { cardRef, rootRef } = useDepth();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const typingTimer = useRef<number | null>(null);
+  const [errorAt, setErrorAt] = useState<LoginState | null>(null);
+  const showingError = !!state.error && errorAt === state && !isPending;
+
+  // yazarken unite "devreye girer"; 1.2 sn yazilmazsa normale doner
+  const onType = () => {
+    setTyping(true);
+    if (typingTimer.current !== null) window.clearTimeout(typingTimer.current);
+    typingTimer.current = window.setTimeout(() => setTyping(false), 1200);
+  };
+  useEffect(() => () => {
+    if (typingTimer.current !== null) window.clearTimeout(typingTimer.current);
+  }, []);
+
+  const fanMode: FanMode = state.next ? "done" : isPending ? "busy" : showingError ? "error" : typing ? "typing" : "idle";
+  useFanDrive(rootRef, fanMode);
+
+  // Yanlis parola: kart sallanir (her hatali denemede yeniden).
+  useEffect(() => {
+    const el = formRef.current;
+    if (!state.error || !el) return;
+    el.classList.remove("is-shake");
+    void el.offsetWidth; // animasyonu bastan oynatmak icin
+    el.classList.add("is-shake");
+    const t = window.setTimeout(() => setErrorAt(state), 0);
+    const back = window.setTimeout(() => setErrorAt(null), 2200);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(back);
+    };
+  }, [state]);
+
+  // Basarili giris: sahne bulaniklasip cekilir, ardindan panel acilir ve "ilk giris" koreografisi oynar.
+  useEffect(() => {
+    const next = state.next;
+    if (!next) return;
+    router.prefetch(next);
+    try {
+      window.sessionStorage.setItem("ik:arrive", "1");
+    } catch {
+      /* sessionStorage kapali olabilir: panel animasyonsuz acilir */
+    }
+    if (reduceMotion()) {
+      router.replace(next);
+      return;
+    }
+    const raf = requestAnimationFrame(() => setLeaving(true));
+    const t = window.setTimeout(() => router.replace(next), 750);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
+  }, [state, router]);
+
+  const busy = isPending || !!state.next;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-brand-900 to-brand-950 px-4">
-      <HvacBackdrop intensity="hero" interactive animated />
+    <div ref={rootRef} className={cn("auth", (isPending || !!state.next) && "is-power", leaving && "is-leaving")}>
+      <LoginScene />
 
-      <div className="relative w-full max-w-sm">
-        <div className="animate-slide-up mb-8 flex flex-col items-center gap-3 text-center">
-          <div className="relative flex items-center justify-center py-1">
-            <span className="mark-glow-pulse absolute inset-[-16px] rounded-full bg-accent-500/30 blur-xl" aria-hidden />
-            <Logo className="relative h-9" />
+      <main className="auth-stage">
+        <div className="auth-brand">
+          <div className="auth-logo-wrap" data-depth="0.5">
+            <FlowLogo />
           </div>
-          <div>
-            <p className="mt-1 text-base font-medium text-white/90">Sektörde büyümenin kontrolü sizde.</p>
-            <p className="mt-1 text-sm text-white/50">Isı Pompası &amp; İklimlendirme Firmalarının Büyüme Ortağı</p>
-          </div>
+          <span className="auth-rule" aria-hidden="true" />
+          <p className="auth-kicker">Isı Pompası &amp; İklimlendirme Firmalarının Büyüme Ortağı</p>
         </div>
 
-        <div ref={cardRef} className="transition-transform duration-75 ease-out" style={{ transformStyle: "preserve-3d" }}>
-          <form
-            action={formAction}
-            className="animate-slide-up rounded-2xl border border-line bg-surface p-6 shadow-elevated-lg"
-          >
-            <div className="flex flex-col gap-4">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-ink-900">E-posta</span>
-                <input
-                  type="email"
-                  name="email"
-                  required
-                  autoComplete="email"
-                  placeholder="ornek@firma.com"
-                  className="rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.03]"
-                />
-              </label>
+        <div className="auth-tilt" ref={cardRef}>
+          <form ref={formRef} action={formAction} className="auth-card" onAnimationEnd={(e) => e.currentTarget.classList.remove("is-shake")}>
+            <h1 className="auth-title">Sektörde büyümenin kontrolü sizde.</h1>
 
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium text-ink-900">Şifre</span>
-                <input
-                  type="password"
-                  name="password"
-                  required
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="rounded-lg border border-line bg-canvas px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400 transition-colors duration-150 focus-visible:border-accent-400 focus-visible:bg-white/[0.03]"
-                />
-              </label>
+            <label className="auth-field flex flex-col gap-1.5">
+              <span className="auth-label">E-posta</span>
+              <input onInput={onType} type="email" name="email" required autoComplete="email" placeholder="ornek@firma.com" className="ik-input" />
+            </label>
 
-              {!state.error && notice ? (
-                <p role="status" className="rounded-lg border border-accent-400/30 bg-accent-500/10 px-3 py-2 text-sm text-white/85">
-                  {notice}
-                </p>
-              ) : null}
+            <label className="auth-field flex flex-col gap-1.5">
+              <span className="auth-label">Şifre</span>
+              <input onInput={onType} type="password" name="password" required autoComplete="current-password" placeholder="••••••••" className="ik-input" />
+            </label>
 
-              {state.error ? (
-                <p role="alert" className="animate-slide-up rounded-lg border border-danger-500/30 bg-danger-500/10 px-3 py-2 text-sm text-[#ffb4a3]">
-                  {state.error}
-                </p>
-              ) : null}
+            {!state.error && notice ? (
+              <p role="status" className="auth-note">
+                {notice}
+              </p>
+            ) : null}
 
-              <Button type="submit" disabled={isPending} className="mt-1 w-full">
-                {isPending ? "Giriş yapılıyor…" : "Giriş Yap"}
-              </Button>
-            </div>
+            {state.error ? (
+              <p role="alert" className="auth-error">
+                {state.error}
+              </p>
+            ) : null}
+
+            <button type="submit" disabled={busy} className="ik-btn-primary auth-submit mt-1 w-full">
+              {busy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  {state.next ? "Panel açılıyor…" : "Giriş yapılıyor…"}
+                </>
+              ) : (
+                <>
+                  Giriş Yap
+                  <ArrowRight className="ic h-4 w-4" aria-hidden="true" />
+                </>
+              )}
+            </button>
+
+            <p className="auth-foot">Hesabınız yok mu? Firma yönetici hesabınız ajans tarafından oluşturulur.</p>
           </form>
         </div>
-
-        <p className="mt-6 text-center text-xs text-white/40">
-          Hesabınız yok mu? Firma yönetici hesabınız ajans tarafından oluşturulur.
-        </p>
-      </div>
+      </main>
     </div>
   );
 }
