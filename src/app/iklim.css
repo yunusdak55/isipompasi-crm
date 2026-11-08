@@ -301,9 +301,11 @@
 .hp-body { inset: 0; width: 100%; height: 100%; }
 .hp-disk { position: absolute; left: 12.51%; top: 12.03%; width: 46.6%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, #0b111d, #04070d); }
 .hp-rotor { width: 44%; aspect-ratio: 1; left: 13.81%; top: 13.97%; }
-.hp-rotor { will-change: transform; animation: hp-spin 7s linear infinite; }
+.hp-rotor { will-change: transform; animation: hp-spin 1.15s linear infinite; }
 .hp-rotor img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.hp-rotor .rb { opacity: 0.18; }
+/* hizli donus: kanatlar gercek fan gibi bulanik, altta silik net kanat */
+.hp-rotor .rs { opacity: 0.35; }
+.hp-rotor .rb { opacity: 0.9; }
 /* unite sahneye otursun: arkasinda yere dusen yumusak golge (yapistirma gibi durmasin) */
 .hp::before { content: ""; position: absolute; left: -12%; right: -14%; top: 8%; bottom: -30%; z-index: -1; border-radius: 50%; pointer-events: none;
   background: radial-gradient(closest-side, rgba(2, 6, 18, 0.75), rgba(2, 6, 18, 0.35) 55%, rgba(2, 6, 18, 0)); }

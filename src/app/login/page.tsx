@@ -67,50 +67,6 @@ function useDepth() {
   return { cardRef, rootRef };
 }
 
-/**
- * Pervane hizi = sayfanin "nabzi". CSS dongusunun hizini Web Animations
- * playbackRate ile yumusakca degistirir (konum ziplamaz, yalniz transform):
- * yazarken hizlanir, giris denenirken tam devire cikar, hatada yavaslar.
- * Pervane hafif modda da doner (tek, ucuz bir transform); hiz oyunu ise
- * hafif modda ve "hareketi azalt" acikken calismaz.
- */
-type FanMode = "idle" | "typing" | "busy" | "error" | "done";
-const FAN_RATE: Record<FanMode, number> = { idle: 1, typing: 2.4, busy: 5.5, error: 0.45, done: 9 };
-
-function useFanDrive(rootRef: React.RefObject<HTMLDivElement | null>, mode: FanMode) {
-  const state = useRef({ cur: 1, target: 1, raf: null as number | null });
-
-  useEffect(() => {
-    if (reduceMotion() || fxIsLite()) return;
-    const s = state.current;
-    s.target = FAN_RATE[mode];
-    const rotor = rootRef.current?.querySelector<HTMLElement>(".hp-rotor");
-    const anim = rotor?.getAnimations()[0];
-    const sharp = rotor?.querySelector<HTMLElement>(".rs");
-    const blur = rotor?.querySelector<HTMLElement>(".rb");
-    if (!anim) return;
-    const tick = () => {
-      s.cur += (s.target - s.cur) * 0.045;
-      if (Math.abs(s.target - s.cur) < 0.01) s.cur = s.target;
-      anim.playbackRate = s.cur;
-      // hiz arttikca kanatlar gercek fan gibi bulaniklasir
-      const m = Math.min(1, Math.max(0, (s.cur - 1) / 4));
-      if (blur) blur.style.opacity = (0.18 + m * 0.82).toFixed(3);
-      if (sharp) sharp.style.opacity = (1 - m * 0.85).toFixed(3);
-      s.raf = s.cur === s.target ? null : requestAnimationFrame(tick);
-    };
-    if (s.raf === null) s.raf = requestAnimationFrame(tick);
-  }, [mode, rootRef]);
-
-  useEffect(() => {
-    const s = state.current;
-    return () => {
-      if (s.raf !== null) cancelAnimationFrame(s.raf);
-      s.raf = null; // StrictMode yeniden baglarken dongu tekrar kurulabilsin
-    };
-  }, []);
-}
-
 const NOTICES: Record<string, string> = {
   inactive: "Hesabınız pasif durumda olduğu için oturumunuz kapatıldı. Lütfen yöneticinizle iletişime geçin.",
   no_profile: "Hesabınız henüz yapılandırılmamış. Lütfen ajansla iletişime geçin.",
@@ -124,23 +80,6 @@ export default function LoginPage() {
   const { cardRef, rootRef } = useDepth();
   const formRef = useRef<HTMLFormElement>(null);
   const [leaving, setLeaving] = useState(false);
-  const [typing, setTyping] = useState(false);
-  const typingTimer = useRef<number | null>(null);
-  const [errorAt, setErrorAt] = useState<LoginState | null>(null);
-  const showingError = !!state.error && errorAt === state && !isPending;
-
-  // yazarken unite "devreye girer"; 1.2 sn yazilmazsa normale doner
-  const onType = () => {
-    setTyping(true);
-    if (typingTimer.current !== null) window.clearTimeout(typingTimer.current);
-    typingTimer.current = window.setTimeout(() => setTyping(false), 1200);
-  };
-  useEffect(() => () => {
-    if (typingTimer.current !== null) window.clearTimeout(typingTimer.current);
-  }, []);
-
-  const fanMode: FanMode = state.next ? "done" : isPending ? "busy" : showingError ? "error" : typing ? "typing" : "idle";
-  useFanDrive(rootRef, fanMode);
 
   // Yanlis parola: kart sallanir (her hatali denemede yeniden).
   useEffect(() => {
@@ -149,12 +88,6 @@ export default function LoginPage() {
     el.classList.remove("is-shake");
     void el.offsetWidth; // animasyonu bastan oynatmak icin
     el.classList.add("is-shake");
-    const t = window.setTimeout(() => setErrorAt(state), 0);
-    const back = window.setTimeout(() => setErrorAt(null), 2200);
-    return () => {
-      window.clearTimeout(t);
-      window.clearTimeout(back);
-    };
   }, [state]);
 
   // Basarili giris: sahne bulaniklasip cekilir, ardindan panel acilir ve "ilk giris" koreografisi oynar.
@@ -200,12 +133,12 @@ export default function LoginPage() {
 
             <label className="auth-field flex flex-col gap-1.5">
               <span className="auth-label">E-posta</span>
-              <input onInput={onType} type="email" name="email" required autoComplete="email" placeholder="ornek@firma.com" className="ik-input" />
+              <input type="email" name="email" required autoComplete="email" placeholder="ornek@firma.com" className="ik-input" />
             </label>
 
             <label className="auth-field flex flex-col gap-1.5">
               <span className="auth-label">Şifre</span>
-              <input onInput={onType} type="password" name="password" required autoComplete="current-password" placeholder="••••••••" className="ik-input" />
+              <input type="password" name="password" required autoComplete="current-password" placeholder="••••••••" className="ik-input" />
             </label>
 
             {!state.error && notice ? (

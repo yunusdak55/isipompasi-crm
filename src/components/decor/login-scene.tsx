@@ -2,8 +2,7 @@
  * Giris sahnesi (yeniden, 2026-11-08): bulanik gece evi fotografi + gece
  * mavisi tul, pencerelerden sizan birkac sicak bokeh, ve on planda kameraya
  * cok yakin, bulanik bir isi pompasi dis unitesi (Merihe'deki yapragin HVAC
- * karsiligi): pervanesi doner, ustunden buhar yukselir. Pervane hizini giris sayfasi surer (useFanDrive):
- * yazarken hizlanir, giriste tam devire cikar, hatada yavaslar.
+ * karsiligi): pervanesi doner, ustunden buhar yukselir. Pervane hep ayni hizli tempoda doner.
  * Hepsi transform/opacity ile hareket eder; derinlik (imlec) data-depth ile.
  * Konumlar sabit: sunucu ve tarayici ayni HTML'i uretir.
  */
@@ -54,7 +53,7 @@ export function LoginScene() {
           </div>
           {/* eslint-disable @next/next/no-img-element */}
           <span className="hp-disk" />
-          {/* kanatlar: net + donus bulanikligi; hizlandikca bulanik olan belirir (useFanDrive) */}
+          {/* kanatlar: hizli ve sabit doner; donus bulanikligi + altta silik net kanat */}
           <div className="hp-rotor">
             <img className="rs" src="/img/unite-pervane.webp" alt="" width={900} height={900} decoding="async" />
             <img className="rb" src="/img/unite-pervane-hiz.webp" alt="" width={900} height={900} decoding="async" />
