@@ -75,7 +75,7 @@ export function SaleSection({ leadId, sale, canCancel = false }: { leadId: strin
           <div
             aria-hidden="true"
             className="absolute inset-0 -z-10"
-            style={{ background: "linear-gradient(135deg, rgba(47,133,88,0.32) 0%, rgba(15,38,69,0.94) 52%, #0b1f3a 100%)" }}
+            style={{ background: "linear-gradient(135deg, rgba(47,133,88,0.32) 0%, rgba(12,30,74,0.94) 52%, #0b1d4a 100%)" }}
           />
           <span
             aria-hidden="true"

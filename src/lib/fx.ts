@@ -8,24 +8,11 @@
  *  - surekli hareket eden buyuk katmanlar + sayfa gecisindeki bulaniklik
  * Hafif modda bunlarin yerine ayni tonda dolu yuzey kalir; gorunum neredeyse ayni.
  *
- * Karar: kullanici secimi (Otomatik / Tam / Hafif) -> otomatikte cihaz bilgisi +
- * ilk saniyelerde kare hizi olcumu. Secim bir cerezde durur ki sunucu ilk
- * boyamada dogru sinifi (<html class="fx-lite">) basabilsin.
+ * Karar her zaman otomatik: cihaz bilgisi + ilk saniyelerde kare hizi olcumu.
+ * Kullaniciya secim gosterilmez (2026-11-08: "o secimleri kaldir").
  */
-export type FxPref = "auto" | "full" | "lite";
-export const FX_COOKIE = "ik_fx";
-
-export function parseFxPref(value: string | undefined | null): FxPref {
-  return value === "full" || value === "lite" ? value : "auto";
-}
-
 function root() {
   return document.documentElement;
-}
-
-export function fxPref(): FxPref {
-  const match = document.cookie.match(/(?:^|;\s*)ik_fx=([^;]+)/);
-  return parseFxPref(match?.[1]);
 }
 
 export const fxIsLite = () => root().classList.contains("fx-lite");
@@ -51,7 +38,7 @@ let probing = false;
  * giris sahnesi ~2 sn sonra kendini "Hafif"e alip tum hareketi durduruyordu.
  */
 export function probe() {
-  if (probing || fxPref() !== "auto" || fxIsLite()) return;
+  if (probing || fxIsLite()) return;
   if (document.visibilityState !== "visible") {
     document.addEventListener("visibilitychange", probe, { once: true });
     return;
@@ -61,7 +48,7 @@ export function probe() {
 }
 
 function measure() {
-  if (fxPref() !== "auto" || fxIsLite()) {
+  if (fxIsLite()) {
     probing = false;
     return;
   }
@@ -96,22 +83,13 @@ function measure() {
   requestAnimationFrame(step);
 }
 
-export function setFxPref(value: FxPref) {
-  const maxAge = value === "auto" ? 0 : 60 * 60 * 24 * 365;
-  document.cookie = `${FX_COOKIE}=${value}; path=/; max-age=${maxAge}; samesite=lax`;
-  apply(value === "lite" || (value === "auto" && guessFromDevice()));
-  if (value === "auto") probe();
-  window.dispatchEvent(new Event("ik-fx-change"));
-}
-
-/** Sayfa acilisinda bir kez: secimi uygula, sekme gorunurlugunu izle, gerekirse olc. */
+/** Sayfa acilisinda bir kez: cihaza gore duzeyi uygula, sekme gorunurlugunu izle, kare hizini olc. */
 export function initFx() {
-  const pref = fxPref();
-  apply(pref === "lite" || (pref === "auto" && guessFromDevice()));
+  apply(guessFromDevice());
   const setHidden = () => root().classList.toggle("is-hidden-tab", document.visibilityState !== "visible");
   document.addEventListener("visibilitychange", setHidden);
   setHidden();
-  if (pref === "auto") probe();
+  probe();
   return () => document.removeEventListener("visibilitychange", setHidden);
 }
 

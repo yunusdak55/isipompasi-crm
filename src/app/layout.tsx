@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { cookies } from "next/headers";
 import { Inter, Sora } from "next/font/google";
 import { FxController } from "@/components/layout/fx-controller";
-import { FX_COOKIE, parseFxPref } from "@/lib/fx";
 import "./globals.css";
 import "./iklim.css";
 
@@ -35,10 +33,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // ekleyebilir. Bu cagri tum sayfalari (login dahil) dinamik yapar - aksi halde
   // derleme aninda uretilen statik sayfalarda nonce olmaz ve CSP script'leri engeller.
   await connection();
-  // Kullanici "Hafif" sectiyse sinif ilk boyamada gelir (efektler bir kare bile acilmaz).
-  const fx = parseFxPref((await cookies()).get(FX_COOKIE)?.value);
   return (
-    <html lang="tr" className={`${inter.variable} ${sora.variable}${fx === "lite" ? " fx-lite" : ""}`} suppressHydrationWarning>
+    <html lang="tr" className={`${inter.variable} ${sora.variable}`} suppressHydrationWarning>
       <body>
         <FxController />
         {children}

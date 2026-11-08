@@ -32,7 +32,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             gap: "1rem",
             padding: "1.5rem",
             textAlign: "center",
-            background: "#0b1220",
+            background: "#071637",
             color: "#f4f6fb",
           }}
         >

@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
-import { FxSwitch } from "@/components/layout/fx-controller";
 import type { UserRole } from "@/lib/types/domain";
 
 type NavItem = {
@@ -268,8 +267,6 @@ export function Sidebar({ role }: { role: UserRole }) {
           </>
         ) : null}
       </nav>
-
-      <FxSwitch className="relative shrink-0 border-t border-[var(--line-soft)] px-4 py-3" />
     </aside>
   );
 }
