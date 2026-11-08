@@ -90,26 +90,22 @@ export default function LoginPage() {
     el.classList.add("is-shake");
   }, [state]);
 
-  // Basarili giris: sahne bulaniklasip cekilir, ardindan panel acilir ve "ilk giris" koreografisi oynar.
+  // Basarili giris: panel HEMEN istenir; sunucu cevap verene kadar sahne
+  // bulaniklasip cekilir (animasyon bekleme suresinin icinde oynar, ustune
+  // eklenmez - eskiden once 750 ms animasyon, SONRA istek vardi). Panel
+  // gelince "ilk giris" koreografisi oynar.
   useEffect(() => {
     const next = state.next;
     if (!next) return;
-    router.prefetch(next);
     try {
       window.sessionStorage.setItem("ik:arrive", "1");
     } catch {
       /* sessionStorage kapali olabilir: panel animasyonsuz acilir */
     }
-    if (reduceMotion()) {
-      router.replace(next);
-      return;
-    }
+    router.replace(next);
+    if (reduceMotion()) return;
     const raf = requestAnimationFrame(() => setLeaving(true));
-    const t = window.setTimeout(() => router.replace(next), 750);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearTimeout(t);
-    };
+    return () => cancelAnimationFrame(raf);
   }, [state, router]);
 
   const busy = isPending || !!state.next;
