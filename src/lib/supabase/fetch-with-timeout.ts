@@ -23,6 +23,36 @@ import { logPerf, parseSupabaseUrl } from "@/lib/perf-log";
 const SUPABASE_FETCH_TIMEOUT_MS = 10_000;
 
 /**
+ * HIZ (2026-11-08): Node'un fetch'i bos kalan baglantiyi 4 sn sonra kapatir
+ * (undici varsayilani). Kullanici tiklamalari arasi neredeyse hep 4 sn'den
+ * uzun oldugu icin her sayfa/kaydetme Supabase'e DNS + TCP + TLS ile SIFIRDAN
+ * baglaniyordu (olcum: ayni istek yeni baglantida 162 ms, acik baglantida
+ * 67 ms). Surecin kendi fetch ajaninin AYNI sinifindan (surum uyumsuzlugu
+ * olmasin diye paket eklemeden) bos bekleme suresi 60 sn olan bir ajan kurulur.
+ * Ajan ancak ilk fetch'ten sonra olusur; o yuzden her cagrida ucuz bir kontrol
+ * yapilir ve bir kez degistirilir. Basarisiz olursa hicbir sey bozulmaz
+ * (varsayilan davranis surer).
+ */
+const GLOBAL_DISPATCHER = Symbol.for("undici.globalDispatcher.1");
+const KEEP_ALIVE_MS = 60_000;
+let keepAliveTuned = false;
+
+function tuneKeepAlive() {
+  if (keepAliveTuned) return;
+  const store = globalThis as unknown as Record<symbol, unknown>;
+  const current = store[GLOBAL_DISPATCHER] as { constructor?: unknown } | undefined;
+  if (!current) return; // ajan henuz olusmadi: bir sonraki cagrida tekrar denenir
+  keepAliveTuned = true;
+  try {
+    const AgentClass = current.constructor as (new (options: object) => unknown) | undefined;
+    if (typeof AgentClass !== "function" || AgentClass.name !== "Agent") return;
+    store[GLOBAL_DISPATCHER] = new AgentClass({ keepAliveTimeout: KEEP_ALIVE_MS, keepAliveMaxTimeout: KEEP_ALIVE_MS * 4 });
+  } catch {
+    /* varsayilan ajan kalir */
+  }
+}
+
+/**
  * `requestId` middleware'de uretilip `x-request-id` header'i ile sayfa
  * render'ina tasinir (proxy.ts) - server.ts/admin.ts bunu `next/headers`
  * ile okuyup buraya verir. Middleware'in KENDI client'i (proxy.ts) requestId'yi
@@ -35,9 +65,11 @@ export function buildInstrumentedFetch(requestId: string | undefined): typeof fe
     const method = init?.method ?? "GET";
     const { op, table } = parseSupabaseUrl(url, method);
     const start = Date.now();
+    tuneKeepAlive();
 
     try {
       const res = await fetch(input, { ...init, signal: AbortSignal.timeout(SUPABASE_FETCH_TIMEOUT_MS) });
+      tuneKeepAlive();
       logPerf({
         requestId,
         layer: "supabase",

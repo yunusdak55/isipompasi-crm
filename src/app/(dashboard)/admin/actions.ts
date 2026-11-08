@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireProfile } from "@/lib/auth/session";
+import { invalidateProfileCache, requireProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { validatePassword } from "@/lib/auth/password";
@@ -146,6 +146,7 @@ export async function createCompanyWithOwnerAction(
     return { error: `Firma oluşturuldu ama ${verifyError} "Kullanıcılar" sayfasından tekrar deneyebilirsiniz.` };
   }
 
+  invalidateProfileCache();
   revalidatePath("/admin/companies");
   revalidatePath("/admin/users");
   revalidatePath("/admin/audit");
@@ -169,6 +170,7 @@ export async function toggleCompanyActiveAction(
     return { error: `Güncellenemedi: ${error.message}` };
   }
 
+  invalidateProfileCache();
   revalidatePath("/admin/companies");
   return { error: null };
 }
@@ -275,6 +277,7 @@ export async function deleteCompanyAction(companyId: string, prevState: DeleteCo
     return { error: `Firma silinemedi: ${error.message}` };
   }
 
+  invalidateProfileCache();
   revalidatePath("/admin/companies");
   revalidatePath("/admin/users");
   return { error: null };
@@ -307,6 +310,7 @@ export async function updateCompanyNameAction(
     return { error: `Güncellenemedi: ${error.message}` };
   }
 
+  invalidateProfileCache();
   revalidatePath("/admin/companies");
   revalidatePath("/admin/users");
   return { error: null };
@@ -362,6 +366,7 @@ export async function createCompanyUserAction(prevState: CreateUserState, formDa
   const verifyError = await verifyProfileProvisioned(adminClient, created.user.id);
   if (verifyError) return { error: `Kullanıcı oluşturulamadı: ${verifyError}` };
 
+  invalidateProfileCache();
   revalidatePath("/admin/users");
   revalidatePath("/admin/audit");
   return { error: null };
@@ -393,6 +398,7 @@ export async function toggleUserActiveAction(
   });
   if (banError) console.error("toggleUserActiveAction ban error:", banError.message);
 
+  invalidateProfileCache();
   revalidatePath("/admin/users");
   return { error: null };
 }

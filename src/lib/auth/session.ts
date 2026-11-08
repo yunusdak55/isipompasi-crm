@@ -91,21 +91,67 @@ export async function getClaimsCompanyHint(): Promise<string | null> {
   }
 }
 
-async function getCurrentProfileInner(): Promise<ProfileWithCompany | null> {
-  const supabase = await createClient();
+/**
+ * HIZ (2026-11-08, canli olcum: Supabase Nano'da tek tur 85-1000 ms): profil
+ * neredeyse hic degismez ama her sayfa ve HER kaydetme isleminin basinda
+ * sorgulaniyordu. Kaydetme islemlerinde bu SIRALI bir tur (once profil, sonra
+ * yazma) - tiklama basina bosuna bir veritabani turu. Surec belleginde kisa
+ * omurlu bir kopya tutulur:
+ *  - anahtar, imzasi YEREL dogrulanmis JWT'deki kullanici kimligi (sub); her
+ *    kullanici yalnizca KENDI profilini gorur, kullanicilar arasi sizma yok.
+ *  - 60 sn sonra bayatlar. Profil/firma degistiren islemler (admin, ayarlar)
+ *    invalidateProfileCache() ile hemen temizler.
+ *  - Guvenlik karari buna dayanmaz: pasif kullanici/firma veritabaninda RLS ile
+ *    ANINDA kesilir (migration 0026); bu kopya yalnizca ekranda gosterilecek
+ *    profili hizli verir.
+ */
+const PROFILE_TTL_MS = 60_000;
+const PROFILE_CACHE_MAX = 2_000;
+const profileCache = new Map<string, { profile: ProfileWithCompany; at: number }>();
 
+/** Profil veya firma degistiren her islemden sonra cagrilir (tum kopyalar silinir). */
+export function invalidateProfileCache() {
+  profileCache.clear();
+}
+
+/**
+ * Erisim jetonunun kalan suresi (sn) - ag turu yok, JWT'den okunur. Arka plan
+ * oturum yenilemesinin zamanlamasi icindir (bkz. components/layout/session-keeper.tsx).
+ */
+export async function getSessionSecondsLeft(): Promise<number | null> {
+  try {
+    const { data } = await withTimeout(getClaimsCached(), "getSessionSecondsLeft");
+    const exp = data?.claims?.exp;
+    return typeof exp === "number" ? Math.round(exp - Date.now() / 1000) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getCurrentProfileInner(): Promise<ProfileWithCompany | null> {
   const { data: claimsData } = await getClaimsCached();
   const userId = claimsData?.claims?.sub;
 
   if (!userId) return null;
 
+  const hit = profileCache.get(userId);
+  if (hit && Date.now() - hit.at < PROFILE_TTL_MS) return hit.profile;
+
+  const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
     .select("*, company:companies(name)")
     .eq("id", userId)
     .single();
 
-  return (profile as unknown as ProfileWithCompany | null) ?? null;
+  const result = (profile as unknown as ProfileWithCompany | null) ?? null;
+  if (result) {
+    if (profileCache.size >= PROFILE_CACHE_MAX) profileCache.clear();
+    profileCache.set(userId, { profile: result, at: Date.now() });
+  } else {
+    profileCache.delete(userId);
+  }
+  return result;
 }
 
 // DUZELTME (canli kanit 2026-09-30, bkz. lib/supabase/with-timeout.ts): tek

@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { headers } from "next/headers";
-import { getClaimsRoleHint, requireProfile } from "@/lib/auth/session";
+import { getClaimsRoleHint, getSessionSecondsLeft, requireProfile } from "@/lib/auth/session";
 import { getDueFollowups } from "@/lib/data/leads";
 import { getDueProspectFollowups } from "@/lib/data/prospects";
 import { AppShell } from "@/components/layout/app-shell";
@@ -31,9 +31,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // YALNIZCA ilgili sorgu profille paralel atilir; tahmin profille uyusmazsa
   // (nadir: rol yeni degismis, JWT eski) dogru sorgu ardindan calistirilir.
   const guessedAdmin = (await getClaimsRoleHint()) === "admin";
-  const [profile, guessedReminders] = await Promise.all([
+  const [profile, guessedReminders, sessionExpiresIn] = await Promise.all([
     requireProfile(),
     guessedAdmin ? getDueProspectFollowups() : getDueFollowups(),
+    getSessionSecondsLeft(),
   ]);
   const isAdmin = profile.role === "admin";
   const dueFollowups =
@@ -44,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   });
 
   return (
-    <AppShell profile={profile} companyName={profile.company?.name ?? null} dueFollowups={dueFollowups}>
+    <AppShell profile={profile} companyName={profile.company?.name ?? null} dueFollowups={dueFollowups} sessionExpiresIn={sessionExpiresIn}>
       {children}
     </AppShell>
   );

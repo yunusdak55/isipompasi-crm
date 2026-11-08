@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireProfile } from "@/lib/auth/session";
+import { invalidateProfileCache, requireProfile } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { friendlyDbError } from "@/lib/errors";
 
@@ -58,6 +58,7 @@ export async function updateCompanyAction(
     return { error: "Kaydedilemedi: bu firmayı güncelleme yetkiniz yok gibi görünüyor." };
   }
 
+  invalidateProfileCache();
   revalidatePath("/settings");
   return { error: null };
 }

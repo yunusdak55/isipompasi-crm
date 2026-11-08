@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { NavProgress } from "@/components/layout/nav-progress";
+import { SessionKeeper } from "@/components/layout/session-keeper";
 import { Ambient } from "@/components/decor/ambient";
 import { cn } from "@/lib/utils";
 import type { Profile } from "@/lib/types/domain";
@@ -19,11 +20,14 @@ export function AppShell({
   profile,
   companyName,
   dueFollowups,
+  sessionExpiresIn = null,
   children,
 }: {
   profile: Profile;
   companyName: string | null;
   dueFollowups: DueFollowup[];
+  /** Erisim jetonunun kalan suresi (sn); verilirse oturum arka planda yenilenir. */
+  sessionExpiresIn?: number | null;
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -75,6 +79,7 @@ export function AppShell({
         <div className="relative h-0">
           <Suspense fallback={null}>
             <NavProgress />
+            <SessionKeeper expiresIn={sessionExpiresIn} />
           </Suspense>
         </div>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:px-8 lg:pt-7">
