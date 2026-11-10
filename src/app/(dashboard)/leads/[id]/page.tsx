@@ -33,7 +33,6 @@ import { ActivityTimeline } from "@/components/ui/activity-timeline";
 import { ContactPersonPanel, type ContactPersonOption } from "@/components/leads/contact-person-panel";
 import { logLeadOutcomeAction } from "@/app/(dashboard)/leads/actions";
 import { SaleSection } from "@/components/leads/sale-section";
-import { AgentNotePanel } from "@/components/leads/agent-note-panel";
 import type { PropertyType, BuildingStatus, HeatingType, PurchaseTimeline } from "@/lib/types/domain";
 
 function normalizeName(name: string | null | undefined) {
@@ -254,8 +253,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        <div className="flex flex-col gap-5 lg:col-span-2">
+      <div className={canAssign ? "grid gap-5 lg:grid-cols-3" : "grid gap-5"}>
+        <div className={canAssign ? "flex flex-col gap-5 lg:col-span-2" : "flex flex-col gap-5"}>
           {/* GÖRÜŞME SONUCU - ajans admin panelindeki ile AYNI form (spec
               2026-10-02): "görüşmede ne oldu" notu zaman çizelgesine düşer;
               takip (gün sayısı), satış ve kayıp tek yerden. Ayrı "Sonraki
@@ -300,14 +299,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </Card>
         </div>
 
-        <div className="flex flex-col gap-5">
-          {/* AJAN GÖRÜŞÜ - dogrudan gorunur, duzenlemeye girmeden okunup
-              guncellenebilir (spec: "düzenlemeye basmadan görmeyelim"). */}
-          <AgentNotePanel leadId={id} notes={lead.notes} />
-
-          {/* GÖRÜŞEN KİŞİ - TEK kavram (eski "Satış Personeli Ata" + "Görüşen
-              Kişi" iki karti birlestirildi). Sadece owner degistirebilir. */}
-          {canAssign ? (
+        {/* AJAN GÖRÜŞÜ karti 2026-11-10'da herkes icin kaldirildi (kullanici istegi).
+            GÖRÜŞEN KİŞİ - TEK kavram (eski "Satış Personeli Ata" + "Görüşen
+            Kişi" iki karti birlestirildi). Sadece owner degistirebilir; digerlerinde
+            sag sutun hic yok, ust sutun tam genislik. */}
+        {canAssign ? (
+          <div className="flex flex-col gap-5">
             <Card hoverable className="animate-slide-up">
               <CardHeader>
                 <CardTitle>Görüşen Kişi</CardTitle>
@@ -316,8 +313,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 <ContactPersonPanel leadId={id} currentValue={contactValue} options={contactOptions} />
               </CardBody>
             </Card>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
