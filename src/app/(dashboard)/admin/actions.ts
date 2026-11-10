@@ -442,3 +442,65 @@ export async function setIntegrationStatusAction(
   revalidatePath("/admin/integrations");
   return { error: null };
 }
+
+// ----------------------------------------------------------------------------
+// WhatsApp bot hatlari (migration 0035). Hangi Meta hattinin (phone_number_id)
+// hangi firmaya ait oldugunu tutar; n8n'deki TEK workflow buna gore calisir.
+// Token TUTULMAZ (token n8n kimlik bilgisindedir). RLS: yalnizca admin yazar.
+// ----------------------------------------------------------------------------
+
+export type WhatsappLineState = { error: string | null; ok?: boolean };
+
+export async function addWhatsappLineAction(prevState: WhatsappLineState, formData: FormData): Promise<WhatsappLineState> {
+  await requireAdmin();
+  const companyId = String(formData.get("company_id") ?? "").trim();
+  const phoneNumberId = String(formData.get("phone_number_id") ?? "").trim();
+  const displayPhone = String(formData.get("display_phone") ?? "").trim() || null;
+
+  if (!companyId) return { error: "Firma seçin." };
+  if (!/^[0-9]{6,32}$/.test(phoneNumberId)) {
+    return { error: "Phone Number ID yalnızca rakamlardan oluşur (Meta → WhatsApp → API Setup ekranındaki numara kimliği)." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("whatsapp_lines")
+    .insert({ company_id: companyId, phone_number_id: phoneNumberId, display_phone: displayPhone });
+  if (error) {
+    console.error("addWhatsappLineAction error:", error.message);
+    return { error: error.code === "23505" ? "Bu hat zaten ekli." : `Eklenemedi: ${error.message}` };
+  }
+  revalidatePath("/admin/integrations");
+  return { error: null, ok: true };
+}
+
+export async function updateWhatsappLineAction(
+  lineId: string,
+  patch: { bot_enabled?: boolean; require_ad_referral?: boolean; test_mode?: boolean }
+): Promise<WhatsappLineState> {
+  await requireAdmin();
+  const clean: typeof patch = {};
+  for (const key of ["bot_enabled", "require_ad_referral", "test_mode"] as const) {
+    if (typeof patch[key] === "boolean") clean[key] = patch[key];
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("whatsapp_lines").update(clean).eq("id", lineId);
+  if (error) {
+    console.error("updateWhatsappLineAction error:", error.message);
+    return { error: `Güncellenemedi: ${error.message}` };
+  }
+  revalidatePath("/admin/integrations");
+  return { error: null };
+}
+
+export async function deleteWhatsappLineAction(lineId: string): Promise<WhatsappLineState> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.from("whatsapp_lines").delete().eq("id", lineId);
+  if (error) {
+    console.error("deleteWhatsappLineAction error:", error.message);
+    return { error: `Silinemedi: ${error.message}` };
+  }
+  revalidatePath("/admin/integrations");
+  return { error: null };
+}

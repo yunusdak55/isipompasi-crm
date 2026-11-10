@@ -470,6 +470,34 @@ export type Database = {
         Relationships: [];
       };
 
+      // migration 0035_whatsapp_bot.sql - WhatsApp bot hatlari (token TUTULMAZ)
+      whatsapp_lines: {
+        Row: {
+          id: string;
+          company_id: string;
+          phone_number_id: string;
+          display_phone: string | null;
+          bot_enabled: boolean;
+          require_ad_referral: boolean;
+          test_mode: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          phone_number_id: string;
+          display_phone?: string | null;
+          bot_enabled?: boolean;
+          require_ad_referral?: boolean;
+          test_mode?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["whatsapp_lines"]["Insert"]>;
+        Relationships: [];
+      };
+
       ai_reports: {
         Row: {
           id: string;

@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
-import { Plug } from "lucide-react";
+import { MessageCircle, Plug } from "lucide-react";
 import { requireProfile } from "@/lib/auth/session";
 import { getIntegrationsGrid, INTEGRATION_PROVIDERS } from "@/lib/data/admin";
 import { Card, CardHeader, CardTitle, CardBody } from "@/components/ui/card";
 import { IntegrationStatusSelect } from "@/components/admin/integration-status-select";
 import { HvacBackdrop } from "@/components/decor/hvac-backdrop";
 import { INTEGRATION_PROVIDER_LABELS } from "@/lib/constants/admin";
+import { createClient } from "@/lib/supabase/server";
+import { WhatsappLines, type WhatsappLineRow } from "@/components/admin/whatsapp-lines";
 
 /**
  * Ajans admin'in hangi musteride hangi entegrasyonun (WhatsApp/Meta Ads/n8n
@@ -15,7 +17,15 @@ import { INTEGRATION_PROVIDER_LABELS } from "@/lib/constants/admin";
  */
 export default async function AdminIntegrationsPage() {
   // PERF: profil ile veri ayni ag turunda (bkz. dashboard/page.tsx); veri RLS'li oturumla okunur.
-  const [profile, grid] = await Promise.all([requireProfile(), getIntegrationsGrid()]);
+  const supabase = await createClient();
+  const [profile, grid, linesRes] = await Promise.all([
+    requireProfile(),
+    getIntegrationsGrid(),
+    supabase
+      .from("whatsapp_lines")
+      .select("id, company_id, phone_number_id, display_phone, bot_enabled, require_ad_referral, test_mode")
+      .order("created_at"),
+  ]);
   if (profile.role !== "admin") {
     redirect("/dashboard");
   }
@@ -81,6 +91,23 @@ export default async function AdminIntegrationsPage() {
               </table>
             </div>
           )}
+        </CardBody>
+      </Card>
+
+      {/* WhatsApp bot hatlari: n8n'deki TEK workflow hangi hattin hangi firmaya ait
+          oldugunu buradan okur (migration 0035, docs/whatsapp-bot-kurulum.md). */}
+      <Card className="animate-slide-up">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 text-ink-400" />
+            WhatsApp Bot Hatları
+          </CardTitle>
+        </CardHeader>
+        <CardBody className="p-0">
+          <WhatsappLines
+            lines={(linesRes.data ?? []) as WhatsappLineRow[]}
+            companies={grid.map((row) => ({ id: row.companyId, name: row.companyName }))}
+          />
         </CardBody>
       </Card>
     </div>
