@@ -13,6 +13,7 @@
  * mutlaka calistirin. Yeni bir tablo/kolon/politika eklediginizde buraya
  * ilgili saldiri denemesini de ekleyin.
  *
+ * Canli proje icin: SECURITY_ENV_FILE=.env.production-backup.local npm run security:check
  * Gerekli ortam (.env.local): NEXT_PUBLIC_SUPABASE_URL,
  * NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY.
  */
@@ -20,8 +21,10 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
+// SECURITY_ENV_FILE ile baska bir proje secilebilir (ör. canli: .env.production-backup.local)
+const envFile = process.env.SECURITY_ENV_FILE || ".env.local";
 const env = {};
-fs.readFileSync(".env.local", "utf8")
+fs.readFileSync(envFile, "utf8")
   .split("\n")
   .forEach((line) => {
     const m = line.match(/^([A-Z_]+)=(.*)$/);
@@ -301,6 +304,67 @@ async function main() {
     // Geri acilinca mesru erisim donmeli (asiri-kilitleme olmasin)
     const r3 = await cOwnerA.from("leads").select("id");
     record("INFO", "Aktiflestirilince erisim geri gelir (mesru islev bozulmadi)", !noEffect(r3), `${r3.data?.length ?? 0} satir`);
+  }
+
+  // ------------------------------------------- 9) WhatsApp botu tablolari
+  {
+    const probe = await admin.from("whatsapp_lines").select("id").limit(1);
+    if (!probe.error) {
+      const { data: lineB } = await admin
+        .from("whatsapp_lines")
+        .insert({ company_id: coB.id, phone_number_id: `${tag}_line`, test_mode: true, bot_info: "gizli B bilgisi" })
+        .select("id")
+        .single();
+      const { data: convB } = await admin
+        .from("whatsapp_conversations")
+        .insert({ company_id: coB.id, line_id: lineB.id, wa_phone: "900000000003" })
+        .select("id")
+        .single();
+      await admin.from("whatsapp_messages").insert({ conversation_id: convB.id, role: "customer", body: "B firmasinin musterisi" });
+      const { data: convA } = await admin
+        .from("whatsapp_conversations")
+        .insert({ company_id: coA.id, wa_phone: "900000000001" })
+        .select("id")
+        .single();
+      await admin.from("whatsapp_messages").insert({ conversation_id: convA.id, role: "customer", body: "A firmasinin musterisi" });
+
+      const r1 = await cOwnerA.from("whatsapp_conversations").select("id").eq("company_id", coB.id);
+      const r2 = await cOwnerA.from("whatsapp_messages").select("id").eq("conversation_id", convB.id);
+      const r3 = await cOwnerA.from("whatsapp_lines").select("id, bot_info").eq("company_id", coB.id);
+      record("CRITICAL", "Baska firmanin WhatsApp sohbetleri/mesajlari/hatti OKUNAMAZ", [r1, r2, r3].every(noEffect));
+      const r4 = await anon.from("whatsapp_messages").select("id").limit(1);
+      const r5 = await anon.from("whatsapp_lines").select("id").limit(1);
+      record("CRITICAL", "Oturumsuz (anon) WhatsApp verisi OKUYAMAZ", noEffect(r4) && noEffect(r5));
+      const r6 = await cSalesA.from("whatsapp_messages").select("id").eq("conversation_id", convA.id);
+      record("MEDIUM", "Satis personeli ham WhatsApp yazismalarini okuyamaz (yalniz owner)", noEffect(r6));
+      const w1 = await cOwnerA.from("whatsapp_lines").insert({ company_id: coA.id, phone_number_id: `${tag}_hack` }).select("id");
+      const w2 = await cOwnerA.from("whatsapp_lines").update({ bot_info: "x" }).eq("company_id", coB.id).select("id");
+      const w3 = await cOwnerA.from("whatsapp_messages").insert({ conversation_id: convA.id, role: "bot", body: "sahte" }).select("id");
+      record("HIGH", "Kullanici WhatsApp hatti/mesaji EKLEYEMEZ, baska firmanin hattini DEGISTIREMEZ", [w1, w2, w3].every(noEffect));
+
+      const rpcs = [
+        ["wa_inbound", { p_phone_number_id: `${tag}_line`, p_wamid: `${tag}_w`, p_from: "900000000009", p_profile_name: "x", p_type: "text", p_text: "selam", p_referral: null }],
+        ["wa_context", { p_conversation_id: convB.id, p_message_id: 0 }],
+        ["wa_bot_reply", { p_conversation_id: convB.id, p_reply: "x", p_fields: {}, p_message_id: 0 }],
+        ["wa_close_stale", { p_idle: "1 hour" }],
+        ["agent_upsert_lead", { p_company_id: coB.id, p_phone: "05550000000", p_first_name: null, p_last_name: null, p_city: null, p_district: null, p_area_m2: null, p_product_interest: null, p_note: null }],
+      ];
+      // Fonksiyon adi/imzasi yanlis olursa "bulunamadi" hatasi da red gibi gorunur; once sunucu anahtariyla imzayi dogrula
+      const exists = async (fn, args) => {
+        const r = await admin.rpc(fn, args);
+        return !(r.error && r.error.code === "PGRST202");
+      };
+      for (const [fn, args] of rpcs) {
+        if (fn !== "wa_close_stale" && fn !== "agent_upsert_lead" && !(await exists(fn, args))) {
+          record("HIGH", `Bot fonksiyonu ${fn} test imzasi guncel degil`, false, "PGRST202");
+          continue;
+        }
+        const a = await anon.rpc(fn, args);
+        const o = await cOwnerA.rpc(fn, args);
+        record("CRITICAL", `Bot fonksiyonu ${fn} yalniz sunucu anahtariyla calisir (anon/kullanici cagiramaz)`, !!a.error && !!o.error,
+          `anon=${a.error ? "red" : "CALISTI"} owner=${o.error ? "red" : "CALISTI"}`);
+      }
+    }
   }
 
   // ---------------------------------------------- 8) Denetim kaydi (varsa)

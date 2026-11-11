@@ -10,6 +10,7 @@ const ACTION_LABELS: Record<string, { label: string; tone: "success" | "warning"
   INSERT: { label: "Ekleme", tone: "success" },
   UPDATE: { label: "Değişiklik", tone: "warning" },
   DELETE: { label: "Silme", tone: "danger" },
+  BOT_ERROR: { label: "Bot hatası", tone: "danger" },
 };
 
 const dateTime = new Intl.DateTimeFormat("tr-TR", {

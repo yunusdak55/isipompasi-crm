@@ -1,0 +1,64 @@
+{
+  "name": "WhatsApp Bot - Hata Kaydı",
+  "nodes": [
+    {
+      "id": "fb099ded-bf77-579b-a58e-4388e2c36fdc",
+      "name": "Botta Hata Oldu",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "2b041621-19c0-5f58-9eb3-bc49e41afdd3",
+      "name": "Denetim Kaydına Yaz (wa_log_error)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://dhnwcvirgnkpnlrurdap.supabase.co/rest/v1/rpc/wa_log_error",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_workflow: $json.workflow && $json.workflow.name, p_node: $json.execution && $json.execution.lastNodeExecuted, p_message: (function(e){ e = e || {}; return [e.message, e.description].filter(Boolean).join(': ') || 'bilinmeyen hata'; })($json.execution && $json.execution.error), p_execution: String(($json.execution && $json.execution.id) || '') }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "jHSd1FJtTriSFKqE",
+          "name": "Supabase account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Botta Hata Oldu": {
+      "main": [
+        [
+          {
+            "node": "Denetim Kaydına Yaz (wa_log_error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Istanbul"
+  }
+}

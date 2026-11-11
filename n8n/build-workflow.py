@@ -1,11 +1,14 @@
 """n8n/whatsapp-bot.json ureteci. Botun talimati: n8n/bot-istemi.txt.
 Kullanim: python3 n8n/build-workflow.py n8n n8n/whatsapp-bot.json && node scripts/n8n-deploy.mjs"""
-import json, re, sys, uuid
+import json, os, re, sys, uuid
 
 D = sys.argv[1]
 OUT = sys.argv[2]
 SUPABASE_URL = "https://dhnwcvirgnkpnlrurdap.supabase.co"
 SUPA_CRED = {"supabaseApi": {"id": "jHSd1FJtTriSFKqE", "name": "Supabase account"}}
+# "WhatsApp Bot - Hata Kaydı" workflow'unun n8n kimligi (n8n/build-hata-kaydi.py ile kurulur).
+# Botta yakalanmayan her hata (Supabase, WhatsApp gonderimi...) Denetim Kaydi'na yazilir.
+ERROR_WF_ID = "iC9iKT6rfIBMJJUa"
 OPENAI_CRED = {"openAiApi": {"id": "Mcu5ZOGxNWJMI0yP", "name": "OpenAI account"}}
 
 sp = open(f"{D}/bot-istemi.txt").read().strip()
@@ -159,6 +162,21 @@ out.reply_to_customer = r;
 return { json: { ...$json, output: out } };
 """
 
+FALLBACK_JS = r"""
+// Yapay zeka iki denemede de cevap veremezse (OpenAI kesintisi, bozuk cikti)
+// musteri sessiz kalmasin: kisa, dogru bir yedek cevap gider. Ayni yedek cevap
+// art arda gonderilmez. Hata ayrica Denetim Kaydi'na yazilir (wa_log_error).
+const ctx = $('İstemi Hazırla').item.json;
+const YEDEK = 'Mesajınızı aldım, ekibimiz en kısa sürede size dönüş yapacak.';
+const lastBot = [...(ctx.history || [])].reverse().find(h => h.role === 'bot');
+const already = lastBot && String(lastBot.body).includes(YEDEK);
+const err = $json.error && ($json.error.message || $json.error.description || String($json.error));
+return { json: {
+  output: { reply_to_customer: (already || ctx.phase === 'aftercare') ? '' : YEDEK, conversation_complete: false, summary_note: null },
+  log: { p_workflow: 'WhatsApp Bot - Çoklu Firma', p_node: 'Bot Cevabı (AI)', p_message: 'Yedek cevap gönderildi: ' + String(err || 'yapay zekâ cevap vermedi').slice(0, 400), p_execution: String($execution.id) },
+} };
+"""
+
 nodes = [
     node("Meta Doğrulama (GET)", "n8n-nodes-base.webhook", 2, [0, -300], {
         "path": "whatsapp", "httpMethod": "GET", "responseMode": "responseNode", "options": {}},
@@ -187,7 +205,10 @@ nodes = [
     node("İstemi Hazırla", "n8n-nodes-base.code", 2, [1420, -20], {"mode": "runOnceForEachItem", "jsCode": PROMPT_JS.strip()}),
     node("Bot Cevabı (AI)", "@n8n/n8n-nodes-langchain.agent", 3.1, [1660, -20], {
         "promptType": "define", "text": "={{ $json.prompt }}", "hasOutputParser": True,
-        "options": {"systemMessage": "={{ $json.system }}"}}, retryOnFail=True, maxTries=2),
+        "options": {"systemMessage": "={{ $json.system }}"}}, retryOnFail=True, maxTries=2,
+        onError="continueErrorOutput"),
+    node("Yedek Cevap (AI hata verirse)", "n8n-nodes-base.code", 2, [1860, 160], {"mode": "runOnceForEachItem", "jsCode": FALLBACK_JS.strip()}),
+    rpc("Hatayı Kaydet (wa_log_error)", "wa_log_error", [2080, 300], "={{ JSON.stringify($json.log) }}"),
     node("OpenAI Model", "@n8n/n8n-nodes-langchain.lmChatOpenAi", 1.3, [1600, 200], {
         "model": {"__rl": True, "value": "gpt-5.6-luna", "mode": "list", "cachedResultName": "gpt-5.6-luna"},
         "builtInTools": {}, "options": {"timeout": 30000, "maxRetries": 1}}, credentials=OPENAI_CRED),
@@ -213,7 +234,8 @@ nodes = [
         "options": {"timeout": 15000}}, retryOnFail=True, maxTries=3, waitBetweenTries=2000),
     node("Her 30 dakikada", "n8n-nodes-base.scheduleTrigger", 1.2, [0, 360], {
         "rule": {"interval": [{"field": "minutes", "minutesInterval": 30}]}}),
-    rpc("Yarım Kalanları Kapat (wa_close_stale)", "wa_close_stale", [240, 360], "={{ JSON.stringify({}) }}"),
+    # 1 saat cevapsiz kalan sohbet kapanir ve lead CRM'e yazilir (musteri 72 saat icinde donerse sohbet devam eder).
+    rpc("Yarım Kalanları Kapat (wa_close_stale)", "wa_close_stale", [240, 360], "={{ JSON.stringify({ p_idle: '1 hour' }) }}"),
 ]
 
 conn = lambda *targets: {"main": [[{"node": t, "type": "main", "index": 0} for t in targets]]}
@@ -229,7 +251,9 @@ connections = {
     "İstemi Hazırla": conn("Bot Cevabı (AI)"),
     "OpenAI Model": {"ai_languageModel": [[{"node": "Bot Cevabı (AI)", "type": "ai_languageModel", "index": 0}]]},
     "Çıktı Biçimi": {"ai_outputParser": [[{"node": "Bot Cevabı (AI)", "type": "ai_outputParser", "index": 0}]]},
-    "Bot Cevabı (AI)": conn("Cevabı Düzenle"),
+    "Bot Cevabı (AI)": {"main": [[{"node": "Cevabı Düzenle", "type": "main", "index": 0}],
+                                 [{"node": "Yedek Cevap (AI hata verirse)", "type": "main", "index": 0}]]},
+    "Yedek Cevap (AI hata verirse)": conn("Cevabı Düzenle", "Hatayı Kaydet (wa_log_error)"),
     "Cevabı Düzenle": conn("Cevabı ve Bilgileri Kaydet (wa_bot_reply)"),
     "Cevabı ve Bilgileri Kaydet (wa_bot_reply)": conn("Gönderilsin mi?"),
     "Gönderilsin mi?": {"main": [[{"node": "WhatsApp'a Gönder", "type": "main", "index": 0}], []]},
@@ -237,6 +261,7 @@ connections = {
 }
 
 wf = {"name": "WhatsApp Bot - Çoklu Firma", "nodes": nodes, "connections": connections,
-      "settings": {"executionOrder": "v1", "timezone": "Europe/Istanbul"}}
+      "settings": {"executionOrder": "v1", "timezone": "Europe/Istanbul",
+                   **({"errorWorkflow": ERROR_WF_ID} if ERROR_WF_ID else {})}}
 json.dump(wf, open(OUT, "w"), ensure_ascii=False, indent=2)
 print("ok", len(nodes), "node,", len(sp), "karakter istem")

@@ -17,6 +17,7 @@ const TABLE_LABELS: Record<string, string> = {
   companies: "Firma",
   integrations: "Entegrasyon",
   sales: "Satış",
+  whatsapp_bot: "WhatsApp botu",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -42,6 +43,11 @@ function formatValue(v: unknown): string {
 
 function summarize(action: string, tableName: string, changes: unknown): string {
   const c = (changes ?? {}) as Record<string, unknown>;
+  // n8n hata workflow'u (migration 0041 wa_log_error): hangi adim, ne hatasi
+  if (action === "BOT_ERROR") {
+    const msg = String(c.message ?? "");
+    return `${String(c.node ?? "?")}: ${msg.length > 160 ? `${msg.slice(0, 157)}…` : msg}`;
+  }
   if (action === "UPDATE") {
     return Object.entries(c)
       .slice(0, 4)

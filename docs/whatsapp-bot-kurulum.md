@@ -239,3 +239,13 @@ Alakasız, teknik, normal, dert yanan, boş yapan, ısrarla fiyat soran, ödeme 
 - **Kapanış mesajı:** Bir kez bozuk çıktı. Artık kodda sabitlendi; yalnızca adlı biçim ("Teşekkür ederim Hüseyin Bey, …") serbest.
 
 Not: 20 sohbet aynı anda gönderildiğinde bazı cevaplar 40 saniyeyi geçti. Gerçek trafikte mesajlar dağınık geldiği için bu beklenmiyor.
+
+## Hata ve maliyet korumaları (2026-11-11)
+
+**Hata durumları**
+- **Yapay zekâ cevap veremezse:** Müşteriye "Mesajınızı aldım, ekibimiz en kısa sürede size dönüş yapacak." gider (art arda değil). Hata, admin → Denetim Kaydı'na "Bot hatası" olarak yazılır.
+- **Başka bir adım hata verirse** (Supabase, WhatsApp gönderimi): "WhatsApp Bot - Hata Kaydı" workflow'u (`n8n/build-hata-kaydi.py`) hatayı Denetim Kaydı'na yazar. Bu workflow **aktif kalmalı**.
+
+**Sınırlar**
+- **Maliyet sınırı:** sohbet başına en fazla 12 bot cevabı, hat başına saatte en fazla 150. Sınır aşılınca bot susar, lead yine CRM'e düşer.
+- **Yarıda kalan sohbet:** 1 saat cevap gelmezse lead CRM'e yazılır. Not, müşterinin son mesajlarını içerir.
