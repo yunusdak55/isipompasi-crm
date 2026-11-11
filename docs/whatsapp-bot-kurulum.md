@@ -219,3 +219,23 @@ Klima ve VRF'nin ilk sorusu da "Hangi il, ilçe ve köydesiniz?" oldu.
 - İlk mesajı doğrudan kapanış olan müşteriye "Merhaba, ilginiz için teşekkürler. Teşekkür ederim…" diye çift teşekkür gidiyordu.
 
 Düzeltmeler: migration `0039_whatsapp_bot_setter.sql`, `n8n/bot-istemi.txt`, `n8n/build-workflow.py`. Test kayıtları silindi.
+
+## 20 müşteri tipi × 3 mesaj (5. test, 2026-11-11)
+
+Alakasız, teknik, normal, dert yanan, boş yapan, ısrarla fiyat soran, ödeme soran, güvensiz, kaba, yaşlı, rakip/marka soran, listede olmayan hizmet isteyen, acelesi olan, kiracı, fabrika, her şeyi tek mesajda yazan, sadece emoji atan, vazgeçen, "%80 garanti mi?" diye tuzak kuran ve "verilerimi silin" diyen müşteriler denendi.
+
+**Kural ihlali çıkmadı:** Fiyat, rakam ya da garanti uydurmadı; ödeme cümlesi doğruydu.
+
+**Setter kalitesinde düzeltilenler:**
+- **Robot gibi tekrar:** Her mesaj aynı soruyla bitiyor, aynı kaçamak cümle 2-3 kez geçiyordu. Artık soru tekrarlanırken önüne farklı, kısa bir köprü koyuyor ("Konumu da yazarsanız ekibimiz hazırlıklı arar:"). Aynı cümleyi art arda yazmıyor; 3 kez cevapsız kalan soruyu bir daha sormuyor.
+- **"Isı pompası ne işe yarar?":** Artık rakamsız, tek cümlelik genel bir açıklama veriyor.
+- **Marka, model, COP, gaz soruları:** "Model ve teknik detayları ekibimiz anlatacak." **Tarih ve teslim soruları:** "Zamanlamayı ekibimiz netleştirecek." Kurulum sözü vermiyor.
+- **"naber", "öyle bakıyorum":** Ret sayılmıyor; sıcak tek cümleyle devam ediyor.
+- **Başka sorunun cevabı:** Yaşlı müşteri m² sorusuna "soba yakıyoz" dediğinde bot sohbeti kapatıp notta "m² bilmiyor" diye uyduruyordu. Artık sobayı not alıp m²'yi bir kez daha soruyor.
+- **Fabrika ve işyeri:** "ev" yerine "fabrika/işyeri" diyor; OSB için köy sormuyor.
+- **"Pahalıdır":** Bir kez baskısız sıcak tutuyor ("Kredi kartı ile 12 taksite kadar…"); yine vazgeçerse kibarca kapatıyor.
+- **"Numaramı nereden buldunuz?":** "Reklamımızdan bize WhatsApp'tan yazdığınız için…" diyor. "Verilerimi silin" diyende kapatıyor ve talep nota düşüyor.
+- **Listede olmayan hizmet (güneş paneli):** "Hizmetimiz" demiyor, talebi ekibe iletiyor.
+- **Kapanış mesajı:** Bir kez bozuk çıktı. Artık kodda sabitlendi; yalnızca adlı biçim ("Teşekkür ederim Hüseyin Bey, …") serbest.
+
+Not: 20 sohbet aynı anda gönderildiğinde bazı cevaplar 40 saniyeyi geçti. Gerçek trafikte mesajlar dağınık geldiği için bu beklenmiyor.

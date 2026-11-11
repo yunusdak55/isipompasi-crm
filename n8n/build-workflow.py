@@ -142,6 +142,14 @@ const ctx = $('İstemi Hazırla').item.json;
 const out = { ...($json.output || {}) };
 let r = String(out.reply_to_customer || '').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim();
 const firstTurn = ctx.phase !== 'aftercare' && !(ctx.history || []).some(h => h.role === 'bot');
+// Kapanis mesaji her zaman birebir gider (yapay zeka kisaltip bozabiliyor).
+const KAPANIS = 'Teşekkür ederim, bilgilerinizi aldım. Ekibimiz ilk müsaitlikte sizi arayıp bilgilendirme sağlayacak.';
+if (out.conversation_complete === true && /bilgilerinizi aldım/i.test(r)) {
+  const named = r.match(/^(?:Merhaba, )?(Teşekkür ederim [^,.]{2,40} (?:Bey|Hanım)), bilgilerinizi aldım/i);
+  r = named ? named[1] + ', bilgilerinizi aldım. Ekibimiz ilk müsaitlikte sizi arayıp bilgilendirme sağlayacak.' : KAPANIS;
+}
+// "…anlıyorum; Hangi il…" gibi noktalı virgülden sonra büyük harf: cümleyi ayır.
+r = r.replace(/; (?=[A-ZÇĞİÖŞÜ])/g, '. ');
 const turkce = /[çğıöşüİ]/i.test(r);
 if (firstTurn && r && turkce && !/^merhaba/i.test(r)) {
   // Cevap zaten tesekkurle basliyorsa (ör. ilk mesajda kapanis) cift tesekkur olmasin.
