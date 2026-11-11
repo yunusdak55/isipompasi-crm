@@ -10,7 +10,7 @@ Sohbet bitince zaman çizelgesine tek bir **"Ön görüşme"** notu yazar. Satı
 |---|---|---|
 | Workflow "WhatsApp Bot - Çoklu Firma" | n8n (`n8n-7jne.iklimlen.com`), kaynak `n8n/whatsapp-bot.json` | Bütün firmalar için TEK workflow |
 | Yükleme | `node scripts/n8n-deploy.mjs [--activate]` | API anahtarı `~/.config/iklimlen/n8n.env` |
-| Veritabanı | migration `0035_whatsapp_bot.sql` (canlıda, 2026-11-10) | `whatsapp_lines`, `whatsapp_conversations`, `whatsapp_messages`, `wa_inbound`, `wa_bot_reply`, `wa_close_stale` |
+| Veritabanı | migration `0035`–`0037` (canlıda, 2026-11-10/11) | `whatsapp_lines`, `whatsapp_conversations`, `whatsapp_messages`, `wa_inbound`, `wa_bot_reply`, `wa_close_stale` |
 | Hangi hat hangi firma | Panel → Entegrasyonlar → **WhatsApp Bot Hatları** | Yeni müşteri buradan eklenir |
 | Sorular | Panel → Firma Ayarları → kategoriler (`agent_code` + `agent_questions`) | Firmaya göre |
 | Webhook | `https://n8n-7jne.iklimlen.com/webhook/whatsapp` (GET doğrulama + POST mesaj) | |
@@ -18,9 +18,14 @@ Sohbet bitince zaman çizelgesine tek bir **"Ön görüşme"** notu yazar. Satı
 ## Botun kuralları
 
 - **Reklam şartı:** Yeni sohbet yalnızca reklamdan gelen metin mesajıyla başlar (Meta `referral` bilgisi). Firma sahibinin eşiyle dostuyla yazışmasına karışmaz. Hat ayarında kapatılabilir.
-- **Sesli mesaj, resim, belge:** Bot cevap vermez. Geçmişe "[audio gönderildi]" diye işaret düşer.
+- **Sesli mesaj, resim, belge, konum:** Bot cevap vermez. Geçmişe "[audio gönderildi]" diye işaret düşer.
 - **Tekrar gelen mesaj:** Meta aynı mesajı iki kez gönderirse ikincisi işlenmez.
-- **Sohbet bitince:** Bot kapanış cümlesinden sonra susar; müşteriyi satış temsilcisi devralır.
+- **Sohbet bitince:** Bot kapanış cümlesinden sonra susar; müşteriyi satış temsilcisi devralır. Müşteri 7 gün içinde reklama tekrar tıklasa da bot soruları baştan sormaz.
+- **İlgilenmeyen müşteri:** "Yanlışlıkla bastım", "boşverin" diyene ısrar etmez; kibarca vedalaşır ve durumu nota yazar.
+- **Teknik soru:** Bilgi uydurmaz; "ekibimiz arayınca yanıtlayacak" der, soruyu nota yazar.
+- **Yabancı dil:** Müşteriye kendi dilinde cevap verir; panel notu her zaman Türkçedir.
+- **Ad:** WhatsApp profil adı (ör. işletme adı) yerine müşterinin sohbette söylediği ad yazılır. Panelde elle girilmiş ad değişmez.
+- **Konum ve tepki:** Konum harita linkiyle geçmişe kaydedilir; mesaja emoji bırakma (tepki) yok sayılır.
 - **Yarım kalan sohbet:** 3 saat sessiz kalırsa o ana kadar öğrenilenler "Ön görüşme (müşteri yanıtı yarıda kaldı)" notu olarak yazılır. Bu kontrol 30 dakikada bir çalışır.
 - **Panele dokunmadığı alanlar:** Bot durum, takip tarihi, görüşen kişi ve son temas alanlarını değiştirmez (bkz. `docs/whatsapp-agent-contract.md`).
 - **Test modu:** Hat test modundaysa cevap kaydedilir ama WhatsApp'a gönderilmez.
@@ -97,3 +102,30 @@ Test kayıtları silindi.
 **Ek düzeltmeler:**
 - **OpenAI süre sınırı:** Bir yapay zekâ çağrısı dakikalarca takılı kaldı. Modele 30 sn süre sınırı ve 1 yeniden deneme eklendi.
 - **Yarım kalan sohbet notu:** Müşteri hiçbir soruya cevap vermese bile yarım kalan sohbet notu yazılıyor.
+
+## 20 senaryolu 2. test (2026-11-11)
+
+| # | Senaryo | Sonuç |
+|---|---|---|
+| 1 | Yazım hatası, argo ("slm abi ısı pompsı fiyatı ne kdr") | Doğru anlaşıldı, not tam. |
+| 2 | BÜYÜK HARF + emoji (klima) | Doğru. |
+| 3 | m² yazıyla ("yüz altmış metrekare") | 160 m² yazıldı. |
+| 4 | "3+1 daire, metrekaresini bilmiyorum" | m² boş kaldı, notta "3+1, m² bilinmiyor". |
+| 5 | Teknik sorular (amorti, -15 °C) | **Düzeltildi:** önce soruları geçiştiriyordu; şimdi "ekibimiz yanıtlayacak" diyor, sorular nota yazılıyor. |
+| 6 | "Yarın 10'da keşfe gelin" | Tarih sözü vermedi; keşif isteği nota yazıldı. |
+| 7 | "Eşim arasın 0532 …" | **Düzeltildi:** başka numara nota düşmüyordu; şimdi düşüyor. |
+| 8 | Sadece fiyat istiyor, adres vermiyor, "boşverin" | **Düzeltildi:** aynı soruyu tekrar soruyordu; şimdi ısrar etmeden vedalaşıp "vazgeçti" notu yazıyor. |
+| 9 | "Yanlışlıkla bastım, ilgilenmiyorum" | **Düzeltildi:** sohbet açık ve notsuz kalıyordu; şimdi kapanıp "ilgilenmiyor" notu yazılıyor. |
+| 10 | İngilizce yazan müşteri | **Düzeltildi:** Türkçe cevap veriyordu; şimdi İngilizce cevap, Türkçe panel notu. |
+| 11 | Yalnızca 👍 | "Merhaba, nasıl yardımcı olabiliriz?" |
+| 12 | ~3.000 karakterlik mesaj, bütün bilgiler içinde | Tek cevapta kapandı, not tam. |
+| 13 | Isı pompasından klimaya geçiyor | Hizmet klima olarak kaydedildi; "vazgeçtim" kelimesi sohbeti yanlışlıkla kapatmadı. |
+| 14 | SQL / şablon / script karakterleri, profil adı "O'Brien" | Zarar yok; ad doğru, Bafra → Samsun. |
+| 15 | Sohbet ortasında konum + tepki | **Düzeltildi:** konum harita linkiyle saklanıyor, tepki yok sayılıyor. |
+| 16 | Cevap 2 sn arayla 3 parçada | Tek cevap. |
+| 17 | Bitmiş sohbetten sonra reklama tekrar tıklama | **Düzeltildi:** soruları baştan soruyordu; şimdi 7 gün sessiz. |
+| 18 | Aynı numara iki firmaya; firma B'nin hiç sorusu yok | İki ayrı lead, karışma yok; B'de genel sorular. |
+| 19 | Pasif firmanın hattı | Sessiz, kayıt yok. |
+| 20 | Profil "AD Kuaför", sohbette "Ben Ayşe Demir" | **Düzeltildi:** ad "AD Kuaför" kalıyordu; şimdi "Ayşe Demir". |
+
+Düzeltmeler: migration `0037_whatsapp_bot_round2.sql` + bot talimatı (`n8n/whatsapp-bot.json`). Test kayıtları silindi.
