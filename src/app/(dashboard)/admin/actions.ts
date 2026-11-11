@@ -109,10 +109,27 @@ export async function createCompanyWithOwnerAction(
   // dropdown'u BOMBOS geliyordu. Ayni varsayilan 4 kategoriyi burada da
   // tohumluyoruz - firma sahibi Firma Ayarları'ndan istedigi gibi
   // duzenler/siler/ekler, sadece bos baslamasin diye.
+  // WhatsApp botu yalnizca agent_code'u dolu kategorileri hizmet olarak tanir ve
+  // agent_questions'i sirayla sorar; bos kalirsa bot her musteriye genel sorulari
+  // sorar (2026-11-11'de ilk musteri firmada yakalandi). Panelde bunu duzenleyen
+  // ekran yok; varsayilanlar burada dolu gelir.
+  const LOCATION_Q = "Hangi il, ilçe ve köydesiniz?";
+  const AREA_Q = "Kaç m²'lik bir alan için düşünüyorsunuz?";
+  const CURRENT_Q = "Mevcut bir sisteminiz var mı, varsa ne kullanıyorsunuz?";
   const { error: categoriesError } = await supabase.from("product_categories").insert([
-    { company_id: company.id, label: "Isı Pompası", sort_order: 0 },
-    { company_id: company.id, label: "Klima", sort_order: 1 },
-    { company_id: company.id, label: "VRF/VRV Sistemi", sort_order: 2 },
+    {
+      company_id: company.id,
+      label: "Isı Pompası",
+      sort_order: 0,
+      agent_code: "heat_pump",
+      agent_questions: [
+        LOCATION_Q,
+        "Eviniz yaklaşık kaç m²?",
+        "Şu anda evinizi neyle ısıtıyorsunuz? (Doğalgaz, odun/kömür sobası, kalorifer, elektrik gibi.)",
+      ],
+    },
+    { company_id: company.id, label: "Klima", sort_order: 1, agent_code: "air_conditioner", agent_questions: [LOCATION_Q, AREA_Q, CURRENT_Q] },
+    { company_id: company.id, label: "VRF/VRV Sistemi", sort_order: 2, agent_code: "vrf", agent_questions: [LOCATION_Q, AREA_Q, CURRENT_Q] },
     { company_id: company.id, label: "Diğer", sort_order: 3 },
   ]);
   if (categoriesError) {

@@ -240,6 +240,8 @@ export type Database = {
           label: string;
           sort_order: number;
           created_at: string;
+          agent_code: string | null;
+          agent_questions: string[] | null;
         };
         Insert: {
           id?: string;
@@ -247,6 +249,8 @@ export type Database = {
           label: string;
           sort_order?: number;
           created_at?: string;
+          agent_code?: string | null;
+          agent_questions?: string[] | null;
         };
         Update: Partial<Database["public"]["Tables"]["product_categories"]["Insert"]>;
         Relationships: [
