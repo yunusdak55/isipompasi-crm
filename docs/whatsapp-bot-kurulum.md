@@ -10,7 +10,7 @@ Sohbet bitince zaman çizelgesine tek bir **"Ön görüşme"** notu yazar. Satı
 |---|---|---|
 | Workflow "WhatsApp Bot - Çoklu Firma" | n8n (`n8n-7jne.iklimlen.com`), kaynak `n8n/whatsapp-bot.json` | Bütün firmalar için TEK workflow |
 | Yükleme | `node scripts/n8n-deploy.mjs [--activate]` | API anahtarı `~/.config/iklimlen/n8n.env` |
-| Veritabanı | migration `0035`–`0037` (canlıda, 2026-11-10/11) | `whatsapp_lines`, `whatsapp_conversations`, `whatsapp_messages`, `wa_inbound`, `wa_bot_reply`, `wa_close_stale` |
+| Veritabanı | migration `0035`–`0038` (canlıda, 2026-11-10/11) | `whatsapp_lines`, `whatsapp_conversations`, `whatsapp_messages`, `wa_inbound`, `wa_bot_reply`, `wa_close_stale` |
 | Hangi hat hangi firma | Panel → Entegrasyonlar → **WhatsApp Bot Hatları** | Yeni müşteri buradan eklenir |
 | Sorular | Panel → Firma Ayarları → kategoriler (`agent_code` + `agent_questions`) | Firmaya göre |
 | Webhook | `https://n8n-7jne.iklimlen.com/webhook/whatsapp` (GET doğrulama + POST mesaj) | |
@@ -18,7 +18,9 @@ Sohbet bitince zaman çizelgesine tek bir **"Ön görüşme"** notu yazar. Satı
 ## Botun kuralları
 
 - **Reklam şartı:** Yeni sohbet yalnızca reklamdan gelen metin mesajıyla başlar (Meta `referral` bilgisi). Firma sahibinin eşiyle dostuyla yazışmasına karışmaz. Hat ayarında kapatılabilir.
-- **Sesli mesaj, resim, belge, konum:** Bot cevap vermez. Geçmişe "[audio gönderildi]" diye işaret düşer.
+- **Reklamın hazır mesajı:** Müşteri "Bununla ilgili bilgi alabilir miyim?" gibi hizmet söylemeden yazarsa bot tıkladığı reklama bakar ve o hizmetin sorularıyla başlar.
+- **Sesli mesaj, fotoğraf, belge, çıkartma:** Bot içeriğini dinleyemez/göremez, tahmin de etmez. "Sesli mesajınızı ekibimiz dinleyecek, kısaca yazabilirseniz not alayım" der ve bekleyen soruyu tekrar sorar.
+- **Kişi kartı:** Müşteri bir kişiyi paylaşırsa (ör. eşinin numarası) ad ve numara nota yazılır.
 - **Tekrar gelen mesaj:** Meta aynı mesajı iki kez gönderirse ikincisi işlenmez.
 - **Sohbet bitince:** Bot kapanış cümlesinden sonra susar; müşteriyi satış temsilcisi devralır. Müşteri 7 gün içinde reklama tekrar tıklasa da bot soruları baştan sormaz.
 - **İlgilenmeyen müşteri:** "Yanlışlıkla bastım", "boşverin" diyene ısrar etmez; kibarca vedalaşır ve durumu nota yazar.
@@ -26,7 +28,7 @@ Sohbet bitince zaman çizelgesine tek bir **"Ön görüşme"** notu yazar. Satı
 - **Yabancı dil:** Müşteriye kendi dilinde cevap verir; panel notu her zaman Türkçedir.
 - **Ad:** WhatsApp profil adı (ör. işletme adı) yerine müşterinin sohbette söylediği ad yazılır. Panelde elle girilmiş ad değişmez.
 - **Konum ve tepki:** Konum harita linkiyle geçmişe kaydedilir; mesaja emoji bırakma (tepki) yok sayılır.
-- **Yarım kalan sohbet:** 3 saat sessiz kalırsa o ana kadar öğrenilenler "Ön görüşme (müşteri yanıtı yarıda kaldı)" notu olarak yazılır. Bu kontrol 30 dakikada bir çalışır.
+- **Yarım kalan sohbet:** 3 saat sessiz kalırsa o ana kadar öğrenilenler "Ön görüşme (müşteri yanıtı yarıda kaldı)" notu olarak yazılır. Bu kontrol 30 dakikada bir çalışır. Müşteri 72 saat içinde geri yazarsa (ör. ertesi sabah) sohbet kaldığı yerden devam eder ve bitince tam not düşer.
 - **Panele dokunmadığı alanlar:** Bot durum, takip tarihi, görüşen kişi ve son temas alanlarını değiştirmez (bkz. `docs/whatsapp-agent-contract.md`).
 - **Test modu:** Hat test modundaysa cevap kaydedilir ama WhatsApp'a gönderilmez.
 
@@ -129,3 +131,33 @@ Test kayıtları silindi.
 | 20 | Profil "AD Kuaför", sohbette "Ben Ayşe Demir" | **Düzeltildi:** ad "AD Kuaför" kalıyordu; şimdi "Ayşe Demir". |
 
 Düzeltmeler: migration `0037_whatsapp_bot_round2.sql` + bot talimatı (`n8n/whatsapp-bot.json`). Test kayıtları silindi.
+
+## 10 riskli senaryoluk 3. test (2026-11-11)
+
+Önceki turların hatalarından türetildi.
+
+| # | Senaryo | Sonuç |
+|---|---|---|
+| B1 | Reklamın hazır mesajı: "Bununla ilgili daha fazla bilgi alabilir miyim?" | **Düzeltildi:** "nasıl yardımcı olabiliriz" deyip sonra "hangi hizmet?" diye soruyordu; şimdi reklama bakıp doğrudan ısı pompası sorularına başlıyor. |
+| B2 | Sohbet ortasında sesli mesaj | **Düzeltildi:** bot susuyordu; şimdi "kısaca yazabilir misiniz" deyip soruyu tekrarlıyor. |
+| B3 | "Yarıda kaldı" notundan sonra müşteri ertesi gün cevap veriyor | **Düzeltildi:** cevap yok sayılıyordu; şimdi sohbet devam ediyor, sonunda tam not düşüyor. |
+| B4 | Profil adı "🌹 Ayşe Kaya 🌹" | Ad "Ayşe Kaya" olarak kaydedildi (emoji temizliği veritabanına da eklendi). |
+| B5 | "Şimdilik sadece bilgi" + "hayır" cevabı | İlgisizlik sanılmadı, normal kapandı. |
+| B6 | "Firmanız nerede, garanti kaç yıl, adresinizi yazın" | Bilgi uydurmadı, ekibe yönlendirdi. |
+| B7 | "1.250 metrekare fabrika" | 1250 m² yazıldı. |
+| B8 | İki hizmet + "2 katlı, her katı 90" | 180 m²; notta iki hizmet de var (hizmet alanına biri yazılıyor). |
+| B9 | "ben mehmet ali yıldız" | "Mehmet Ali Yıldız" olarak kaydedildi. |
+| B10 | Çıkartma + kişi kartı (eşinin numarası) | **Düzeltildi:** kişi kartı okunmuyordu, numara kayboluyordu; şimdi numara nota düşüyor. |
+
+Sonra 1. ve 2. turun 26 senaryosu yeniden çalıştırıldı, bozulan bir şey çıkmadı. Bilinçli değişiklik: Reklamdan sadece "Merhaba" ya da "👍" yazana bot artık doğrudan reklamdaki hizmetin sorularıyla başlıyor.
+
+Düzeltmeler: migration `0038_whatsapp_bot_round3.sql` + `n8n/whatsapp-bot.json`. Test kayıtları silindi.
+
+## Canlıya çıkmadan önce (Meta bağlanınca)
+
+1. **İmza doğrulaması:** Webhook şu an herkese açık. Meta uygulaması açılınca gelen isteklerin `X-Hub-Signature-256` imzası uygulama gizli anahtarıyla doğrulanmalı; sahte mesajla lead açılmasın.
+2. **`TEST_IKLIMLEN` hattı:** Canlıya çıkınca kaldırılmalı ya da botu kapatılmalı (bu kimliği bilen biri İklimlen paneline sahte lead düşürebilir).
+3. **Gerçek uçtan uca test:** Kendi telefonundan reklam bağlantısıyla yazılıp cevabın WhatsApp'a ulaştığı görülmeli (şimdiye kadar hep test modu).
+4. **Gönderim hatası alarmı:** Meta token'ı biterse cevaplar gitmez; n8n'de hata olunca haber veren bir hata akışı kurulmalı.
+5. **Sesli mesajı yazıya çevirme (isteğe bağlı):** Meta token'ı gelince sesli mesaj indirilip yazıya çevrilebilir; bot sesli cevapları da anlar.
+6. **Satış personeli görünürlüğü:** Bot leadleri atanmamış açılır; firma sahibi görür, "satış" rolündeki personel atanınca görür (CRM'deki diğer lead kaynaklarıyla aynı).
