@@ -1,0 +1,168 @@
+{
+  "name": "Bot Deneme Sohbeti",
+  "nodes": [
+    {
+      "id": "33420c0d-b58b-550f-a800-b9ba70eae039",
+      "name": "Sohbet (müşteri gibi yaz)",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "options": {}
+      },
+      "webhookId": "d583f0e8-e773-55c4-99ec-a186ff09aa5b"
+    },
+    {
+      "id": "103e0969-4765-5cca-b4e0-a11ce5043282",
+      "name": "Mesajı Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Sohbet oturumu -> sabit bir test numarasi (her yeni oturum yeni musteri).\nconst sid = String($json.sessionId || 'deneme');\nlet h = 7;\nfor (const ch of sid) h = (h * 31 + ch.charCodeAt(0)) % 10000;\nconst phone = '90555009' + String(h).padStart(4, '0');\nconst text = String($json.chatInput || '').trim();\nconst now = Date.now();\nconst m = { from: phone, id: 'deneme.' + now + '.' + Math.random().toString(36).slice(2, 8), timestamp: String(Math.floor(now / 1000)) };\nconst cmd = text.toLowerCase();\nif (cmd === '/ses') { m.type = 'audio'; m.audio = { id: 'deneme', mime_type: 'audio/ogg', voice: true }; }\nelse if (cmd === '/foto') { m.type = 'image'; m.image = { id: 'deneme', mime_type: 'image/jpeg' }; }\nelse if (cmd === '/konum') { m.type = 'location'; m.location = { latitude: 41.5636, longitude: 35.9071 }; }\nelse { m.type = 'text'; m.text = { body: text }; }\n// Her mesaj reklamdan gelmis gibi isaretlenir (reklam: isi pompasi).\nm.referral = { source_type: 'ad', source_id: 'deneme', headline: 'Isı pompasıyla faturanızı düşürün',\n               body: 'Kışın doğalgaz faturasına son.' };\nconst payload = { object: 'whatsapp_business_account', entry: [{ id: '0', changes: [{ field: 'messages', value: {\n  messaging_product: 'whatsapp', metadata: { phone_number_id: 'TEST_IKLIMLEN' },\n  contacts: [{ profile: { name: 'Deneme Müşteri' }, wa_id: phone }], messages: [m] } }] }] };\nreturn [{ json: { phone, panelPhone: '0' + phone.slice(2), sentAt: new Date(now - 1000).toISOString(), payload } }];"
+      }
+    },
+    {
+      "id": "f20736c2-3628-5f73-8283-8d236018c45e",
+      "name": "Bota Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-7jne.iklimlen.com/webhook/whatsapp",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "71b2ffbc-f44d-58f3-a0d3-90c719f19db2",
+      "name": "Botun Cevabını Bekle (15 sn)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "webhookId": "68ac378e-0b4a-5281-b3eb-52bb40bf431f"
+    },
+    {
+      "id": "a898cb3a-b6c9-5164-b038-d1d12fdf4b02",
+      "name": "Cevabı Oku",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://dhnwcvirgnkpnlrurdap.supabase.co/rest/v1/whatsapp_conversations?select=whatsapp_messages(id,role,body,created_at)&order=started_at.desc&limit=1&wa_phone=eq.' + $('Mesajı Hazırla').first().json.phone }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "jHSd1FJtTriSFKqE",
+          "name": "Supabase account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "4b09a2d1-a871-5e06-b236-1bb52a068249",
+      "name": "Cevabı Göster",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Bu mesajdan sonra botun yazdigi cevap(lar).\nconst prep = $('Mesajı Hazırla').first().json;\nconst since = new Date(prep.sentAt).getTime();\nconst msgs = [];\nfor (const it of $input.all()) {\n  for (const m of (it.json.whatsapp_messages || [])) {\n    if (m.role === 'bot' && new Date(m.created_at).getTime() > since) msgs.push(m);\n  }\n}\nmsgs.sort((a, b) => a.id - b.id);\nlet out = msgs.map(m => m.body).join('\\n\\n');\nif (!out) {\n  out = '(Bot cevap vermedi. \"tamam\", \"👍\" gibi cevap gerektirmeyen bir mesajsa ya da sohbet bittikten sonraki kısa cevap hakkı dolduysa bu normaldir.)';\n}\nif (/bilgilerinizi aldım/i.test(out)) {\n  out += '\\n\\n— Ön görüşme bitti. Panelde bu müşteri: ' + prep.panelPhone + ' (İklimlen). Yeni müşteri gibi denemek için sohbeti sıfırla.';\n}\nreturn [{ json: { output: out } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Sohbet (müşteri gibi yaz)": {
+      "main": [
+        [
+          {
+            "node": "Mesajı Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mesajı Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Bota Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bota Gönder": {
+      "main": [
+        [
+          {
+            "node": "Botun Cevabını Bekle (15 sn)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Botun Cevabını Bekle (15 sn)": {
+      "main": [
+        [
+          {
+            "node": "Cevabı Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cevabı Oku": {
+      "main": [
+        [
+          {
+            "node": "Cevabı Göster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Istanbul"
+  }
+}

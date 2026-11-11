@@ -25,7 +25,9 @@ const KEY = env.N8N_API_KEY;
 const BASE = (env.N8N_URL || "https://n8n-7jne.iklimlen.com").replace(/\/$/, "");
 if (!KEY) throw new Error(`${envFile} icinde N8N_API_KEY yok`);
 
-const file = new URL("../n8n/whatsapp-bot.json", import.meta.url);
+// Istege bagli ilk arguman: baska bir workflow dosyasi (ör. n8n/bot-deneme.json)
+const fileArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
+const file = fileArg ? path.resolve(fileArg) : new URL("../n8n/whatsapp-bot.json", import.meta.url);
 const wf = JSON.parse(fs.readFileSync(file, "utf8"));
 const body = { name: wf.name, nodes: wf.nodes, connections: wf.connections, settings: wf.settings };
 

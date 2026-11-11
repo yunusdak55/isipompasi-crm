@@ -68,6 +68,18 @@ n8n'e dokunulmaz.
 
 ## Sınama
 
+**En kolay yol: n8n'deki sohbet penceresi.**
+1. n8n'de **Bot Deneme Sohbeti** akışını aç.
+2. Alttaki **Open chat** düğmesine bas.
+3. Müşteri gibi yaz.
+
+Her mesaj gerçek bota `TEST_IKLIMLEN` test hattından gider; WhatsApp'a hiçbir şey gönderilmez. Botun cevabı yaklaşık 15 saniye sonra pencerede görünür.
+- **Komutlar:** `/ses` sesli mesaj, `/foto` fotoğraf, `/konum` konum gönderir.
+- **Kayıt:** Ön görüşme bitince açılan lead'in numarası yazılır (`0555 009 …`). Lead panelde İklimlen altında, notuyla birlikte görünür.
+- **Yeni müşteri:** Sohbeti sıfırlayınca yeni müşteri gibi başlar.
+- **Kaynak:** `n8n/build-deneme.py`. Yüklemek için: `python3 n8n/build-deneme.py n8n/bot-deneme.json && node scripts/n8n-deploy.mjs n8n/bot-deneme.json`. Akış aktif değildir, yalnızca n8n ekranından çalışır.
+
+
 `TEST_IKLIMLEN` adlı bir test hattı İklimlen firmasında test modunda durur; Meta bu numarayı hiç göndermez.
 
 Meta biçiminde sahte bir mesaj göndermek için:
