@@ -23,7 +23,7 @@ export default async function AdminIntegrationsPage() {
     getIntegrationsGrid(),
     supabase
       .from("whatsapp_lines")
-      .select("id, company_id, phone_number_id, display_phone, bot_enabled, require_ad_referral, test_mode")
+      .select("id, company_id, phone_number_id, display_phone, bot_enabled, require_ad_referral, test_mode, bot_info")
       .order("created_at"),
   ]);
   if (profile.role !== "admin") {

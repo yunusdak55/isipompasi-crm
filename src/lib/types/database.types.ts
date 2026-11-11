@@ -480,6 +480,7 @@ export type Database = {
           bot_enabled: boolean;
           require_ad_referral: boolean;
           test_mode: boolean;
+          bot_info: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -491,6 +492,7 @@ export type Database = {
           bot_enabled?: boolean;
           require_ad_referral?: boolean;
           test_mode?: boolean;
+          bot_info?: string | null;
           created_at?: string;
           updated_at?: string;
         };

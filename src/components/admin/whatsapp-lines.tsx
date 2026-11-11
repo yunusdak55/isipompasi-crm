@@ -18,6 +18,7 @@ export type WhatsappLineRow = {
   bot_enabled: boolean;
   require_ad_referral: boolean;
   test_mode: boolean;
+  bot_info: string | null;
 };
 
 type Flag = "bot_enabled" | "require_ad_referral" | "test_mode";
@@ -56,6 +57,56 @@ function FlagToggle({ line, flag }: { line: WhatsappLineRow; flag: (typeof FLAGS
       <span className="text-ink-700">{flag.label}</span>
       {error ? <span className="text-[10px] text-[#ffb4a3]">{error}</span> : null}
     </label>
+  );
+}
+
+function BotInfo({ line }: { line: WhatsappLineRow }) {
+  const [value, setValue] = useState(line.bot_info ?? "");
+  const [saved, setSaved] = useState(line.bot_info ?? "");
+  const [isPending, startTransition] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  const dirty = value.trim() !== saved.trim();
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex flex-col gap-1.5 text-xs text-ink-600">
+        Botun müşteriye söyleyebileceği firma bilgileri
+        <textarea
+          value={value}
+          maxLength={2000}
+          rows={2}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setMsg(null);
+          }}
+          placeholder='ör. Ödeme: Müşteri ödeme yöntemini sorarsa aynen şunu söyle: "Kredi kartı ile 12 taksite kadar yardımcı olunabiliyor."'
+          className="ik-input min-h-[60px] resize-y"
+        />
+      </label>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={!dirty || isPending}
+          onClick={() =>
+            startTransition(async () => {
+              const res = await updateWhatsappLineAction(line.id, { bot_info: value });
+              if (res.error) setMsg(res.error);
+              else {
+                setSaved(value);
+                setMsg("Kaydedildi");
+              }
+            })
+          }
+          className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-ink-700 transition-colors hover:text-ink-900 disabled:opacity-40"
+        >
+          {isPending ? "Kaydediliyor…" : "Kaydet"}
+        </button>
+        <span className="text-[11px] text-ink-500">
+          Bot yalnızca burada yazanları söyler; adres, garanti, fiyat gibi bilgileri uydurmaz.
+        </span>
+        {msg ? <span className={cn("text-[11px]", msg === "Kaydedildi" ? "text-ink-600" : "text-[#ffb4a3]")}>{msg}</span> : null}
+      </div>
+    </div>
   );
 }
 
@@ -117,7 +168,8 @@ export function WhatsappLines({
       ) : (
         <ul className="divide-y divide-line">
           {lines.map((line) => (
-            <li key={line.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <li key={line.id} className="flex flex-col gap-3 px-5 py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="font-medium text-ink-900">{nameOf(line.company_id)}</p>
                 <p className="text-xs text-ink-600">
@@ -130,6 +182,8 @@ export function WhatsappLines({
                 ))}
                 <DeleteLine lineId={line.id} />
               </div>
+              </div>
+              <BotInfo line={line} />
             </li>
           ))}
         </ul>

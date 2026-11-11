@@ -9,8 +9,9 @@ Sohbet bitince zaman çizelgesine tek bir **"Ön görüşme"** notu yazar. Satı
 | Parça | Nerede | Not |
 |---|---|---|
 | Workflow "WhatsApp Bot - Çoklu Firma" | n8n (`n8n-7jne.iklimlen.com`), kaynak `n8n/whatsapp-bot.json` | Bütün firmalar için TEK workflow |
+| Botun talimatı | `n8n/bot-istemi.txt` | Değiştirince: `python3 n8n/build-workflow.py n8n n8n/whatsapp-bot.json && node scripts/n8n-deploy.mjs` |
 | Yükleme | `node scripts/n8n-deploy.mjs [--activate]` | API anahtarı `~/.config/iklimlen/n8n.env` |
-| Veritabanı | migration `0035`–`0038` (canlıda, 2026-11-10/11) | `whatsapp_lines`, `whatsapp_conversations`, `whatsapp_messages`, `wa_inbound`, `wa_bot_reply`, `wa_close_stale` |
+| Veritabanı | migration `0035`–`0039` (canlıda, 2026-11-10/11) | `whatsapp_lines`, `whatsapp_conversations`, `whatsapp_messages`, `wa_inbound`, `wa_bot_reply`, `wa_close_stale` |
 | Hangi hat hangi firma | Panel → Entegrasyonlar → **WhatsApp Bot Hatları** | Yeni müşteri buradan eklenir |
 | Sorular | Panel → Firma Ayarları → kategoriler (`agent_code` + `agent_questions`) | Firmaya göre |
 | Webhook | `https://n8n-7jne.iklimlen.com/webhook/whatsapp` (GET doğrulama + POST mesaj) | |
@@ -59,8 +60,9 @@ Token yalnızca n8n'de durur; panelde, veritabanında ve bu repoda yoktur.
    - Firmayı seç.
    - **Phone Number ID**'yi yaz (Meta → WhatsApp → API Setup ekranındaki numara kimliği; telefon numarasının kendisi değil).
    - Önce **Test modu**nu açık bırakıp kendi telefonundan reklam bağlantısıyla yaz. Cevaplar panele düşüyorsa test modunu kapat.
-4. **Soruları gir:** Firma Ayarları'nda her hizmetin `agent_code`'u ve soruları girilir. Sorusu olmayan hizmette bot genel il/ilçe + m² sorularını sorar.
-5. **Reklamı bağla:** Reklam "WhatsApp'a mesaj gönder" hedefiyle bu numaraya bağlanır.
+4. **Firma bilgisini gir:** Aynı hat kartındaki "Botun müşteriye söyleyebileceği firma bilgileri" kutusuna, botun söylemesine izin verilen bilgiler yazılır (ör. ödeme/taksit). Bot burada olmayan hiçbir firma bilgisini (adres, garanti, fiyat) söylemez.
+5. **Soruları gir:** Firma Ayarları'nda her hizmetin `agent_code`'u ve soruları girilir. Sorusu olmayan hizmette bot genel il/ilçe + m² sorularını sorar.
+6. **Reklamı bağla:** Reklam "WhatsApp'a mesaj gönder" hedefiyle bu numaraya bağlanır.
 
 n8n'e dokunulmaz.
 
@@ -161,3 +163,47 @@ Düzeltmeler: migration `0038_whatsapp_bot_round3.sql` + `n8n/whatsapp-bot.json`
 4. **Gönderim hatası alarmı:** Meta token'ı biterse cevaplar gitmez; n8n'de hata olunca haber veren bir hata akışı kurulmalı.
 5. **Sesli mesajı yazıya çevirme (isteğe bağlı):** Meta token'ı gelince sesli mesaj indirilip yazıya çevrilebilir; bot sesli cevapları da anlar.
 6. **Satış personeli görünürlüğü:** Bot leadleri atanmamış açılır; firma sahibi görür, "satış" rolündeki personel atanınca görür (CRM'deki diğer lead kaynaklarıyla aynı).
+
+## Setter talimatı ve 10 senaryoluk 4. test (2026-11-11)
+
+**İklimlen ısı pompası soruları** (Firma Ayarları'nda):
+1. Hangi il, ilçe ve köydesiniz?
+2. Eviniz yaklaşık kaç m²?
+3. Şu anda evinizi neyle ısıtıyorsunuz? (Doğalgaz, odun/kömür sobası, kalorifer, elektrik gibi.)
+
+Klima ve VRF'nin ilk sorusu da "Hangi il, ilçe ve köydesiniz?" oldu.
+
+**Kapanış mesajı:** "Teşekkür ederim, bilgilerinizi aldım. Ekibimiz ilk müsaitlikte sizi arayıp bilgilendirme sağlayacak." Ad biliniyorsa "Teşekkür ederim Hüseyin Bey, …".
+
+**Botun davranışı:**
+- **İlk mesaj:** Her zaman "Merhaba, ilginiz için teşekkürler." ile başlar. Ardından müşteri bir şey sorduysa tek cümle cevap verir, sormadıysa "birkaç kısa sorum olacak" der ve ilk soruyu sorar.
+- **Mesaj boyu:** En fazla 220 karakter. Emoji yok, yapmacık nezaket yok. Her mesajda tek soru.
+- **Sorular:** Listedeki ifadeyle, kelimesi kelimesine sorulur. Müşterinin herhangi bir mesajında cevabı olan soru sorulmaz.
+- **Konum:** Yalnızca il yazana bir kez "Hangi ilçe ve köydesiniz?" diye sorar. İlçe yazandan köy istemez.
+- **Ad:** Yalnızca kapanışta, "Ad + Bey/Hanım" biçiminde kullanılır.
+- **Dert anlatan müşteri:** Tek cümle anlayış gösterir, akıl vermez.
+- **Teknik konular:** Teknik uygunluk, tahmini fatura, tasarruf oranı, fiyat ve geri dönüş süresi hakkında rakam ya da garanti vermez. "Ekibimiz evinizin bilgilerine göre hesaplayıp iletecek" der.
+- **Ödeme:** Yalnızca hattın firma bilgisinde yazanı söyler. İklimlen için: "Kredi kartı ile 12 taksite kadar yardımcı olunabiliyor."
+- **Fiyatta ısrar:** Israrı ret saymaz; kısa bir cümleyle cevap verip aynı soruyu tekrar sorar.
+- **"Bot musun?":** Dürüstçe dijital asistan olduğunu söyler. **"Dolandırıcı mısınız?":** Sakin, kısa cevap verir.
+- **Kapanıştan sonra 24 saat:** Kısa cevap verir (en fazla 3). "Tamam" ya da "👍" yazana cevap vermez. Yeni bilgi zaman çizelgesine "Ek bilgi (ön görüşmeden sonra)" notu olarak düşer. Sonrasında susar.
+- **Son kontrol (kodda):** Yapay zekâ ilk mesajda selamı unutursa "Cevabı Düzenle" adımı ekler.
+
+| # | Senaryo | Sonuç |
+|---|---|---|
+| C1 | Tam akış, köy ("Samsun Bafra Doğancı köyü") | 3 soru birebir, kapanış birebir; ilçe "Bafra / Doğancı köyü". (İlk denemede m² sorusunu klimanın cümlesiyle soruyordu, düzeltildi.) |
+| C2 | Reklamın hazır mesajı + yalnızca "Samsun" | Bir kez "Hangi ilçe ve köydesiniz?" sordu, sonra devam etti. |
+| C3 | "Taksit var mı, kredi kartı geçiyor mu?" | Ödeme cümlesini aynen söyledi, soruya geçti. |
+| C4 | "Faturam ne kadar düşer, yüzde kaç tasarruf, garanti?" | Rakam ve garanti vermedi. (İlk denemede selam yoktu, düzeltildi.) |
+| C5 | Fiyatta ısrar | **Düzeltildi:** ısrarı "cevap vermiyor" sayıp konumu atlıyor, sonra "Köyünüz var mı?" diye gereksiz soruyordu. |
+| C6 | "Ben Hüseyin… akşam 7'den sonra arayın" | **Düzeltildi:** selamsız başlıyor, her mesajda "Hüseyin" diyordu. Şimdi ad yalnızca kapanışta ("Hüseyin Bey"); arama saati nota yazıldı. |
+| C7 | Kapanıştan sonra "teşekkürler", eşin numarası, "tamam" | "Rica ederim, iyi günler."; numara "Ek bilgi" notu olarak düştü; "tamam"a cevap yok. |
+| C8 | Yaşlı anne, soğuk ev, "işe yarar mı?" | **Düzeltildi:** anlayış cümlesi yoktu; şimdi var, söz vermiyor. |
+| C9 | "Bot musun, dolandırıcı mısınız?" | Sakin ve dürüst cevap verdi, soruya döndü. |
+| C10 | İlk mesajda ısınma + m², sonra konum | **Düzeltildi:** cevaplanmış ısınma sorusunu yine soruyordu; şimdi konumdan sonra direkt kapanıyor. |
+
+**Tekrar testinde çıkan 2 hata daha (düzeltildi):**
+- Isı pompası reklamından "Klima" diye yazana ısı pompası soruları soruluyordu. Artık müşterinin söylediği hizmet reklamdan önce gelir.
+- İlk mesajı doğrudan kapanış olan müşteriye "Merhaba, ilginiz için teşekkürler. Teşekkür ederim…" diye çift teşekkür gidiyordu.
+
+Düzeltmeler: migration `0039_whatsapp_bot_setter.sql`, `n8n/bot-istemi.txt`, `n8n/build-workflow.py`. Test kayıtları silindi.

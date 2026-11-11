@@ -476,12 +476,17 @@ export async function addWhatsappLineAction(prevState: WhatsappLineState, formDa
 
 export async function updateWhatsappLineAction(
   lineId: string,
-  patch: { bot_enabled?: boolean; require_ad_referral?: boolean; test_mode?: boolean }
+  patch: { bot_enabled?: boolean; require_ad_referral?: boolean; test_mode?: boolean; bot_info?: string | null }
 ): Promise<WhatsappLineState> {
   await requireAdmin();
   const clean: typeof patch = {};
   for (const key of ["bot_enabled", "require_ad_referral", "test_mode"] as const) {
     if (typeof patch[key] === "boolean") clean[key] = patch[key];
+  }
+  if (typeof patch.bot_info === "string" || patch.bot_info === null) {
+    const info = (patch.bot_info ?? "").trim();
+    if (info.length > 2000) return { error: "Bilgi notu en fazla 2000 karakter olabilir." };
+    clean.bot_info = info || null;
   }
   const supabase = await createClient();
   const { error } = await supabase.from("whatsapp_lines").update(clean).eq("id", lineId);
