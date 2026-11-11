@@ -100,7 +100,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "// Bu mesajdan sonra botun yazdigi cevap(lar).\nconst prep = $('Mesajı Hazırla').first().json;\nconst since = new Date(prep.sentAt).getTime();\nconst msgs = [];\nfor (const it of $input.all()) {\n  for (const m of (it.json.whatsapp_messages || [])) {\n    if (m.role === 'bot' && new Date(m.created_at).getTime() > since) msgs.push(m);\n  }\n}\nmsgs.sort((a, b) => a.id - b.id);\nlet out = msgs.map(m => m.body).join('\\n\\n');\nif (!out) {\n  out = '(Bot cevap vermedi. \"tamam\", \"👍\" gibi cevap gerektirmeyen bir mesajsa ya da sohbet bittikten sonraki kısa cevap hakkı dolduysa bu normaldir.)';\n}\nif (/bilgilerinizi aldım/i.test(out)) {\n  out += '\\n\\n— Ön görüşme bitti. Panelde bu müşteri: ' + prep.panelPhone + ' (İklimlen). Yeni müşteri gibi denemek için sohbeti sıfırla.';\n}\nreturn [{ json: { output: out } }];"
+        "jsCode": "// Bu mesajdan sonra botun yazdigi cevap(lar).\nconst prep = $('Mesajı Hazırla').first().json;\nconst since = new Date(prep.sentAt).getTime();\nconst msgs = [];\nfor (const it of $input.all()) {\n  for (const m of (it.json.whatsapp_messages || [])) {\n    if (m.role === 'bot' && new Date(m.created_at).getTime() > since) msgs.push(m);\n  }\n}\nmsgs.sort((a, b) => a.id - b.id);\nlet out = msgs.map(m => m.body).join('\\n\\n');\nif (!out) {\n  out = '(Bot cevap vermedi. \"tamam\", \"👍\" gibi cevap gerektirmeyen bir mesajsa ya da sohbet bittikten sonraki kısa cevap hakkı dolduysa bu normaldir.)';\n}\nif (/ilk müsaitlikte sizi arayıp/i.test(out)) {\n  out += '\\n\\n— Ön görüşme bitti. Panelde bu müşteri: ' + prep.panelPhone + ' (İklimlen). Yeni müşteri gibi denemek için sohbeti sıfırla.';\n}\nreturn [{ json: { output: out } }];"
       }
     }
   ],

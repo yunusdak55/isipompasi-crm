@@ -10,6 +10,9 @@ SUPA_CRED = {"supabaseApi": {"id": "jHSd1FJtTriSFKqE", "name": "Supabase account
 # Botta yakalanmayan her hata (Supabase, WhatsApp gonderimi...) Denetim Kaydi'na yazilir.
 ERROR_WF_ID = "iC9iKT6rfIBMJJUa"
 OPENAI_CRED = {"openAiApi": {"id": "Mcu5ZOGxNWJMI0yP", "name": "OpenAI account"}}
+# Meta erisim anahtari: degeri kullanici n8n arayuzunde girer, repoda yok. Bearer Auth tipi "Bearer " onekini
+# kendisi ekler (Header Auth'ta onek unutulunca Meta 190 veriyordu, 2026-11-11).
+WA_CRED = {"httpBearerAuth": {"id": "dozguTyqOZ5ZHPtB", "name": "WhatsApp Meta Anahtarı (Bearer)"}}
 
 sp = open(f"{D}/bot-istemi.txt").read().strip()
 for ph in ("{FIRMA_ADI}", "{FİRMA_HİZMETLERİ_BURAYA}", "{FIRMA_BILGILERI}"):
@@ -146,11 +149,16 @@ const out = { ...($json.output || {}) };
 let r = String(out.reply_to_customer || '').replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').trim();
 const firstTurn = ctx.phase !== 'aftercare' && !(ctx.history || []).some(h => h.role === 'bot');
 // Kapanis mesaji her zaman birebir gider (yapay zeka kisaltip bozabiliyor).
-const KAPANIS = 'Teşekkür ederim, bilgilerinizi aldım. Ekibimiz ilk müsaitlikte sizi arayıp bilgilendirme sağlayacak.';
-if (out.conversation_complete === true && /bilgilerinizi aldım/i.test(r)) {
-  const named = r.match(/^(?:Merhaba, )?(Teşekkür ederim [^,.]{2,40} (?:Bey|Hanım)), bilgilerinizi aldım/i);
-  r = named ? named[1] + ', bilgilerinizi aldım. Ekibimiz ilk müsaitlikte sizi arayıp bilgilendirme sağlayacak.' : KAPANIS;
+const KAPANIS = 'Teşekkür ederim. Ekibimiz ilk müsaitlikte sizi arayıp bilgilendirme sağlayacak.';
+if (out.conversation_complete === true && /ilk müsaitlikte|bilgilerinizi aldım/i.test(r)) {
+  const named = r.match(/^(?:Merhaba, )?(Teşekkür ederim [^,.]{2,40} (?:Bey|Hanım))[,.]/i);
+  r = named ? named[1] + '. Ekibimiz ilk müsaitlikte sizi arayıp bilgilendirme sağlayacak.' : KAPANIS;
 }
+// Bilgi sessizce kaydedilir: "Not aldım." / "124 m² notunu aldım." gibi onay cumleleri musteriye gitmez
+// (kullanici istegi 2026-11-11). Yalniz arkasinda baska bir cumle varsa silinir.
+const NOT_CUMLESI = /(^|(?<=[.!?]\s))[^.!?\n]*\b(not ald[ıi]m|not ettim|notunu ald[ıi]m|not edildi|kaydettim|bilgilerinizi ald[ıi]m)\b[^.!?\n]*[.!?]\s*/gi;
+const temiz = r.replace(NOT_CUMLESI, '$1').trim();
+if (temiz) r = temiz;
 // "…anlıyorum; Hangi il…" gibi noktalı virgülden sonra büyük harf: cümleyi ayır.
 r = r.replace(/; (?=[A-ZÇĞİÖŞÜ])/g, '. ');
 const turkce = /[çğıöşüİ]/i.test(r);
@@ -227,11 +235,21 @@ nodes = [
     node("WhatsApp'a Gönder", "n8n-nodes-base.httpRequest", 4.2, [2440, -40], {
         "method": "POST",
         "url": "={{ 'https://graph.facebook.com/v23.0/' + $('İstemi Hazırla').item.json.phone_number_id + '/messages' }}",
-        "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
+        "authentication": "genericCredentialType", "genericAuthType": "httpBearerAuth",
         "sendBody": True, "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $('İstemi Hazırla').item.json.to, type: 'text', "
                     "text: { body: $('Cevabı Düzenle').item.json.output.reply_to_customer } }) }}",
-        "options": {"timeout": 15000}}, retryOnFail=True, maxTries=3, waitBetweenTries=2000),
+        "options": {"timeout": 15000}}, credentials=WA_CRED, retryOnFail=True, maxTries=3, waitBetweenTries=2000,
+        onError="continueErrorOutput"),
+    # Gonderim basarisizsa (anahtar, Meta kesintisi) cevap musteriye gitmedi: gecmisten silinir ki bot
+    # sormadigi soruyu sordu sanmasin (0042), hata da Denetim Kaydi'na yazilir.
+    rpc("Gönderilemeyen Cevabı Sil (wa_unsend_bot_reply)", "wa_unsend_bot_reply", [2680, 80],
+        "={{ JSON.stringify({ p_conversation_id: $('İstemi Hazırla').item.json.conversation_id, "
+        "p_body: $('Cevabı Düzenle').item.json.output.reply_to_customer }) }}"),
+    rpc("Gönderim Hatasını Kaydet (wa_log_error)", "wa_log_error", [2680, 240],
+        "={{ JSON.stringify({ p_workflow: $workflow.name, p_node: 'WhatsApp\\'a Gönder', "
+        "p_message: String(($json.error && ($json.error.message || JSON.stringify($json.error))) || 'gönderilemedi').slice(0, 500), "
+        "p_execution: String($execution.id) }) }}"),
     node("Her 30 dakikada", "n8n-nodes-base.scheduleTrigger", 1.2, [0, 360], {
         "rule": {"interval": [{"field": "minutes", "minutesInterval": 30}]}}),
     # 1 saat cevapsiz kalan sohbet kapanir ve lead CRM'e yazilir (musteri 72 saat icinde donerse sohbet devam eder).
@@ -257,6 +275,8 @@ connections = {
     "Cevabı Düzenle": conn("Cevabı ve Bilgileri Kaydet (wa_bot_reply)"),
     "Cevabı ve Bilgileri Kaydet (wa_bot_reply)": conn("Gönderilsin mi?"),
     "Gönderilsin mi?": {"main": [[{"node": "WhatsApp'a Gönder", "type": "main", "index": 0}], []]},
+    "WhatsApp'a Gönder": {"main": [[], [{"node": "Gönderilemeyen Cevabı Sil (wa_unsend_bot_reply)", "type": "main", "index": 0},
+                                        {"node": "Gönderim Hatasını Kaydet (wa_log_error)", "type": "main", "index": 0}]]},
     "Her 30 dakikada": conn("Yarım Kalanları Kapat (wa_close_stale)"),
 }
 

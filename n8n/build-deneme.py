@@ -51,7 +51,7 @@ let out = msgs.map(m => m.body).join('\n\n');
 if (!out) {
   out = '(Bot cevap vermedi. "tamam", "👍" gibi cevap gerektirmeyen bir mesajsa ya da sohbet bittikten sonraki kısa cevap hakkı dolduysa bu normaldir.)';
 }
-if (/bilgilerinizi aldım/i.test(out)) {
+if (/ilk müsaitlikte sizi arayıp/i.test(out)) {
   out += '\n\n— Ön görüşme bitti. Panelde bu müşteri: ' + prep.panelPhone + ' (İklimlen). Yeni müşteri gibi denemek için sohbeti sıfırla.';
 }
 return [{ json: { output: out } }];
