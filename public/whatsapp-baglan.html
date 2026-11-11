@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>WhatsApp bağlantısı</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0f1b2d; color: #f2f5f9; margin: 0; padding: 32px 16px; }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p, li { color: #c5cfdc; line-height: 1.5; }
+  button { background: #1fd67a; color: #0f1b2d; border: 0; border-radius: 10px; padding: 14px 22px; font-size: 17px; font-weight: 600; cursor: pointer; margin: 16px 0; }
+  button:disabled { opacity: .5; cursor: default; }
+  #durum { background: #17263d; border-radius: 10px; padding: 14px; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px; min-height: 40px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>WhatsApp Business numarasını bağla</h1>
+  <p>Firmanın mevcut WhatsApp Business numarası telefonda çalışmaya devam eder. Bağlantıdan sonra yalnız reklamdan gelen mesajları bot karşılar ve CRM'e yazar.</p>
+  <ol>
+    <li>Aşağıdaki düğmeye basın, açılan Facebook penceresinde firmanın işletme hesabını seçin.</li>
+    <li>"Mevcut WhatsApp Business numaranı bağla" seçeneğini seçip numarayı girin.</li>
+    <li>Telefondaki WhatsApp Business'a gelen mesajda "Bağlan"a basın, ekrandaki kodu girin. Sohbet geçmişini paylaşma sorusuna isteğe göre cevap verin.</li>
+  </ol>
+  <button id="baslat" disabled>Facebook ile bağla</button>
+  <div id="durum">Facebook yükleniyor…</div>
+</main>
+<script>
+  var APP_ID = '1138960335193661';
+  var CONFIG_ID = '1801305560917292';
+  var durum = document.getElementById('durum');
+  var dugme = document.getElementById('baslat');
+  function yaz(s) { durum.textContent += '\n' + s; }
+
+  // Embedded Signup sonucu (waba_id, phone_number_id) bu mesajla gelir.
+  window.addEventListener('message', function (event) {
+    if (!/(^|\.)facebook\.com$/.test(new URL(event.origin).hostname)) return;
+    var d; try { d = JSON.parse(event.data); } catch (e) { return; }
+    if (d.type !== 'WA_EMBEDDED_SIGNUP') return;
+    yaz('Olay: ' + d.event);
+    if (d.data) {
+      if (d.data.waba_id) yaz('WABA ID: ' + d.data.waba_id);
+      if (d.data.phone_number_id) yaz('Telefon numarası ID: ' + d.data.phone_number_id);
+      if (d.data.business_id) yaz('İşletme ID: ' + d.data.business_id);
+      if (d.data.current_step) yaz('Kalınan adım: ' + d.data.current_step);
+      if (d.data.error_message) yaz('Hata: ' + d.data.error_message);
+    }
+    if (/^FINISH/.test(d.event)) yaz('Tamamlandı. Bu ekranın görüntüsünü alın.');
+  });
+
+  window.fbAsyncInit = function () {
+    FB.init({ appId: APP_ID, autoLogAppEvents: true, xfbml: false, version: 'v23.0' });
+    durum.textContent = 'Hazır.';
+    dugme.disabled = false;
+  };
+
+  dugme.addEventListener('click', function () {
+    yaz('Facebook penceresi açılıyor…');
+    FB.login(function (response) {
+      // Kod (code) gizli tutulur; yalnız gelip gelmediği yazılır. Gönderim anahtarı sistem kullanıcısından alınır.
+      if (response.authResponse && response.authResponse.code) yaz('Facebook onayı alındı.');
+      else yaz('Pencere kapatıldı ya da onay verilmedi.');
+    }, {
+      config_id: CONFIG_ID,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: 'whatsapp_business_app_onboarding', sessionInfoVersion: '3' }
+    });
+  });
+</script>
+<script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+</body>
+</html>

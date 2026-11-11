@@ -74,6 +74,13 @@ const nextConfig = {
           { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
         ],
       },
+      // WhatsApp baglama sayfasi: Facebook giris penceresi sonucu (waba_id, phone_number_id)
+      // window.opener uzerinden gonderir; COOP same-origin bu bagi koparir. Ayni anahtar
+      // sonra gelen kuralda ezilir; yalniz bu tek dosya icin gevsetilir.
+      {
+        source: "/whatsapp-baglan.html",
+        headers: [{ key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" }],
+      },
     ];
   },
 

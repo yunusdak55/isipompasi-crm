@@ -200,6 +200,15 @@ export async function proxy(request: NextRequest) {
     return redirectTo(homePath);
   }
 
+  // WhatsApp numarasi baglama sayfasi (public/whatsapp-baglan.html, Meta Embedded Signup):
+  // yalniz admin acar. Facebook SDK'si (connect.facebook.net) ve giris penceresi panelin
+  // siki CSP'siyle calismaz; bu tek statik sayfa CSP'siz gider (sayfada veri ya da form yok).
+  // COOP icin bkz. next.config.mjs.
+  if (pathname === "/whatsapp-baglan.html") {
+    if (role !== "admin") return redirectTo(homePath ?? "/");
+    return finish(supabaseResponse);
+  }
+
   supabaseResponse.headers.set(cspHeaderName, csp);
   return finish(supabaseResponse);
 }
