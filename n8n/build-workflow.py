@@ -159,6 +159,13 @@ if (out.conversation_complete === true && /ilk müsaitlikte|bilgilerinizi aldım
 const NOT_CUMLESI = /(^|(?<=[.!?]\s))[^.!?\n]*\b(not ald[ıi]m|not ettim|notunu ald[ıi]m|not edildi|kaydettim|bilgilerinizi ald[ıi]m)\b[^.!?\n]*[.!?]\s*/gi;
 const temiz = r.replace(NOT_CUMLESI, '$1').trim();
 if (temiz) r = temiz;
+// Sorunun basina hizmet adi eklenmez ("Isı pompası için hangi il…" -> "Hangi il…"; kullanici istegi 2026-11-11).
+for (const c of (Array.isArray(ctx.categories) ? ctx.categories : [])) {
+  const lbl = String(c.label || '').trim();
+  if (!lbl) continue;
+  const esc = lbl.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+  r = r.replace(new RegExp('(^|[.!?] )' + esc + ' için,? ([a-zçğıöşü])', 'giu'), (m, pre, ch) => pre + ch.toLocaleUpperCase('tr-TR'));
+}
 // "…anlıyorum; Hangi il…" gibi noktalı virgülden sonra büyük harf: cümleyi ayır.
 r = r.replace(/; (?=[A-ZÇĞİÖŞÜ])/g, '. ');
 const turkce = /[çğıöşüİ]/i.test(r);
